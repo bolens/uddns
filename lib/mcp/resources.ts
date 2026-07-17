@@ -27,7 +27,14 @@ export async function readMcpResource(
     case MCP_RESOURCE_URIS.publicIp:
       return { mimeType: 'application/json', text: jsonText(await handlers.getPublicIp()) };
     case MCP_RESOURCE_URIS.status:
-      return { mimeType: 'application/json', text: jsonText(handlers.getStatus()) };
+      return {
+        mimeType: 'application/json',
+        text: jsonText(
+          session.accounts && session.accounts.length > 1
+            ? handlers.getAccountsStatus()
+            : handlers.getStatus(),
+        ),
+      };
     case MCP_RESOURCE_URIS.history:
       return { mimeType: 'application/json', text: jsonText(await handlers.getHistory()) };
     default:

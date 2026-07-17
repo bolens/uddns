@@ -44,6 +44,24 @@ const PROVIDER_HINTS: Record<ProviderId, string[]> = {
     'DIGITALOCEAN_DOMAIN (unless hosts are FQDNs)',
     'UDDNS_HOSTS',
   ],
+  gandi: ['GANDI_API_TOKEN', 'GANDI_DOMAIN', 'UDDNS_HOSTS'],
+  linode: ['LINODE_API_TOKEN', 'LINODE_DOMAIN_ID', 'LINODE_DOMAIN', 'UDDNS_HOSTS'],
+  ovh: [
+    'OVH_APPLICATION_KEY',
+    'OVH_APPLICATION_SECRET',
+    'OVH_CONSUMER_KEY',
+    'OVH_ZONE',
+    'UDDNS_HOSTS',
+  ],
+  bunny: ['BUNNY_API_KEY', 'BUNNY_ZONE_ID', 'BUNNY_DOMAIN', 'UDDNS_HOSTS'],
+  contabo: [
+    'CONTABO_CLIENT_ID',
+    'CONTABO_CLIENT_SECRET',
+    'CONTABO_API_USER',
+    'CONTABO_API_PASSWORD',
+    'CONTABO_ZONE',
+    'UDDNS_HOSTS',
+  ],
 };
 
 export function buildSetupProviderPrompt(providerId: string): {
@@ -91,6 +109,7 @@ export async function buildDiagnoseUpdatePrompt(
   const handlers = createToolHandlers(session, options);
   const status = handlers.getStatus();
   const config = handlers.getConfig();
+  const history = await handlers.getHistory();
   let publicIp: unknown;
   try {
     publicIp = await handlers.getPublicIp();
@@ -118,7 +137,19 @@ export async function buildDiagnoseUpdatePrompt(
     JSON.stringify(publicIp, null, 2),
     '```',
     '',
-    'Suggest concrete next steps (credentials, hosts, network, provider API).',
+    'Recent history (JSON):',
+    '```json',
+    JSON.stringify(history, null, 2),
+    '```',
+    '',
+    'Use this decision order:',
+    '1. No IP: inspect outbound HTTPS/DNS and discovery configuration.',
+    '2. Authentication/authorization: verify provider credentials and zone access.',
+    '3. HTTP 429/5xx: respect retry timing and check provider health.',
+    '4. Partial host failures: isolate failed hosts and dry-run only those hosts.',
+    '5. Unchanged: confirm checkpoints and force only when DNS is actually stale.',
+    '',
+    'Return concrete next steps without exposing secrets.',
   ].join('\n');
 
   return {
@@ -129,5 +160,37 @@ export async function buildDiagnoseUpdatePrompt(
         content: { type: 'text', text },
       },
     ],
+  };
+}
+
+export function buildFixConfigPrompt(session: McpSession): {
+  description: string;
+  messages: Array<{ role: 'user'; content: { type: 'text'; text: string } }>;
+} {
+  const handlers = createToolHandlers(session);
+  const validation = handlers.validateConfig();
+  const config = handlers.getConfig();
+  const text = [
+    'Propose the smallest safe uDDNS configuration patch.',
+    '',
+    'Validation result:',
+    '```json',
+    JSON.stringify(validation, null, 2),
+    '```',
+    '',
+    'Current redacted configuration:',
+    '```json',
+    JSON.stringify(config, null, 2),
+    '```',
+    '',
+    'Return both:',
+    '1. An `.env` patch using placeholders for secrets.',
+    '2. A multi-account YAML patch when applicable.',
+    '',
+    'Never invent or print credential values. Recommend validate_config and dry_run before updates.',
+  ].join('\n');
+  return {
+    description: 'Generate a safe redacted configuration patch from validation issues',
+    messages: [{ role: 'user', content: { type: 'text', text } }],
   };
 }

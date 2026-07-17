@@ -9,7 +9,11 @@ import { DEFAULT_MCP_HOST, DEFAULT_MCP_PORT, DEFAULT_MCP_TRANSPORT } from '../li
 import { loadMcpConfig } from '../lib/mcp/config.js';
 import { startMcpHttpServer } from '../lib/mcp/http.js';
 import { createStderrLogger } from '../lib/mcp/log.js';
-import { buildDiagnoseUpdatePrompt, buildSetupProviderPrompt } from '../lib/mcp/prompts.js';
+import {
+  buildDiagnoseUpdatePrompt,
+  buildFixConfigPrompt,
+  buildSetupProviderPrompt,
+} from '../lib/mcp/prompts.js';
 import { MCP_RESOURCE_URIS, readMcpResource } from '../lib/mcp/resources.js';
 import { createUddnsMcpServer } from '../lib/mcp/server.js';
 import { createMcpSession } from '../lib/mcp/session.js';
@@ -166,6 +170,147 @@ describe('MCP tool handlers', () => {
     await handlers.startLoop();
     expect(handlers.getStatus().running).toBe(true);
   });
+
+  it('validates config, explains cycles, lists accounts, and updates hosts', async () => {
+    const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
+    const config = makeConfig({
+      hosts: ['home.example.com', 'vpn.example.com'],
+      cloudflare: { apiToken: 'tok', zoneId: 'zone' },
+    });
+    const updater = createUpdater({
+      config,
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const handlers = createToolHandlers({
+      config,
+      provider: mockProvider(update),
+      updater,
+      log: silentLog(),
+      history: {
+        load: async () => [
+          {
+            at: '2026-01-01T00:00:00.000Z',
+            status: 'error',
+            ip: { v4: null, v6: null },
+            message: 'provider failed',
+            durationMs: 1,
+            cycle: 1,
+          },
+        ],
+        append: async (event) => [event],
+      },
+    });
+
+    expect(handlers.listAccounts()).toEqual([
+      {
+        id: 'default',
+        provider: 'cloudflare',
+        hosts: ['home.example.com', 'vpn.example.com'],
+      },
+    ]);
+    expect(handlers.validateConfig()).toMatchObject({
+      valid: true,
+      accountId: 'default',
+      provider: 'cloudflare',
+    });
+    expect(handlers.getAccountsStatus().accounts).toHaveLength(1);
+    expect(await handlers.getHistory()).toMatchObject({
+      accountId: 'default',
+      events: [expect.objectContaining({ status: 'error' })],
+    });
+    expect(await handlers.explainLastCycle()).toMatchObject({
+      severity: 'error',
+      nextSteps: expect.arrayContaining([expect.stringContaining('provider credentials')]),
+    });
+
+    const dry = await handlers.updateHosts(['home.example.com'], { dryRun: true });
+    expect(dry?.status).toBe('dry_run');
+    expect(update).not.toHaveBeenCalled();
+
+    const invalid = createToolHandlers({
+      config: makeConfig({ provider: 'gandi', gandi: { apiToken: null, domain: null } }),
+      provider: mockProvider(),
+      updater,
+      log: silentLog(),
+    });
+    expect(invalid.validateConfig().valid).toBe(false);
+    expect(invalid.validateConfig().issues.map((issue) => issue.field)).toEqual(
+      expect.arrayContaining(['GANDI_API_TOKEN', 'GANDI_DOMAIN']),
+    );
+
+    const empty = createToolHandlers({
+      config: makeConfig(),
+      provider: mockProvider(),
+      updater: createUpdater({
+        config: makeConfig(),
+        provider: mockProvider(),
+        getPublicIP: async () => ({ v4: null, v6: null }),
+        log: silentLog(),
+        stateStore: memoryStateStore(),
+      }),
+      log: silentLog(),
+    });
+    expect(await empty.explainLastCycle()).toMatchObject({
+      severity: 'info',
+      summary: 'No updater cycle has completed yet',
+    });
+
+    for (const [status, severity] of [
+      ['skipped_no_ip', 'warning'],
+      ['dry_run', 'info'],
+      ['partial', 'warning'],
+      ['unchanged', 'info'],
+    ] as const) {
+      const explained = createToolHandlers({
+        config: makeConfig(),
+        provider: mockProvider(),
+        updater: createUpdater({
+          config: makeConfig(),
+          provider: mockProvider(),
+          getPublicIP: async () => ({ v4: null, v6: null }),
+          log: silentLog(),
+          stateStore: memoryStateStore(),
+        }),
+        log: silentLog(),
+        history: {
+          load: async () => [
+            {
+              at: '2026-01-01T00:00:00.000Z',
+              status,
+              ip: { v4: null, v6: null },
+              message: status,
+              durationMs: 1,
+              cycle: 1,
+            },
+          ],
+          append: async (event) => [event],
+        },
+      });
+      expect(await explained.explainLastCycle()).toMatchObject({ severity, status });
+    }
+
+    const failingUpdater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(async () => ({ ok: false, message: 'denied' })),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    await failingUpdater.checkOnce();
+    const liveExplain = createToolHandlers({
+      config: makeConfig(),
+      provider: mockProvider(),
+      updater: failingUpdater,
+      log: silentLog(),
+    });
+    expect(await liveExplain.explainLastCycle()).toMatchObject({
+      severity: 'error',
+      failedHosts: [{ host: 'home.example.com', message: 'denied' }],
+    });
+  });
 });
 
 describe('MCP prompts and resources', () => {
@@ -173,6 +318,26 @@ describe('MCP prompts and resources', () => {
     const prompt = buildSetupProviderPrompt('duckdns');
     expect(prompt.messages[0]?.content.text).toContain('DUCKDNS_TOKEN');
     expect(() => buildSetupProviderPrompt('nope')).toThrow(/Unknown provider/);
+  });
+
+  it('builds fix_config from validation issues', () => {
+    const prompt = buildFixConfigPrompt({
+      config: makeConfig({
+        provider: 'bunny',
+        bunny: { apiKey: null, zoneId: null, domain: null },
+      }),
+      provider: mockProvider(),
+      updater: createUpdater({
+        config: makeConfig(),
+        provider: mockProvider(),
+        getPublicIP: async () => ({ v4: null, v6: null }),
+        log: silentLog(),
+        stateStore: memoryStateStore(),
+      }),
+      log: silentLog(),
+    });
+    expect(prompt.messages[0]?.content.text).toContain('BUNNY_API_KEY');
+    expect(prompt.description).toContain('configuration patch');
   });
 
   it('builds diagnose_update from live session data', async () => {
@@ -239,7 +404,7 @@ describe('MCP prompts and resources', () => {
 
     const status = await readMcpResource(session, MCP_RESOURCE_URIS.status);
     const history = await readMcpResource(session, MCP_RESOURCE_URIS.history);
-    expect(JSON.parse(history.text)).toEqual({ events: [] });
+    expect(JSON.parse(history.text)).toEqual({ accountId: 'default', events: [] });
     expect(status.text).toContain('"running"');
 
     const ip = await readMcpResource(session, MCP_RESOURCE_URIS.publicIp, {
@@ -284,18 +449,24 @@ describe('createUddnsMcpServer', () => {
       [
         'check_once',
         'dry_run',
+        'explain_last_cycle',
         'force_update',
         'get_config',
+        'get_history',
         'get_public_ip',
         'get_status',
+        'init_config',
+        'list_accounts',
         'list_providers',
         'set_interval',
         'start_loop',
         'stop_loop',
+        'update_hosts',
+        'validate_config',
       ].sort(),
     );
     expect(Object.keys(registered._registeredPrompts).sort()).toEqual(
-      ['diagnose_update', 'setup_provider'].sort(),
+      ['diagnose_update', 'fix_config', 'setup_provider'].sort(),
     );
     expect(Object.keys(registered._registeredResources).sort()).toEqual(
       Object.values(MCP_RESOURCE_URIS).sort(),
@@ -326,6 +497,77 @@ describe('createUddnsMcpServer', () => {
     expect(await registered._registeredTools['dry_run']!.handler(extra)).toMatchObject({
       content: [{ type: 'text' }],
     });
+    expect(await registered._registeredTools['list_accounts']!.handler(extra)).toMatchObject({
+      content: [{ type: 'text' }],
+      structuredContent: { result: expect.any(Array) },
+    });
+    expect(await registered._registeredTools['validate_config']!.handler(extra)).toMatchObject({
+      structuredContent: { result: expect.objectContaining({ valid: expect.any(Boolean) }) },
+    });
+    expect(await registered._registeredTools['get_history']!.handler(extra)).toMatchObject({
+      structuredContent: { result: expect.objectContaining({ events: expect.any(Array) }) },
+    });
+    expect(await registered._registeredTools['explain_last_cycle']!.handler(extra)).toMatchObject({
+      structuredContent: { result: expect.objectContaining({ summary: expect.any(String) }) },
+    });
+    expect(
+      await registered._registeredTools['update_hosts']!.handler(
+        { hosts: ['home.example.com'], dryRun: true },
+        extra,
+      ),
+    ).toMatchObject({
+      structuredContent: {
+        result: expect.objectContaining({ dryRun: true, status: 'unchanged' }),
+      },
+    });
+    expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
+      structuredContent: {
+        result: expect.objectContaining({
+          nextSteps: expect.any(Array),
+        }),
+      },
+    });
+
+    const elicit = vi.spyOn(server.server, 'elicitInput');
+    elicit.mockResolvedValueOnce({
+      action: 'accept',
+      content: { provider: 'duckdns', hosts: 'myhost', intervalMs: '60000' },
+    });
+    expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
+      structuredContent: {
+        result: expect.objectContaining({
+          env: expect.stringContaining('UDDNS_PROVIDER=duckdns'),
+        }),
+      },
+    });
+    elicit.mockResolvedValueOnce({ action: 'cancel' });
+    expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
+      structuredContent: { result: expect.objectContaining({ cancelled: true }) },
+    });
+    elicit.mockResolvedValueOnce({
+      action: 'accept',
+      content: { provider: 'not-a-provider', hosts: 'x.com' },
+    });
+    expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
+      structuredContent: {
+        result: expect.objectContaining({
+          fallback: expect.any(String),
+          error: expect.stringContaining('Unsupported provider'),
+        }),
+      },
+    });
+
+    const sendNotification = vi.fn(async () => {});
+    expect(
+      await registered._registeredTools['check_once']!.handler(
+        {},
+        { _meta: { progressToken: 'tok-1' }, sendNotification },
+      ),
+    ).toMatchObject({ structuredContent: { result: expect.any(Object) } });
+    expect(sendNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'notifications/progress' }),
+    );
+
     expect(await registered._registeredTools['start_loop']!.handler(extra)).toMatchObject({
       content: [{ type: 'text' }],
     });
@@ -335,6 +577,7 @@ describe('createUddnsMcpServer', () => {
 
     await registered._registeredPrompts['setup_provider']!.callback({ provider: 'cloudflare' });
     await registered._registeredPrompts['diagnose_update']!.callback();
+    await registered._registeredPrompts['fix_config']!.callback();
 
     await registered._registeredResources[MCP_RESOURCE_URIS.config]!.readCallback(
       new URL(MCP_RESOURCE_URIS.config),
@@ -345,12 +588,67 @@ describe('createUddnsMcpServer', () => {
     await registered._registeredResources[MCP_RESOURCE_URIS.status]!.readCallback(
       new URL(MCP_RESOURCE_URIS.status),
     );
+    await registered._registeredResources[MCP_RESOURCE_URIS.history]!.readCallback(
+      new URL(MCP_RESOURCE_URIS.history),
+    );
+  });
+
+  it('returns aggregated status for multi-account sessions', async () => {
+    const makeUpdater = () =>
+      createUpdater({
+        config: makeConfig(),
+        provider: mockProvider(),
+        getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+        log: silentLog(),
+        stateStore: memoryStateStore(),
+      });
+    const primary = makeUpdater();
+    const secondary = makeUpdater();
+    const server = createUddnsMcpServer({
+      accountId: 'a',
+      config: makeConfig({ hosts: ['a.example.com'] }),
+      provider: mockProvider(),
+      updater: primary,
+      log: silentLog(),
+      accounts: [
+        {
+          id: 'a',
+          config: makeConfig({ hosts: ['a.example.com'] }),
+          provider: mockProvider(),
+          updater: primary,
+        },
+        {
+          id: 'b',
+          config: makeConfig({ hosts: ['b.example.com'] }),
+          provider: mockProvider(),
+          updater: secondary,
+        },
+      ],
+    });
+    const registered = server as unknown as {
+      _registeredTools: Record<
+        string,
+        { handler: (args?: unknown, extra?: unknown) => Promise<{ structuredContent: unknown }> }
+      >;
+    };
+    expect(await registered._registeredTools['get_status']!.handler({})).toMatchObject({
+      structuredContent: {
+        result: { accounts: expect.arrayContaining([expect.objectContaining({ id: 'a' })]) },
+      },
+    });
+    expect(
+      await registered._registeredTools['get_status']!.handler({ accountId: 'b' }),
+    ).toMatchObject({
+      structuredContent: {
+        result: expect.objectContaining({ running: false }),
+      },
+    });
   });
 });
 
 describe('createMcpSession', () => {
-  it('loads config and provider through injectable dependencies', () => {
-    const session = createMcpSession({
+  it('loads config and provider through injectable dependencies', async () => {
+    const session = await createMcpSession({
       env: {},
       log: silentLog(),
       loadConfigFn: () => makeConfig(),

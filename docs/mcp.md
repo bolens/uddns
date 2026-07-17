@@ -8,6 +8,10 @@ Run either the core daemon or an MCP mode for a given environment/state file.
 Do not run both against the same provider configuration at once, because both
 processes can issue updates.
 
+When `UDDNS_CONFIG_FILE` points at a multi-account YAML file, MCP loads every
+account and exposes `list_accounts` plus optional `accountId` arguments on
+account-scoped tools.
+
 ## Run modes
 
 | Command           | Mode                                                             |
@@ -40,23 +44,39 @@ Add uDDNS to your Cursor MCP configuration:
 stdio reserves stdout for MCP JSON-RPC. uDDNS routes all diagnostics to stderr
 in this mode.
 
+Agents should call `validate_config` and `dry_run` before `check_once`,
+`force_update`, or `update_hosts`. Prefer scoped `update_hosts` over account-wide
+updates. See `.cursor/rules/uddns-safe-operations.mdc`.
+
 ## Tools
 
+Tool results include both JSON text `content` and `structuredContent`.
+
 - `list_providers` — list supported Dynamic DNS providers
+- `list_accounts` — list loaded MCP accounts
 - `get_public_ip` — discover the current public IPv4 and IPv6 addresses
 - `get_config` — return the active configuration with secrets redacted
 - `check_once` — run one overlap-safe update cycle
 - `force_update` — force updates for all hosts ignoring checkpoints
 - `dry_run` — show which hosts would update without calling the provider
+- `update_hosts` — force or dry-run only selected configured hosts
 - `get_status` — inspect loop, interval, cycle, IP, and host checkpoint state
+- `get_history` — return recent cycle history
+- `validate_config` — field-level configuration validation
+- `explain_last_cycle` — summarize the last cycle with next steps
 - `set_interval` — change the live interval (minimum 1000 ms)
 - `start_loop` — run an immediate check and start interval scheduling
 - `stop_loop` — stop scheduling and wait for an active cycle
+- `init_config` — elicit non-secret init values and return a `.env` template
+
+Long-running update tools emit MCP progress notifications when the client
+provides a `progressToken`.
 
 ## Prompts
 
 - `setup_provider`
 - `diagnose_update`
+- `fix_config`
 
 ## Resources
 
@@ -64,6 +84,9 @@ in this mode.
 - `uddns://public-ip`
 - `uddns://status`
 - `uddns://history`
+
+Clients can subscribe to resource updates. Successful cycles notify
+`uddns://status` and `uddns://history`.
 
 ## Streamable HTTP
 

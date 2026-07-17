@@ -35,7 +35,7 @@ export type AppOptions = {
     loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
     getProviderFn?: (id: string) => Provider;
     createUpdaterFn?: (options: { config: AppConfig; provider: Provider; log: Logger }) => Updater;
-  }) => McpSession;
+  }) => McpSession | Promise<McpSession>;
   startHttpFn?: (options: {
     session: McpSession;
     mcpConfig: McpConfig;
@@ -102,8 +102,12 @@ export async function main(options: AppOptions = {}): Promise<void> {
   let stdioHandle: { close: () => Promise<void> } | null = null;
 
   async function cleanup(): Promise<void> {
+    const stopAccounts = (activeSession?.accounts ?? []).map((account) => account.updater.stop());
+    if (stopAccounts.length === 0 && activeSession) {
+      stopAccounts.push(activeSession.updater.stop());
+    }
     const results = await Promise.allSettled([
-      activeSession?.updater.stop() ?? Promise.resolve(),
+      ...stopAccounts,
       httpServer?.close() ?? Promise.resolve(),
       stdioHandle?.close() ?? Promise.resolve(),
     ]);
@@ -124,7 +128,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
     }
 
     const mcpConfig = loadMcpConfigFn(env, { transportOverride });
-    const session = createSessionFn({
+    const session = await createSessionFn({
       env,
       log,
       loadConfigFn,
@@ -167,13 +171,17 @@ export async function main(options: AppOptions = {}): Promise<void> {
     });
 
     if (mcpConfig.transport === 'http') {
-      await session.updater.start();
+      const accounts = session.accounts?.length ? session.accounts : [{ updater: session.updater }];
+      await Promise.all(accounts.map((account) => account.updater.start()));
       httpServer = await startHttpFn({ session, mcpConfig, log });
       log.info(`MCP HTTP listening on ${httpServer.url}`, {
         host: mcpConfig.host,
         port: mcpConfig.port,
         tls: Boolean(mcpConfig.tlsCert),
         auth: Boolean(mcpConfig.authToken),
+        accounts: session.accounts?.map((account) => account.id) ?? [
+          session.accountId ?? 'default',
+        ],
       });
       return;
     }
