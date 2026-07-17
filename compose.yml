@@ -16,7 +16,7 @@ services:
     # Image default is already UDDNS_STATE_FILE=/data/state.json (see Dockerfile).
     volumes:
       - uddns-state:/data
-    # No inbound ports: uDDNS only makes outbound HTTPS/DNS requests.
+    # The core updater only makes outbound HTTPS/DNS requests.
     read_only: true
     security_opt:
       - no-new-privileges:true
