@@ -79,11 +79,20 @@ async function upsert(
     'Content-Type': 'application/json',
     'x-request-id': randomUUID(),
   };
-  const listed = await request(base, { headers });
-  const parsed = listed.response.ok ? recordsSchema.safeParse(JSON.parse(listed.body)) : null;
-  if (!parsed?.success) return fail('Contabo record lookup failed', { http: listed.meta });
   const label = name === '@' ? '' : name;
   const fqdn = label ? `${label}.${auth.zone}` : auth.zone!;
+  const listed = await request(`${base}?search=${encodeURIComponent(fqdn)}&size=100`, {
+    headers,
+  });
+  let parsed: ReturnType<typeof recordsSchema.safeParse> | null = null;
+  if (listed.response.ok) {
+    try {
+      parsed = recordsSchema.safeParse(JSON.parse(listed.body));
+    } catch {
+      parsed = null;
+    }
+  }
+  if (!parsed?.success) return fail('Contabo record lookup failed', { http: listed.meta });
   const record = parsed.data.data.find(
     (item) =>
       item.type === type &&

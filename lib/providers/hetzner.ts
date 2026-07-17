@@ -144,8 +144,8 @@ async function findZoneByName(apiToken: string, name: string): Promise<HetznerZo
 
 /** Hetzner records are named relative to the zone: `@` for the apex. */
 function relativeRecordName(hostname: string, zoneName: string): string | null {
-  const host = hostname.toLowerCase();
-  const zone = zoneName.toLowerCase();
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  const zone = zoneName.toLowerCase().replace(/\.$/, '');
   if (host === zone) {
     return '@';
   }

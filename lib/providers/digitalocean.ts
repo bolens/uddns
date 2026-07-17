@@ -93,12 +93,13 @@ function deriveDomain(hostname: string): string | null {
 
 /** DigitalOcean records are named relative to the domain: `@` for the apex. */
 function relativeRecordName(hostname: string, domain: string): string | null {
-  const host = hostname.toLowerCase();
-  if (host === domain) {
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  const apex = domain.toLowerCase().replace(/\.$/, '');
+  if (host === apex) {
     return '@';
   }
-  if (host.endsWith(`.${domain}`)) {
-    return host.slice(0, -(domain.length + 1));
+  if (host.endsWith(`.${apex}`)) {
+    return host.slice(0, -(apex.length + 1));
   }
   return null;
 }

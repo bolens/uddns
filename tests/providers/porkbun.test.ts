@@ -258,10 +258,45 @@ describe('porkbun provider', () => {
     ).resolves.toMatchObject({
       ok: false,
       message: expect.stringContaining('Set PORKBUN_DOMAIN'),
-      details: expect.objectContaining({ hint: expect.stringContaining('registered domain') }),
+      details: expect.objectContaining({ hint: expect.stringContaining('PORKBUN_DOMAIN') }),
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects foreign FQDNs when PORKBUN_DOMAIN is set', async () => {
+    const fetchMock = stubRoutedFetch([]);
+
+    await expect(
+      porkbunProvider.update(pbConfig({ hosts: ['other.net'], hostname: 'other.net' }), {
+        v4: '9.9.9.9',
+        v6: null,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('outside PORKBUN_DOMAIN'),
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('strips trailing dots from hosts under PORKBUN_DOMAIN', async () => {
+    stubRoutedFetch([
+      {
+        match: (url) => url.includes('/dns/retrieveByNameType/example.com/A/home'),
+        response: pbSuccess([{ id: '1', name: 'home.example.com', type: 'A', content: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      porkbunProvider.update(
+        pbConfig({ hosts: ['home.example.com.'], hostname: 'home.example.com.' }),
+        {
+          v4: '9.9.9.9',
+          v6: null,
+        },
+      ),
+    ).resolves.toMatchObject({ ok: true, skipped: true });
   });
 
   it('surfaces Porkbun API errors from lookup, edit, and create', async () => {

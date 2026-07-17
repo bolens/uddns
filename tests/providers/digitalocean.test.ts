@@ -239,6 +239,25 @@ describe('digitalocean provider', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('strips trailing dots when matching hosts to the domain', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?type=A'),
+        response: doRecords([{ id: 101, type: 'A', name: 'home', data: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      digitaloceanProvider.update(
+        doConfig({ hosts: ['home.example.com.'], hostname: 'home.example.com.' }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+    });
+  });
+
   it('surfaces API errors from update and create requests', async () => {
     stubRoutedFetch([
       {

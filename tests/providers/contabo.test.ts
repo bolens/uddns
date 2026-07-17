@@ -46,7 +46,7 @@ function authAndDnsRoutes(options: {
     },
     {
       match: (url: string, method: string) =>
-        method === 'GET' && url.endsWith('/dns/zones/example.com/records'),
+        method === 'GET' && url.includes('/dns/zones/example.com/records'),
       response: jsonResponse({ data: options.records }),
     },
     ...(options.mutateMethod
@@ -109,6 +109,8 @@ describe('contabo provider', () => {
     const list = getCall(fetchMock, 1);
     expect(list.headers.get('Authorization')).toBe('Bearer access-token');
     expect(list.headers.get('x-request-id')).toEqual(expect.any(String));
+    expect(list.url.searchParams.get('search')).toBe('home.example.com');
+    expect(list.url.searchParams.get('size')).toBe('100');
 
     const patch = getCall(
       fetchMock,
@@ -233,6 +235,26 @@ describe('contabo provider', () => {
       {
         match: (url, method) => method === 'GET' && url.includes('/dns/zones/'),
         response: jsonResponse({ data: 'bad' }),
+      },
+    ]);
+
+    await expect(
+      contaboProvider.update(contaboConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: 'Contabo record lookup failed',
+    });
+  });
+
+  it('fails when DNS record listing returns non-JSON', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'POST' && url.includes('/token'),
+        response: jsonResponse({ access_token: 'access-token' }),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/dns/zones/'),
+        response: new Response('<html>oops</html>', { status: 200 }),
       },
     ]);
 

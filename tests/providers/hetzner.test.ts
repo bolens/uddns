@@ -249,6 +249,29 @@ describe('hetzner provider', () => {
     });
   });
 
+  it('strips trailing dots when matching hosts to the zone', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: hzZone('zone1', 'example.com'),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?zone_id=zone1'),
+        response: hzRecords([{ id: 'r1', type: 'A', name: 'home', value: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      hetznerProvider.update(
+        hzConfig({ hosts: ['home.example.com.'], hostname: 'home.example.com.' }),
+        {
+          v4: '9.9.9.9',
+          v6: null,
+        },
+      ),
+    ).resolves.toMatchObject({ ok: true, skipped: true });
+  });
+
   it('updates A and AAAA independently', async () => {
     stubRoutedFetch([
       {

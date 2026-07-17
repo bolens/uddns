@@ -54,10 +54,15 @@ export const porkbunProvider: Provider = {
 
     const split = splitHost(hostname, pb.domain);
     if (!split) {
-      return fail(`Cannot determine Porkbun domain for "${hostname}". Set PORKBUN_DOMAIN.`, {
-        hostname,
-        hint: 'Use an FQDN in UDDNS_HOSTS or set PORKBUN_DOMAIN to the registered domain',
-      });
+      return fail(
+        pb.domain
+          ? `Host "${hostname}" is outside PORKBUN_DOMAIN (${pb.domain})`
+          : `Cannot determine Porkbun domain for "${hostname}". Set PORKBUN_DOMAIN.`,
+        {
+          hostname,
+          hint: 'Use an FQDN under the registered domain, a bare subdomain label, or set PORKBUN_DOMAIN',
+        },
+      );
     }
 
     const auth = { apikey: pb.apiKey!, secretapikey: pb.secretKey! };
@@ -89,17 +94,21 @@ type HostSplit = {
  * last two labels of the host.
  */
 function splitHost(hostname: string, domain: string | null): HostSplit | null {
-  const host = hostname.toLowerCase();
+  const host = hostname.toLowerCase().replace(/\.$/, '');
 
   if (domain) {
-    const apex = domain.toLowerCase();
+    const apex = domain.toLowerCase().replace(/\.$/, '');
     if (host === apex) {
       return { domain: apex, subdomain: '' };
     }
     if (host.endsWith(`.${apex}`)) {
       return { domain: apex, subdomain: host.slice(0, -(apex.length + 1)) };
     }
-    return { domain: apex, subdomain: host };
+    // Bare labels (no dots) are allowed as subdomains under the configured apex.
+    if (!host.includes('.')) {
+      return { domain: apex, subdomain: host };
+    }
+    return null;
   }
 
   const parts = host.split('.').filter(Boolean);
