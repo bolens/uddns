@@ -34,7 +34,9 @@ export function stubCloudflareFetch(routes: CfRoute[]) {
     const method = (init?.method ?? 'GET').toUpperCase();
     for (const route of routes) {
       if (route.match(url, method)) {
-        return typeof route.response === 'function' ? route.response(url, init) : route.response;
+        return typeof route.response === 'function'
+          ? route.response(url, init)
+          : route.response.clone();
       }
     }
     return jsonResponse(
@@ -45,6 +47,10 @@ export function stubCloudflareFetch(routes: CfRoute[]) {
       500,
     );
   });
+}
+
+export function stubCloudflareResponse(response: Response) {
+  return stubCloudflareFetch([{ match: () => true, response }]);
 }
 
 export function parseJsonBody(body: string | null): unknown {

@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
 import { afterEachResetFetch } from './helpers/cleanup.js';
 
 import { HttpError, request, sanitizeUrl, truncateBody, userAgent } from '../lib/providers/http.js';
-import { getCall } from './helpers/fetch.js';
+import { getCall, stubFetch } from './helpers/fetch.js';
 
 afterEachResetFetch();
 
@@ -31,10 +31,9 @@ describe('truncateBody', () => {
 
 describe('request', () => {
   it('sets a User-Agent, returns timing metadata, and sanitizes logged URLs', async () => {
-    const fetchMock = vi.fn(
+    const fetchMock = stubFetch(
       async () => new Response('hello', { status: 201, statusText: 'Created' }),
     );
-    vi.stubGlobal('fetch', fetchMock);
 
     const ok = await request('https://example.com/update?token=super-secret', {
       method: 'POST',
@@ -58,17 +57,14 @@ describe('request', () => {
   });
 
   it('wraps network failures with method, sanitized URL, timing, and cause code', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw Object.assign(new Error('dns'), {
-          code: 'ENOTFOUND',
-          errno: -3008,
-          syscall: 'getaddrinfo',
-          hostname: 'missing.example',
-        });
-      }),
-    );
+    stubFetch(async () => {
+      throw Object.assign(new Error('dns'), {
+        code: 'ENOTFOUND',
+        errno: -3008,
+        syscall: 'getaddrinfo',
+        hostname: 'missing.example',
+      });
+    });
 
     await expect(request('https://user:pass@missing.example/path?token=abc')).rejects.toMatchObject(
       {
@@ -87,11 +83,10 @@ describe('request', () => {
   });
 
   it('always passes an abort signal to fetch so requests cannot hang forever', async () => {
-    const fetchMock = vi.fn(
+    const fetchMock = stubFetch(
       async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
         new Response('ok', { status: 200 }),
     );
-    vi.stubGlobal('fetch', fetchMock);
 
     await request('https://example.com/update');
 
@@ -101,7 +96,7 @@ describe('request', () => {
   });
 
   it('aborts the request when the timeout elapses', async () => {
-    const fetchMock = vi.fn(
+    stubFetch(
       (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => {
@@ -109,7 +104,6 @@ describe('request', () => {
           });
         }),
     );
-    vi.stubGlobal('fetch', fetchMock);
 
     await expect(request('https://slow.example/update', { timeoutMs: 5 })).rejects.toMatchObject({
       name: 'HttpError',
@@ -119,7 +113,7 @@ describe('request', () => {
   });
 
   it('combines a caller-provided signal with the timeout signal', async () => {
-    const fetchMock = vi.fn(
+    stubFetch(
       (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => {
@@ -127,7 +121,6 @@ describe('request', () => {
           });
         }),
     );
-    vi.stubGlobal('fetch', fetchMock);
 
     const controller = new AbortController();
     const pending = request('https://example.com/update', {
@@ -143,12 +136,9 @@ describe('request', () => {
   });
 
   it('wraps non-Error throwables without network fields', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw 'socket exploded';
-      }),
-    );
+    stubFetch(async () => {
+      throw 'socket exploded';
+    });
 
     await expect(request('https://example.com/x')).rejects.toMatchObject({
       name: 'HttpError',

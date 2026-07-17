@@ -13,9 +13,10 @@ import {
   cfZones,
   parseJsonBody,
   stubCloudflareFetch,
+  stubCloudflareResponse,
 } from '../helpers/cloudflare-fetch.js';
 import { makeConfig } from '../helpers/config.js';
-import { fetchInputUrl, getCall, jsonResponse, stubFetch } from '../helpers/fetch.js';
+import { fetchInputUrl, getCall, jsonResponse } from '../helpers/fetch.js';
 
 afterEachResetFetch();
 
@@ -39,7 +40,7 @@ describe('cloudflare response schemas', () => {
 
 describe('cloudflare provider', () => {
   it('requires token and record name before contacting the API', async () => {
-    const fetchMock = stubFetch(async () => cfOk([]));
+    const fetchMock = stubCloudflareResponse(cfOk([]));
 
     await expect(
       cloudflareProvider.update(makeConfig({ cloudflare: { recordName: null } }), {
@@ -121,16 +122,12 @@ describe('cloudflare provider', () => {
   });
 
   it('skips unchanged records and creates missing ones when enabled', async () => {
-    stubFetch(async (input) => {
-      const url = fetchInputUrl(input);
-      if (url.includes('/dns_records?')) {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '9.9.9.9', proxied: false }],
-        });
-      }
-      return jsonResponse({ success: false, errors: [{ message: `unexpected ${url}` }] }, 500);
-    });
+    stubCloudflareFetch([
+      {
+        match: (url) => url.includes('/dns_records?'),
+        response: cfRecords([{ id: 'record1', content: '9.9.9.9' }]),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -149,29 +146,23 @@ describe('cloudflare provider', () => {
       message: expect.stringContaining('unchanged'),
     });
 
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?') && method === 'GET') {
-        return jsonResponse({ success: true, result: [] });
-      }
-      if (method === 'POST' && url.endsWith('/dns_records')) {
-        expect(typeof init.body).toBe('string');
-        expect(JSON.parse(typeof init.body === 'string' ? init.body : '')).toMatchObject({
-          type: 'A',
-          name: 'home.example.com',
-          content: '9.9.9.9',
-        });
-        return jsonResponse({
-          success: true,
-          result: { id: 'new1', content: '9.9.9.9', proxied: false },
-        });
-      }
-      return jsonResponse(
-        { success: false, errors: [{ message: `unexpected ${method} ${url}` }] },
-        500,
-      );
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => url.includes('/dns_records?') && method === 'GET',
+        response: cfRecords([]),
+      },
+      {
+        match: (url, method) => method === 'POST' && url.endsWith('/dns_records'),
+        response: (_url, init = {}) => {
+          expect(parseJsonBody(typeof init.body === 'string' ? init.body : null)).toMatchObject({
+            type: 'A',
+            name: 'home.example.com',
+            content: '9.9.9.9',
+          });
+          return cfOk({ id: 'new1', content: '9.9.9.9', proxied: false });
+        },
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -192,20 +183,16 @@ describe('cloudflare provider', () => {
   });
 
   it('patches a record when only its TTL changed', async () => {
-    const fetchMock = stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?')) {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '9.9.9.9', proxied: false, ttl: 120 }],
-        });
-      }
-      if (method === 'PATCH') {
-        return jsonResponse({ success: true, result: { id: 'record1' } });
-      }
-      return jsonResponse({ success: false }, 500);
-    });
+    const fetchMock = stubCloudflareFetch([
+      {
+        match: (url) => url.includes('/dns_records?'),
+        response: cfRecords([{ id: 'record1', content: '9.9.9.9', proxied: false, ttl: 120 }]),
+      },
+      {
+        match: (_url, method) => method === 'PATCH',
+        response: cfOk({ id: 'record1' }),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -229,7 +216,7 @@ describe('cloudflare provider', () => {
   });
 
   it('fails when createIfMissing is false or Cloudflare returns API errors', async () => {
-    stubFetch(async () => jsonResponse({ success: true, result: [] }));
+    stubCloudflareResponse(cfRecords([]));
 
     await expect(
       cloudflareProvider.update(
@@ -257,23 +244,16 @@ describe('cloudflare provider', () => {
       }),
     });
 
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?') && method === 'GET') {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
-        });
-      }
-      return jsonResponse(
-        {
-          success: false,
-          errors: [{ code: 10000, message: 'Authentication error' }],
-        },
-        403,
-      );
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => url.includes('/dns_records?') && method === 'GET',
+        response: cfRecords([{ id: 'record1', content: '1.1.1.1' }]),
+      },
+      {
+        match: () => true,
+        response: cfErr([{ code: 10000, message: 'Authentication error' }], 403),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -302,7 +282,7 @@ describe('cloudflare provider', () => {
   });
 
   it('fails fast when no public IP is available', async () => {
-    const fetchMock = stubFetch(async () => jsonResponse({ success: true, result: [] }));
+    const fetchMock = stubCloudflareResponse(cfRecords([]));
 
     await expect(
       cloudflareProvider.update(
@@ -321,35 +301,24 @@ describe('cloudflare provider', () => {
 
   it('walks record labels to discover the zone when zone id/name are unset', async () => {
     const zoneQueries: string[] = [];
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-
-      if (url.includes('/zones?')) {
-        const name = new URL(url).searchParams.get('name') ?? '';
-        zoneQueries.push(name);
-        if (name === 'example.com') {
-          return jsonResponse({ success: true, result: [{ id: 'zone1', name }] });
-        }
-        return jsonResponse({ success: true, result: [] });
-      }
-
-      if (url.includes('/dns_records?')) {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
-        });
-      }
-
-      if (method === 'PATCH' && url.endsWith('/dns_records/record1')) {
-        return jsonResponse({
-          success: true,
-          result: { id: 'record1', content: '9.9.9.9', proxied: false },
-        });
-      }
-
-      return jsonResponse({ success: false, errors: [{ message: `unexpected ${url}` }] }, 500);
-    });
+    stubCloudflareFetch([
+      {
+        match: (url) => url.includes('/zones?'),
+        response: (url) => {
+          const name = new URL(url).searchParams.get('name') ?? '';
+          zoneQueries.push(name);
+          return cfZones(name === 'example.com' ? [{ id: 'zone1', name }] : []);
+        },
+      },
+      {
+        match: (url) => url.includes('/dns_records?'),
+        response: cfRecords([{ id: 'record1', content: '1.1.1.1' }]),
+      },
+      {
+        match: (url, method) => method === 'PATCH' && url.endsWith('/dns_records/record1'),
+        response: cfOk({ id: 'record1', content: '9.9.9.9', proxied: false }),
+      },
+    ]);
 
     const result = await cloudflareProvider.update(
       makeConfig({
@@ -363,7 +332,7 @@ describe('cloudflare provider', () => {
   });
 
   it('fails with guidance when no zone can be resolved', async () => {
-    stubFetch(async () => jsonResponse({ success: true, result: [] }));
+    stubCloudflareResponse(cfZones([]));
 
     await expect(
       cloudflareProvider.update(
@@ -382,7 +351,7 @@ describe('cloudflare provider', () => {
   });
 
   it('rejects success=false zone and pinned-record lookups', async () => {
-    stubFetch(async () => cfErr([{ code: 9109, message: 'Invalid access token' }]));
+    stubCloudflareResponse(cfErr([{ code: 9109, message: 'Invalid access token' }]));
 
     await expect(
       cloudflareProvider.update(
@@ -393,7 +362,7 @@ describe('cloudflare provider', () => {
       ),
     ).rejects.toThrow(/zone lookup.*Invalid access token/i);
 
-    stubFetch(async () => cfErr([{ code: 9109, message: 'Invalid access token' }]));
+    stubCloudflareResponse(cfErr([{ code: 9109, message: 'Invalid access token' }]));
 
     await expect(
       cloudflareProvider.update(
@@ -412,17 +381,16 @@ describe('cloudflare provider', () => {
 
   it('reports patch and create failures even when the error body is bare', async () => {
     // PATCH failure: HTTP 200 with success=false and no errors array.
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?') && method === 'GET') {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
-        });
-      }
-      return jsonResponse({ success: false });
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => url.includes('/dns_records?') && method === 'GET',
+        response: cfRecords([{ id: 'record1', content: '1.1.1.1' }]),
+      },
+      {
+        match: () => true,
+        response: jsonResponse({ success: false }),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -444,17 +412,16 @@ describe('cloudflare provider', () => {
     });
 
     // Create failure: record missing, POST rejected.
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?') && method === 'GET') {
-        return jsonResponse({ success: true, result: [] });
-      }
-      return jsonResponse(
-        { success: false, errors: [{ code: 81057, message: 'Record already exists' }] },
-        400,
-      );
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => url.includes('/dns_records?') && method === 'GET',
+        response: cfRecords([]),
+      },
+      {
+        match: () => true,
+        response: cfErr([{ code: 81057, message: 'Record already exists' }], 400),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -482,11 +449,8 @@ describe('cloudflare provider', () => {
   });
 
   it('rejects success=false lookup envelopes instead of treating them as missing', async () => {
-    const fetchMock = stubFetch(async () =>
-      jsonResponse(
-        { success: false, errors: [{ code: 10000, message: 'Authentication error' }] },
-        403,
-      ),
+    const fetchMock = stubCloudflareResponse(
+      cfErr([{ code: 10000, message: 'Authentication error' }], 403),
     );
 
     await expect(
@@ -501,40 +465,24 @@ describe('cloudflare provider', () => {
   });
 
   it('fetches the pinned record by id for A and updates AAAA independently', async () => {
-    const fetchMock = stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-
-      if (method === 'GET' && url.endsWith('/dns_records/pinned1')) {
-        return jsonResponse({
-          success: true,
-          result: { id: 'pinned1', content: '1.1.1.1', proxied: false },
-        });
-      }
-
-      if (method === 'PATCH' && url.endsWith('/dns_records/pinned1')) {
-        return jsonResponse({
-          success: true,
-          result: { id: 'pinned1', content: '9.9.9.9', proxied: false },
-        });
-      }
-
-      if (url.includes('/dns_records?') && url.includes('type=AAAA')) {
-        return jsonResponse({ success: true, result: [] });
-      }
-
-      if (method === 'POST' && url.endsWith('/dns_records')) {
-        return jsonResponse({
-          success: true,
-          result: { id: 'new-aaaa', content: '2001:db8::9', proxied: false },
-        });
-      }
-
-      return jsonResponse(
-        { success: false, errors: [{ message: `unexpected ${method} ${url}` }] },
-        500,
-      );
-    });
+    const fetchMock = stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/dns_records/pinned1'),
+        response: cfOk({ id: 'pinned1', content: '1.1.1.1', proxied: false }),
+      },
+      {
+        match: (url, method) => method === 'PATCH' && url.endsWith('/dns_records/pinned1'),
+        response: cfOk({ id: 'pinned1', content: '9.9.9.9', proxied: false }),
+      },
+      {
+        match: (url) => url.includes('/dns_records?') && url.includes('type=AAAA'),
+        response: cfRecords([]),
+      },
+      {
+        match: (url, method) => method === 'POST' && url.endsWith('/dns_records'),
+        response: cfOk({ id: 'new-aaaa', content: '2001:db8::9', proxied: false }),
+      },
+    ]);
 
     const result = await cloudflareProvider.update(
       makeConfig({
@@ -569,26 +517,16 @@ describe('cloudflare provider', () => {
   });
 
   it('treats a null pinned-record lookup as missing and creates the record', async () => {
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-
-      if (method === 'GET' && url.endsWith('/dns_records/gone1')) {
-        return jsonResponse({ success: true, result: null });
-      }
-
-      if (method === 'POST' && url.endsWith('/dns_records')) {
-        return jsonResponse({
-          success: true,
-          result: { id: 'new1', content: '9.9.9.9', proxied: false },
-        });
-      }
-
-      return jsonResponse(
-        { success: false, errors: [{ message: `unexpected ${method} ${url}` }] },
-        500,
-      );
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/dns_records/gone1'),
+        response: cfOk(null),
+      },
+      {
+        match: (url, method) => method === 'POST' && url.endsWith('/dns_records'),
+        response: cfOk({ id: 'new1', content: '9.9.9.9', proxied: false }),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -610,18 +548,17 @@ describe('cloudflare provider', () => {
   });
 
   it('synthesizes an error from the HTTP status when the failure body has no errors', async () => {
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?') && method === 'GET') {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
-        });
-      }
-      // 502 with an empty JSON envelope: no success flag, no errors array.
-      return jsonResponse({}, 502);
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => url.includes('/dns_records?') && method === 'GET',
+        response: cfRecords([{ id: 'record1', content: '1.1.1.1' }]),
+      },
+      {
+        match: () => true,
+        // 502 with an empty JSON envelope: no success flag, no errors array.
+        response: jsonResponse({}, 502),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -637,18 +574,17 @@ describe('cloudflare provider', () => {
   });
 
   it('falls back to request metadata when success=false carries no error detail', async () => {
-    stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-      if (url.includes('/dns_records?') && method === 'GET') {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
-        });
-      }
-      // HTTP 200 but success=false, with an errors entry that has no message.
-      return jsonResponse({ success: false, errors: [{ code: 9999 }] });
-    });
+    stubCloudflareFetch([
+      {
+        match: (url, method) => url.includes('/dns_records?') && method === 'GET',
+        response: cfRecords([{ id: 'record1', content: '1.1.1.1' }]),
+      },
+      {
+        match: () => true,
+        // HTTP 200 but success=false, with an errors entry that has no message.
+        response: cfErr([{ code: 9999 }], 200),
+      },
+    ]);
 
     await expect(
       cloudflareProvider.update(
@@ -664,7 +600,7 @@ describe('cloudflare provider', () => {
   });
 
   it('throws a descriptive error on non-JSON responses', async () => {
-    stubFetch(async () => new Response('<html>gateway timeout</html>', { status: 504 }));
+    stubCloudflareResponse(new Response('<html>gateway timeout</html>', { status: 504 }));
 
     await expect(
       cloudflareProvider.update(
@@ -677,7 +613,7 @@ describe('cloudflare provider', () => {
   });
 
   it('rejects malformed Cloudflare API response shapes', async () => {
-    stubFetch(async () =>
+    stubCloudflareResponse(
       jsonResponse({
         success: true,
         result: [{ id: 123, name: 'example.com' }],
@@ -698,7 +634,7 @@ describe('cloudflare provider', () => {
     ).rejects.toThrow(/zones response failed validation/i);
 
     // Record list with a malformed record entry.
-    stubFetch(async () =>
+    stubCloudflareResponse(
       jsonResponse({ success: true, result: [{ id: 'r1', content: 42, proxied: 'no' }] }),
     );
     await expect(
@@ -711,7 +647,7 @@ describe('cloudflare provider', () => {
     ).rejects.toThrow(/records response failed validation/i);
 
     // Pinned-record lookup with a malformed record body.
-    stubFetch(async () => jsonResponse({ success: true, result: { id: 'r1' } }));
+    stubCloudflareResponse(jsonResponse({ success: true, result: { id: 'r1' } }));
     await expect(
       cloudflareProvider.update(
         makeConfig({
@@ -727,7 +663,7 @@ describe('cloudflare provider', () => {
     ).rejects.toThrow(/record response failed validation/i);
 
     // Envelope that is valid JSON but not an object.
-    stubFetch(async () => jsonResponse([1, 2, 3]));
+    stubCloudflareResponse(jsonResponse([1, 2, 3]));
     await expect(
       cloudflareProvider.update(
         makeConfig({
