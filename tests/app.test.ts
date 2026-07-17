@@ -310,6 +310,109 @@ describe('application entrypoint', () => {
     listeners.get('SIGTERM')?.();
   });
 
+  it('restores previous accounts when SIGHUP reload fails', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const log = silentLog();
+    const updater = stubUpdater();
+    let resolveCalls = 0;
+
+    await main({
+      log,
+      resolveAccountsFn: () => {
+        resolveCalls += 1;
+        if (resolveCalls === 1) {
+          return [{ id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) }];
+        }
+        throw new Error('bad reload config');
+      },
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => updater,
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    const startsBefore = updater.start.mock.calls.length;
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      expect(log.error).toHaveBeenCalledWith(
+        'Configuration reload failed',
+        expect.objectContaining({ message: 'bad reload config' }),
+      );
+    });
+    expect(updater.start.mock.calls.length).toBeGreaterThan(startsBefore);
+    listeners.get('SIGTERM')?.();
+  });
+
+  it('logs when restoring previous accounts after a failed reload also fails', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const log = silentLog();
+    const updater = stubUpdater();
+    let resolveCalls = 0;
+
+    await main({
+      log,
+      resolveAccountsFn: () => {
+        resolveCalls += 1;
+        if (resolveCalls === 1) {
+          return [{ id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) }];
+        }
+        throw new Error('bad reload config');
+      },
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => updater,
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    updater.start.mockRejectedValueOnce(new Error('restore failed'));
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      expect(log.error).toHaveBeenCalledWith(
+        'Failed to restore previous accounts after reload error',
+        expect.objectContaining({ message: 'restore failed' }),
+      );
+    });
+    listeners.get('SIGTERM')?.();
+  });
+
+  it('keeps previous accounts when reload resolves an empty list', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const log = silentLog();
+    const updater = stubUpdater();
+    let resolveCalls = 0;
+
+    await main({
+      log,
+      resolveAccountsFn: () => {
+        resolveCalls += 1;
+        if (resolveCalls === 1) {
+          return [{ id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) }];
+        }
+        return [];
+      },
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => updater,
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      expect(log.error).toHaveBeenCalledWith(
+        'Configuration reload failed',
+        expect.objectContaining({ message: 'No accounts configured' }),
+      );
+    });
+    expect(updater.start).toHaveBeenCalled();
+    listeners.get('SIGTERM')?.();
+  });
+
   it('restarts the side server when health settings change on reload', async () => {
     const listeners = new Map<string, (value?: unknown) => void>();
     const env: Record<string, string | undefined> = {

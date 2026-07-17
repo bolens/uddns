@@ -3,6 +3,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
@@ -209,21 +210,23 @@ function assertUniqueAccountPaths(accounts: LoadedAccount[]): void {
   for (const account of accounts) {
     const stateFile = account.config.stateFile;
     if (stateFile) {
-      const owner = stateOwners.get(stateFile);
+      const key = path.resolve(stateFile);
+      const owner = stateOwners.get(key);
       if (owner) {
         throw new Error(`Accounts "${owner}" and "${account.id}" share stateFile "${stateFile}"`);
       }
-      stateOwners.set(stateFile, account.id);
+      stateOwners.set(key, account.id);
     }
     const historyFile = account.config.historyFile;
     if (historyFile) {
-      const owner = historyOwners.get(historyFile);
+      const key = path.resolve(historyFile);
+      const owner = historyOwners.get(key);
       if (owner) {
         throw new Error(
           `Accounts "${owner}" and "${account.id}" share historyFile "${historyFile}"`,
         );
       }
-      historyOwners.set(historyFile, account.id);
+      historyOwners.set(key, account.id);
     }
   }
 }

@@ -399,7 +399,7 @@ export function createUpdater(options: UpdaterOptions) {
       failed: hostResults.filter(({ result }) => !result.ok).length,
       hosts: targetHosts.length,
       ip,
-      committedIP: summary.status === 'updated' ? ip : currentIP,
+      committedIP: summary.status === 'updated' || summary.status === 'unchanged' ? ip : currentIP,
     });
 
     return await emitCycleComplete(summary, now() - started, ipErrors);

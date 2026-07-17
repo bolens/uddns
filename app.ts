@@ -176,10 +176,15 @@ export async function main(options: AppOptions = {}): Promise<void> {
     }
     reloading = true;
     log.info('Received SIGHUP; reloading configuration');
+    const previous = bundles;
+    const wasRunning = previous.some((bundle) => bundle.updater.getStatus().running);
     try {
-      const wasRunning = bundles.some((bundle) => bundle.updater.getStatus().running);
-      await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
+      await Promise.all(previous.map((bundle) => bundle.updater.stop()));
+      await Promise.all(previous.map((bundle) => bundle.flushNotifications()));
       const accounts = await resolveAccountsFn(env);
+      if (accounts.length === 0) {
+        throw new Error('No accounts configured');
+      }
       await startAccounts(accounts);
       await reconcileSideServer();
       if (!wasRunning) {
@@ -187,6 +192,19 @@ export async function main(options: AppOptions = {}): Promise<void> {
       }
       log.success(`Reloaded ${accounts.length} account(s)`);
     } catch (error) {
+      bundles = previous;
+      if (wasRunning && previous.length > 0) {
+        const restored = await Promise.allSettled(previous.map((bundle) => bundle.updater.start()));
+        const restoreFailure = restored.find(
+          (result): result is PromiseRejectedResult => result.status === 'rejected',
+        );
+        if (restoreFailure) {
+          log.error(
+            'Failed to restore previous accounts after reload error',
+            formatError(restoreFailure.reason),
+          );
+        }
+      }
       log.error('Configuration reload failed', formatError(error));
     } finally {
       reloading = false;
@@ -232,6 +250,8 @@ export async function main(options: AppOptions = {}): Promise<void> {
     });
   } catch (error) {
     log.error('Failed to start updater', formatError(error));
+    await Promise.allSettled(bundles.map((bundle) => bundle.updater.stop()));
+    await Promise.allSettled(bundles.map((bundle) => bundle.flushNotifications()));
     exit(1);
   }
 }

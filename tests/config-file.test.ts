@@ -219,4 +219,32 @@ accounts:
     );
     await expect(loadAccountsFromFile(file)).rejects.toThrow(/share stateFile/);
   });
+
+  it('rejects aliased absolute and relative state paths as duplicates', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
+    const file = path.join(dir, 'uddns.yaml');
+    const shared = path.join(dir, 'shared-state.json');
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: a
+    provider: duckdns
+    hosts: [a]
+    state_file: ${shared}
+    duckdns:
+      token: t
+      domains: a
+  - id: b
+    provider: duckdns
+    hosts: [b]
+    state_file: ${path.relative(process.cwd(), shared)}
+    duckdns:
+      token: t
+      domains: b
+`,
+    );
+    await expect(loadAccountsFromFile(file)).rejects.toThrow(/share stateFile/);
+  });
 });
