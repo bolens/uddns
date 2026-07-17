@@ -22,6 +22,11 @@ const emptyStatus = (): UpdaterStatus => ({
   cycle: 0,
   inFlight: false,
   hosts: {},
+  lastCycle: null,
+  lastSuccessAt: null,
+  lastError: null,
+  nextRetryAt: null,
+  accountId: null,
 });
 
 export type StubUpdater = {

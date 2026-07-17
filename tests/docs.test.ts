@@ -49,9 +49,10 @@ describe('documentation contracts', () => {
   });
 
   it('keeps the environment template in sync with runtime configuration', async () => {
-    const [config, mcpConfig, envExample] = await Promise.all([
+    const [config, mcpConfig, healthConfig, envExample] = await Promise.all([
       read('lib/schemas/config.ts'),
       read('lib/mcp/config.ts'),
+      read('lib/health-config.ts'),
       read('.env.example'),
     ]);
 
@@ -60,6 +61,7 @@ describe('documentation contracts', () => {
         ...config.matchAll(/\b(?:env|parsedEnv)\.([A-Z][A-Z0-9_]*)/g),
         ...config.matchAll(/parsedEnv\['([A-Z][A-Z0-9_]*)'\]/g),
         ...mcpConfig.matchAll(/env\['([A-Z][A-Z0-9_]*)'\]/g),
+        ...healthConfig.matchAll(/env\['([A-Z][A-Z0-9_]*)'\]/g),
       ]
         .map((match) => match[1])
         .filter((key): key is string => Boolean(key))
@@ -144,19 +146,24 @@ describe('documentation contracts', () => {
     ]);
     const packageJson = JSON.parse(packageJsonRaw) as {
       main: string;
+      bin?: Record<string, string>;
       scripts: Record<string, string>;
     };
 
     expect(packageJson.main).toBe('dist/app.js');
+    expect(packageJson.bin?.['uddns']).toBe('./dist/cli.js');
     expect(packageJson.scripts['start']).toContain('dist/app.js');
     expect(packageJson.scripts['config:check']).toContain('dist/app.js');
     expect(packageJson.scripts['mcp']).toContain('dist/mcp.js');
     expect(packageJson.scripts['mcp:http']).toContain('dist/mcp.js');
-    expect(dockerfile).toContain('ENTRYPOINT ["node", "dist/app.js"]');
+    expect(dockerfile).toContain('ENTRYPOINT ["node"]');
+    expect(dockerfile).toContain('CMD ["dist/app.js"]');
     expect(buildConfig).toContain('"app.ts"');
     expect(buildConfig).toContain('"mcp.ts"');
+    expect(buildConfig).toContain('"cli.ts"');
     expect(fallow).toContain('"app.ts"');
     expect(fallow).toContain('"mcp.ts"');
+    expect(fallow).toContain('"cli.ts"');
   });
 
   it('keeps every non-live test represented in the CI matrix', async () => {
@@ -170,7 +177,9 @@ describe('documentation contracts', () => {
 
     expect(ci).toContain("- 'app.ts'");
     expect(ci).toContain("- 'mcp.ts'");
+    expect(ci).toContain("- 'cli.ts'");
     expect(ci).toContain("- 'docs/**'");
+    expect(ci).toContain("- 'examples/**'");
     expect(ci).toContain('paths: tests/providers');
     for (const testPath of rootTests) {
       expect(ci, `${testPath} is missing from the CI test matrix`).toContain(testPath);

@@ -206,6 +206,78 @@ describe('application entrypoint', () => {
     expect(updater.start).toHaveBeenCalledOnce();
   });
 
+  it('aggregates multi-account health status', async () => {
+    const log = silentLog();
+    const updaterA = stubUpdater();
+    const updaterB = stubUpdater();
+    let calls = 0;
+    await main({
+      env: { UDDNS_HEALTH: '1', UDDNS_HEALTH_PORT: '0', UDDNS_METRICS: '1' },
+      log,
+      resolveAccountsFn: () => [
+        { id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) },
+        { id: 'b', config: makeConfig({ hosts: ['b.example.com'] }) },
+      ],
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => {
+        calls += 1;
+        return calls === 1 ? updaterA : updaterB;
+      },
+      on: vi.fn(),
+      exit: vi.fn(),
+    });
+    const infoMock = log.info as unknown as { mock: { calls: Array<[string]> } };
+    const healthLine = infoMock.mock.calls
+      .map((call) => call[0])
+      .find((line) => line.includes('Health server listening'));
+    const url = String(healthLine).replace('Health server listening on ', '');
+    const ready = await (await fetch(`${url}/readyz`)).json();
+    expect(ready).toMatchObject({ ok: true, status: { accounts: expect.any(Array) } });
+    const events = fetch(`${url}/events`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Closing via shutdown is enough; just ensure the SSE route was hit.
+    void events;
+  });
+
+  it('starts the health side server and reloads on SIGHUP', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const log = silentLog();
+    const updater = stubUpdater();
+    const loadConfigFn = vi
+      .fn()
+      .mockReturnValueOnce(makeConfig({ interval: 900_000 }))
+      .mockReturnValue(makeConfig({ interval: 60_000 }));
+
+    await main({
+      env: { UDDNS_HEALTH: '1', UDDNS_HEALTH_PORT: '0', UDDNS_METRICS: '1' },
+      log,
+      loadConfigFn,
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => updater,
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    const infoMock = log.info as unknown as { mock: { calls: Array<[string]> } };
+    const healthLine = infoMock.mock.calls
+      .map((call) => call[0])
+      .find((line) => line.includes('Health server listening'));
+    expect(healthLine).toBeTruthy();
+    const url = String(healthLine).replace('Health server listening on ', '');
+    expect((await fetch(`${url}/healthz`)).status).toBe(200);
+    expect((await fetch(`${url}/readyz`)).status).toBe(200);
+    expect((await fetch(`${url}/metrics`)).status).toBe(200);
+
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      expect(log.success).toHaveBeenCalledWith(expect.stringContaining('Reloaded'));
+    });
+    expect(updater.stop).toHaveBeenCalled();
+    expect(updater.start).toHaveBeenCalled();
+  });
+
   it('reads argv and env from the process by default', async () => {
     const originalArgv = process.argv;
     process.argv = ['node', 'app.js', '--check-config'];

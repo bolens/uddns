@@ -238,6 +238,8 @@ describe('MCP prompts and resources', () => {
     expect(resource.mimeType).toBe('application/json');
 
     const status = await readMcpResource(session, MCP_RESOURCE_URIS.status);
+    const history = await readMcpResource(session, MCP_RESOURCE_URIS.history);
+    expect(JSON.parse(history.text)).toEqual({ events: [] });
     expect(status.text).toContain('"running"');
 
     const ip = await readMcpResource(session, MCP_RESOURCE_URIS.publicIp, {
@@ -281,6 +283,8 @@ describe('createUddnsMcpServer', () => {
     expect(Object.keys(registered._registeredTools).sort()).toEqual(
       [
         'check_once',
+        'dry_run',
+        'force_update',
         'get_config',
         'get_public_ip',
         'get_status',
@@ -314,6 +318,12 @@ describe('createUddnsMcpServer', () => {
       await registered._registeredTools['set_interval']!.handler({ intervalMs: 5000 }, extra),
     ).toMatchObject({ content: [{ type: 'text' }] });
     expect(await registered._registeredTools['check_once']!.handler(extra)).toMatchObject({
+      content: [{ type: 'text' }],
+    });
+    expect(await registered._registeredTools['force_update']!.handler(extra)).toMatchObject({
+      content: [{ type: 'text' }],
+    });
+    expect(await registered._registeredTools['dry_run']!.handler(extra)).toMatchObject({
       content: [{ type: 'text' }],
     });
     expect(await registered._registeredTools['start_loop']!.handler(extra)).toMatchObject({

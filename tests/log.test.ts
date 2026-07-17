@@ -10,6 +10,25 @@ describe('normalizeLevel', () => {
   });
 });
 
+describe('json log format', () => {
+  it('emits one JSON object per line', () => {
+    const lines: string[] = [];
+    const log = createLogger({
+      format: 'json',
+      level: 'debug',
+      now: () => new Date('2026-01-01T00:00:00.000Z'),
+      info: (line) => lines.push(String(line)),
+    });
+    log.info('hello', { host: 'example.com' });
+    expect(JSON.parse(lines[0]!)).toEqual({
+      level: 'info',
+      msg: 'hello',
+      time: '2026-01-01T00:00:00.000Z',
+      context: { host: 'example.com' },
+    });
+  });
+});
+
 describe('redact', () => {
   it('masks sensitive keys and auth headers', () => {
     expect(
