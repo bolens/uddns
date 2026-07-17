@@ -1,8 +1,8 @@
 {
-  "name": "ddns-updater",
+  "name": "uddns",
   "version": "2.0.0",
   "private": true,
-  "description": "Multi-provider DDNS updater (Cloudflare, DuckDNS, No-IP, Dynu, Namecheap, DynDNS)",
+  "description": "uDDNS — micro multi-provider DDNS updater (Cloudflare, DuckDNS, No-IP, Dynu, Namecheap, DynDNS)",
   "license": "ISC",
   "author": "Michael Bolens",
   "type": "module",

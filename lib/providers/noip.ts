@@ -11,7 +11,7 @@ export const noipProvider: Provider = {
     const hostname = config.hostname;
 
     if (!username || !password || !hostname) {
-      return fail('noip requires DDNS_USER, DDNS_PASS, and DDNS_HOST / DDNS_HOSTS', {
+      return fail('noip requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS', {
         hasUser: Boolean(username),
         hasPassword: Boolean(password),
         hostname,

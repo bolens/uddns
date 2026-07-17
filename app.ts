@@ -1,5 +1,5 @@
 /**
- * Entry point for the DDNS updater daemon.
+ * Entry point for the uDDNS updater daemon.
  */
 
 import { loadConfig } from './lib/config.js';

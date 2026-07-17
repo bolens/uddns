@@ -11,7 +11,7 @@ export const duckdnsProvider: Provider = {
 
     if (!domains || !token) {
       return fail(
-        'duckdns requires DUCKDNS_DOMAINS (or DDNS_HOST / DDNS_HOSTS) and DUCKDNS_TOKEN',
+        'duckdns requires DUCKDNS_DOMAINS (or UDDNS_HOST / UDDNS_HOSTS) and DUCKDNS_TOKEN',
         {
           hasDomains: Boolean(domains),
           hasToken: Boolean(token),

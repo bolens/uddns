@@ -10,7 +10,7 @@ export const dyndnsProvider: Provider = {
 
     if (!username || !password || !hostname) {
       return fail(
-        'dyndns requires DDNS_USER, DDNS_PASS, and DDNS_HOST / DDNS_HOSTS (or DYNDNS_* equivalents)',
+        'dyndns requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS (or DYNDNS_* equivalents)',
         {
           updateUrl,
           hasUser: Boolean(username),

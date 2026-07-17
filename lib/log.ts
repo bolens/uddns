@@ -59,7 +59,7 @@ export type LoggerOptions = {
 
 export function createLogger(options: LoggerOptions = {}): Logger {
   const now = options.now ?? (() => new Date());
-  const levelName = normalizeLevel(options.level ?? process.env['DDNS_LOG_LEVEL'] ?? 'info');
+  const levelName = normalizeLevel(options.level ?? process.env['UDDNS_LOG_LEVEL'] ?? 'info');
   const threshold = LEVELS[levelName];
 
   const writeInfo = options.info ?? ((...args: unknown[]) => console.info(...args));

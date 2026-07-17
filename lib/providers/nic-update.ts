@@ -8,7 +8,7 @@ import type { PublicIP, UpdateResult } from '../schemas/provider.js';
 import { basicAuthHeader, request } from './http.js';
 
 const NIC_HINTS: Record<string, string> = {
-  badauth: 'Authentication failed — check DDNS_USER / DDNS_PASS',
+  badauth: 'Authentication failed — check UDDNS_USER / UDDNS_PASS',
   notfqdn: 'Hostname is not a fully-qualified domain name',
   nohost: 'Hostname not found under this account',
   numhost: 'Too many hosts specified',

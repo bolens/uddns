@@ -2,7 +2,7 @@
  * Low-level HTTP helpers shared by providers.
  */
 
-export const userAgent = 'ddns-updater/2.0';
+export const userAgent = 'uddns/2.0';
 
 export type RequestMeta = {
   method: string;

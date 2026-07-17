@@ -12,7 +12,7 @@ export const dynuProvider: Provider = {
 
     if (!username || !password || !hostname) {
       return fail(
-        'dynu requires DDNS_USER, DDNS_PASS (or DDNS_TOKEN), and DDNS_HOST / DDNS_HOSTS',
+        'dynu requires UDDNS_USER, UDDNS_PASS (or UDDNS_TOKEN), and UDDNS_HOST / UDDNS_HOSTS',
         {
           hasUser: Boolean(username),
           hasPassword: Boolean(password),

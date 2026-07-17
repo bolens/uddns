@@ -37,8 +37,8 @@ export function parseHostList(value: string | null | undefined): string[] {
  * Resolve the effective host list from config sources.
  *
  * Precedence:
- * 1. `DDNS_HOSTS`
- * 2. singular host fields (`DDNS_HOST`, Cloudflare record name, DuckDNS domains, …)
+ * 1. `UDDNS_HOSTS`
+ * 2. singular host fields (`UDDNS_HOST`, Cloudflare record name, DuckDNS domains, …)
  */
 export function resolveHosts(sources: HostSources): string[] {
   const fromList = parseHostList(sources.hosts);

@@ -49,7 +49,7 @@ export const cloudflareProvider: Provider = {
     }
 
     if (!recordName) {
-      return fail('cloudflare requires CLOUDFLARE_RECORD_NAME, DDNS_HOST, or DDNS_HOSTS');
+      return fail('cloudflare requires CLOUDFLARE_RECORD_NAME, UDDNS_HOST, or UDDNS_HOSTS');
     }
 
     if (!ip.v4 && !ip.v6) {

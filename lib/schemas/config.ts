@@ -6,14 +6,14 @@ import { appConfigSchema, PROVIDER_IDS, providerIdSchema, type AppConfig } from 
 const optionalEnv = z.string().optional();
 const envSchema = z
   .object({
-    DDNS_PROVIDER: optionalEnv,
-    DDNS_INTERVAL: optionalEnv,
-    DDNS_HOST: optionalEnv,
-    DDNS_HOSTNAME: optionalEnv,
-    DDNS_HOSTS: optionalEnv,
-    DDNS_USER: optionalEnv,
-    DDNS_PASS: optionalEnv,
-    DDNS_TOKEN: optionalEnv,
+    UDDNS_PROVIDER: optionalEnv,
+    UDDNS_INTERVAL: optionalEnv,
+    UDDNS_HOST: optionalEnv,
+    UDDNS_HOSTNAME: optionalEnv,
+    UDDNS_HOSTS: optionalEnv,
+    UDDNS_USER: optionalEnv,
+    UDDNS_PASS: optionalEnv,
+    UDDNS_TOKEN: optionalEnv,
     CLOUDFLARE_API_TOKEN: optionalEnv,
     CLOUDFLARE_ZONE_ID: optionalEnv,
     CLOUDFLARE_ZONE_NAME: optionalEnv,
@@ -46,24 +46,24 @@ export function loadConfig(
 ): AppConfig {
   const parsedEnv = envSchema.parse({ ...env });
 
-  const providerRaw = (parsedEnv['DDNS_PROVIDER'] ?? 'cloudflare').toLowerCase();
+  const providerRaw = (parsedEnv['UDDNS_PROVIDER'] ?? 'cloudflare').toLowerCase();
 
   const providerResult = providerIdSchema.safeParse(providerRaw);
   if (!providerResult.success) {
     throw new Error(
-      `Unsupported DDNS_PROVIDER "${providerRaw}". Supported: ${PROVIDER_IDS.join(', ')}`,
+      `Unsupported UDDNS_PROVIDER "${providerRaw}". Supported: ${PROVIDER_IDS.join(', ')}`,
     );
   }
 
-  const interval = Number(parsedEnv['DDNS_INTERVAL'] ?? 900_000);
+  const interval = Number(parsedEnv['UDDNS_INTERVAL'] ?? 900_000);
 
   if (!Number.isFinite(interval) || interval < 1_000) {
-    throw new Error('DDNS_INTERVAL must be a number of milliseconds >= 1000');
+    throw new Error('UDDNS_INTERVAL must be a number of milliseconds >= 1000');
   }
 
-  const hostname = parsedEnv['DDNS_HOST'] ?? parsedEnv['DDNS_HOSTNAME'] ?? null;
+  const hostname = parsedEnv['UDDNS_HOST'] ?? parsedEnv['UDDNS_HOSTNAME'] ?? null;
   const hosts = resolveHosts({
-    hosts: parsedEnv['DDNS_HOSTS'] ?? null,
+    hosts: parsedEnv['UDDNS_HOSTS'] ?? null,
     host: hostname,
     cloudflareRecordName: parsedEnv['CLOUDFLARE_RECORD_NAME'] ?? null,
     duckdnsDomains: parsedEnv['DUCKDNS_DOMAINS'] ?? null,
@@ -72,7 +72,7 @@ export function loadConfig(
   });
 
   if (hosts.length === 0) {
-    throw new Error('No hosts configured. Set DDNS_HOSTS (comma-separated) or DDNS_HOST.');
+    throw new Error('No hosts configured. Set UDDNS_HOSTS (comma-separated) or UDDNS_HOST.');
   }
 
   const firstHost = hosts[0] ?? null;
@@ -82,15 +82,15 @@ export function loadConfig(
     interval,
     hosts,
     hostname: firstHost,
-    user: parsedEnv['DDNS_USER'] ?? null,
-    password: parsedEnv['DDNS_PASS'] ?? null,
+    user: parsedEnv['UDDNS_USER'] ?? null,
+    password: parsedEnv['UDDNS_PASS'] ?? null,
     token:
-      parsedEnv['DDNS_TOKEN'] ??
+      parsedEnv['UDDNS_TOKEN'] ??
       parsedEnv['CLOUDFLARE_API_TOKEN'] ??
       parsedEnv['DUCKDNS_TOKEN'] ??
       null,
     cloudflare: {
-      apiToken: parsedEnv['CLOUDFLARE_API_TOKEN'] ?? parsedEnv['DDNS_TOKEN'] ?? null,
+      apiToken: parsedEnv['CLOUDFLARE_API_TOKEN'] ?? parsedEnv['UDDNS_TOKEN'] ?? null,
       zoneId: parsedEnv['CLOUDFLARE_ZONE_ID'] ?? null,
       zoneName: parsedEnv['CLOUDFLARE_ZONE_NAME'] ?? null,
       recordName: parsedEnv['CLOUDFLARE_RECORD_NAME'] ?? firstHost,
@@ -101,17 +101,17 @@ export function loadConfig(
     },
     duckdns: {
       domains: parsedEnv['DUCKDNS_DOMAINS'] ?? hosts.join(',') ?? null,
-      token: parsedEnv['DUCKDNS_TOKEN'] ?? parsedEnv['DDNS_TOKEN'] ?? null,
+      token: parsedEnv['DUCKDNS_TOKEN'] ?? parsedEnv['UDDNS_TOKEN'] ?? null,
     },
     namecheap: {
       host: parsedEnv['NAMECHEAP_HOST'] ?? '@',
       domain: parsedEnv['NAMECHEAP_DOMAIN'] ?? null,
-      password: parsedEnv['NAMECHEAP_PASSWORD'] ?? parsedEnv['DDNS_PASS'] ?? null,
+      password: parsedEnv['NAMECHEAP_PASSWORD'] ?? parsedEnv['UDDNS_PASS'] ?? null,
     },
     dyndns: {
       updateUrl: parsedEnv['DYNDNS_UPDATE_URL'] ?? 'https://members.dyndns.org/nic/update',
-      username: parsedEnv['DDNS_USER'] ?? null,
-      password: parsedEnv['DDNS_PASS'] ?? null,
+      username: parsedEnv['UDDNS_USER'] ?? null,
+      password: parsedEnv['UDDNS_PASS'] ?? null,
       hostname: firstHost,
     },
   };
