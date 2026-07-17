@@ -27,6 +27,16 @@ describe('isSensitiveKey', () => {
     expect(isSensitiveKey('status')).toBe(false);
   });
 
+  it('does not redact benign keys containing auth or key as substrings', () => {
+    const benign = ['monkey', 'donkey', 'hockey', 'author', 'authority', 'authenticationMode'];
+
+    for (const key of benign) {
+      expect(isSensitiveKey(key), key).toBe(false);
+      expect(redact({ [key]: 'visible' })).toEqual({ [key]: 'visible' });
+      expect(sanitizeUrl(`https://example.com/?${key}=visible`)).toContain(`${key}=visible`);
+    }
+  });
+
   it('keeps log redact and URL sanitize covering the same key set', () => {
     const keys = [
       'password',
