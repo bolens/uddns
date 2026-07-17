@@ -93,7 +93,8 @@ export function configForHost(config: AppConfig, host: string): AppConfig {
   };
 }
 
-function stripDuckDnsSuffix(host: string): string {
+/** Strip a trailing `.duckdns.org` suffix (DuckDNS update API wants the subdomain only). */
+export function stripDuckDnsSuffix(host: string): string {
   return host.replace(/\.duckdns\.org$/i, '');
 }
 

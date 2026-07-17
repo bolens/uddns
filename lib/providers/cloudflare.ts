@@ -158,11 +158,7 @@ async function listZones(apiToken: string, name: string) {
 
   const payload = await cloudflareJson(apiToken, url);
   assertCloudflareSuccess(payload, `zone lookup for ${name}`);
-  const parsed = cloudflareZonesResponseSchema.safeParse(payload);
-  if (!parsed.success) {
-    throw new Error(`Cloudflare zones response failed validation: ${parsed.error.message}`);
-  }
-  return parsed.data.result ?? [];
+  return parseCloudflare(cloudflareZonesResponseSchema, payload, 'zones').result ?? [];
 }
 
 type UpsertOptions = {
@@ -293,14 +289,11 @@ async function getRecord(
 ): Promise<CloudflareDnsRecord | null> {
   const payload = await cloudflareJson(apiToken, `${API}/zones/${zoneId}/dns_records/${recordId}`);
   assertCloudflareSuccess(payload, `record lookup for ${recordId}`);
-  const parsed = cloudflareRecordResponseSchema.safeParse(payload);
-  if (!parsed.success) {
-    throw new Error(`Cloudflare record response failed validation: ${parsed.error.message}`);
-  }
-  if (parsed.data.result == null) {
+  const parsed = parseCloudflare(cloudflareRecordResponseSchema, payload, 'record');
+  if (parsed.result == null) {
     return null;
   }
-  return cloudflareDnsRecordSchema.parse(parsed.data.result);
+  return cloudflareDnsRecordSchema.parse(parsed.result);
 }
 
 async function findRecord(
@@ -316,11 +309,7 @@ async function findRecord(
 
   const payload = await cloudflareJson(apiToken, url);
   assertCloudflareSuccess(payload, `${type} record lookup for ${name}`);
-  const parsed = cloudflareRecordsResponseSchema.safeParse(payload);
-  if (!parsed.success) {
-    throw new Error(`Cloudflare records response failed validation: ${parsed.error.message}`);
-  }
-  return parsed.data.result?.[0] ?? null;
+  return parseCloudflare(cloudflareRecordsResponseSchema, payload, 'records').result?.[0] ?? null;
 }
 
 async function cloudflareJson(
@@ -360,6 +349,22 @@ async function cloudflareJson(
   }
 
   return payload;
+}
+
+function parseCloudflare<T>(
+  schema: {
+    safeParse: (
+      payload: unknown,
+    ) => { success: true; data: T } | { success: false; error: { message: string } };
+  },
+  payload: unknown,
+  label: string,
+): T {
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error(`Cloudflare ${label} response failed validation: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 function formatCloudflareError(payload: CloudflarePayload): string {

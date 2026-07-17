@@ -1,6 +1,8 @@
+import { stripDuckDnsSuffix } from '../hosts.js';
 import { fail, ok } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
-import { request } from './http.js';
+import { requireFields, requireIPv4 } from './guards.js';
+import { getQuery, ipDetails } from './query.js';
 
 export const duckdnsProvider: Provider = {
   id: 'duckdns',
@@ -9,37 +11,32 @@ export const duckdnsProvider: Provider = {
     const domains = config.duckdns.domains;
     const token = config.duckdns.token;
 
-    if (!domains || !token) {
-      return fail(
-        'duckdns requires DUCKDNS_DOMAINS (or UDDNS_HOST / UDDNS_HOSTS) and DUCKDNS_TOKEN',
-        {
-          hasDomains: Boolean(domains),
-          hasToken: Boolean(token),
-        },
-      );
+    const missing = requireFields(
+      'duckdns requires DUCKDNS_DOMAINS (or UDDNS_HOST / UDDNS_HOSTS) and DUCKDNS_TOKEN',
+      [domains, token],
+      {
+        hasDomains: Boolean(domains),
+        hasToken: Boolean(token),
+      },
+    );
+    if (missing) {
+      return missing;
     }
 
-    if (!ip.v4) {
-      return fail('No public IPv4 available', { domains, ip });
+    const noIp = requireIPv4(ip, { domains });
+    if (noIp) {
+      return noIp;
     }
 
-    const url = new URL('https://www.duckdns.org/update');
-    url.searchParams.set('domains', domains.replace(/\.duckdns\.org$/i, ''));
-    url.searchParams.set('token', token);
-    url.searchParams.set('ip', ip.v4);
-    if (ip.v6) {
-      url.searchParams.set('ipv6', ip.v6);
-    }
-    url.searchParams.set('verbose', 'true');
+    const { response, text, meta } = await getQuery('https://www.duckdns.org/update', {
+      domains: stripDuckDnsSuffix(domains!),
+      token: token!,
+      ip: ip.v4!,
+      ...(ip.v6 ? { ipv6: ip.v6 } : {}),
+      verbose: 'true',
+    });
 
-    const { response, body, meta } = await request(url, { method: 'GET' });
-    const text = body.trim();
-    const details = {
-      domains,
-      ipv4: ip.v4,
-      ipv6: ip.v6,
-      ...meta,
-    };
+    const details = ipDetails(ip, meta, { domains });
 
     if (response.ok && /^OK/i.test(text)) {
       return ok(text, details);

@@ -1,5 +1,5 @@
-import { fail } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
+import { requireFields } from './guards.js';
 import { updateNicDns } from './nic-update.js';
 
 export const dynuProvider: Provider = {
@@ -10,22 +10,24 @@ export const dynuProvider: Provider = {
     const password = config.password ?? config.token;
     const hostname = config.hostname;
 
-    if (!username || !password || !hostname) {
-      return fail(
-        'dynu requires UDDNS_USER, UDDNS_PASS (or UDDNS_TOKEN), and UDDNS_HOST / UDDNS_HOSTS',
-        {
-          hasUser: Boolean(username),
-          hasPassword: Boolean(password),
-          hostname,
-        },
-      );
+    const missing = requireFields(
+      'dynu requires UDDNS_USER, UDDNS_PASS (or UDDNS_TOKEN), and UDDNS_HOST / UDDNS_HOSTS',
+      [username, password, hostname],
+      {
+        hasUser: Boolean(username),
+        hasPassword: Boolean(password),
+        hostname,
+      },
+    );
+    if (missing) {
+      return missing;
     }
 
     return updateNicDns({
       updateUrl: 'https://api.dynu.com/nic/update',
-      username,
-      password,
-      hostname,
+      username: username!,
+      password: password!,
+      hostname: hostname!,
       ip,
       ipv6Param: 'myipv6',
     });

@@ -1,6 +1,7 @@
 import { fail, ok } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
-import { request } from './http.js';
+import { requireFields, requireIPv4 } from './guards.js';
+import { getQuery, ipDetails } from './query.js';
 
 export const namecheapProvider: Provider = {
   id: 'namecheap',
@@ -8,40 +9,43 @@ export const namecheapProvider: Provider = {
   async update(config, ip) {
     const { host, domain, password } = config.namecheap;
 
-    if (!domain || !password) {
-      return fail(
-        'namecheap requires NAMECHEAP_DOMAIN and NAMECHEAP_PASSWORD (Dynamic DNS password)',
-        {
-          hasDomain: Boolean(domain),
-          hasPassword: Boolean(password),
-          host,
-        },
-      );
+    const missing = requireFields(
+      'namecheap requires NAMECHEAP_DOMAIN and NAMECHEAP_PASSWORD (Dynamic DNS password)',
+      [domain, password],
+      {
+        hasDomain: Boolean(domain),
+        hasPassword: Boolean(password),
+        host,
+      },
+    );
+    if (missing) {
+      return missing;
     }
 
-    if (!ip.v4) {
-      return fail('No public IPv4 available', { host, domain, ip });
+    const noIp = requireIPv4(ip, { host, domain });
+    if (noIp) {
+      return noIp;
     }
 
-    const url = new URL('https://dynamicdns.park-your-domain.com/update');
-    url.searchParams.set('host', host);
-    url.searchParams.set('domain', domain);
-    url.searchParams.set('password', password);
-    url.searchParams.set('ip', ip.v4);
+    const { response, text, meta } = await getQuery(
+      'https://dynamicdns.park-your-domain.com/update',
+      {
+        host,
+        domain: domain!,
+        password: password!,
+        ip: ip.v4!,
+      },
+    );
 
-    const { response, body, meta } = await request(url, { method: 'GET' });
-    const text = body.trim();
     const errCount = text.match(/<ErrCount>(\d+)<\/ErrCount>/i)?.[1] ?? null;
     const errorText = text.match(/<Err\d+>([^<]+)<\/Err\d+>/i)?.[1] ?? null;
-    const details = {
+    const details = ipDetails(ip, meta, {
       host,
       domain,
       fqdn: `${host}.${domain}`,
-      ipv4: ip.v4,
       errCount,
       errorText,
-      ...meta,
-    };
+    });
 
     if (response.ok && errCount === '0') {
       return ok(`Updated ${host}.${domain} -> ${ip.v4}`, details);

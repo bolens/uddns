@@ -1,5 +1,5 @@
-import { fail } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
+import { requireFields } from './guards.js';
 import { sanitizeUrl } from './http.js';
 import { updateNicDns } from './nic-update.js';
 
@@ -9,23 +9,25 @@ export const dyndnsProvider: Provider = {
   async update(config, ip) {
     const { updateUrl, username, password, hostname } = config.dyndns;
 
-    if (!username || !password || !hostname) {
-      return fail(
-        'dyndns requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS (or DYNDNS_* equivalents)',
-        {
-          updateUrl: sanitizeUrl(updateUrl),
-          hasUser: Boolean(username),
-          hasPassword: Boolean(password),
-          hostname,
-        },
-      );
+    const missing = requireFields(
+      'dyndns requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS (or DYNDNS_* equivalents)',
+      [username, password, hostname],
+      {
+        updateUrl: sanitizeUrl(updateUrl),
+        hasUser: Boolean(username),
+        hasPassword: Boolean(password),
+        hostname,
+      },
+    );
+    if (missing) {
+      return missing;
     }
 
     return updateNicDns({
       updateUrl,
-      username,
-      password,
-      hostname,
+      username: username!,
+      password: password!,
+      hostname: hostname!,
       ip,
     });
   },

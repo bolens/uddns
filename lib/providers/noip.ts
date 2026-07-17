@@ -1,5 +1,5 @@
-import { fail } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
+import { requireFields } from './guards.js';
 import { updateNicDns } from './nic-update.js';
 
 export const noipProvider: Provider = {
@@ -10,19 +10,24 @@ export const noipProvider: Provider = {
     const password = config.password;
     const hostname = config.hostname;
 
-    if (!username || !password || !hostname) {
-      return fail('noip requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS', {
+    const missing = requireFields(
+      'noip requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS',
+      [username, password, hostname],
+      {
         hasUser: Boolean(username),
         hasPassword: Boolean(password),
         hostname,
-      });
+      },
+    );
+    if (missing) {
+      return missing;
     }
 
     return updateNicDns({
       updateUrl: 'https://dynupdate.no-ip.com/nic/update',
-      username,
-      password,
-      hostname,
+      username: username!,
+      password: password!,
+      hostname: hostname!,
       ip,
     });
   },

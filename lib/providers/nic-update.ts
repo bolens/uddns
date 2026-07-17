@@ -5,7 +5,9 @@
 import { fail, ok, skipped } from '../result.js';
 import type { JsonObject } from '../schemas/json.js';
 import type { PublicIP, UpdateResult } from '../schemas/provider.js';
-import { basicAuthHeader, request, sanitizeUrl } from './http.js';
+import { requireIPv4 } from './guards.js';
+import { basicAuthHeader, sanitizeUrl } from './http.js';
+import { getQuery, ipDetails } from './query.js';
 
 const NIC_HINTS: Record<string, string> = {
   badauth: 'Authentication failed — check UDDNS_USER / UDDNS_PASS',
@@ -31,34 +33,29 @@ export type NicUpdateOptions = {
 export async function updateNicDns(options: NicUpdateOptions): Promise<UpdateResult> {
   const { updateUrl, username, password, hostname, ip, ipv6Param = 'myipv6' } = options;
 
-  if (!ip.v4) {
-    return fail('No public IPv4 available', {
-      hostname,
-      updateUrl: sanitizeUrl(updateUrl),
-      ip,
-    });
+  const noIp = requireIPv4(ip, {
+    hostname,
+    updateUrl: sanitizeUrl(updateUrl),
+  });
+  if (noIp) {
+    return noIp;
   }
 
-  const url = new URL(updateUrl);
-  url.searchParams.set('hostname', hostname);
-  url.searchParams.set('myip', ip.v4);
+  const params: Record<string, string> = {
+    hostname,
+    myip: ip.v4!,
+  };
   if (ip.v6) {
-    url.searchParams.set(ipv6Param, ip.v6);
+    params[ipv6Param] = ip.v6;
   }
 
-  const { response, body, meta } = await request(url, {
-    method: 'GET',
+  const { response, body, meta } = await getQuery(updateUrl, params, {
     headers: {
       Authorization: basicAuthHeader(username, password),
     },
   });
 
-  return interpretNicUpdateBody(body, response.status, {
-    hostname,
-    ipv4: ip.v4,
-    ipv6: ip.v6,
-    ...meta,
-  });
+  return interpretNicUpdateBody(body, response.status, ipDetails(ip, meta, { hostname }));
 }
 
 /**

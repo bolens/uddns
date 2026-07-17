@@ -17,33 +17,26 @@ export const cloudflareDnsRecordSchema = z.object({
   ttl: z.number().int().optional(),
 });
 
-export const cloudflareEnvelopeSchema = z.object({
-  success: z.boolean().optional(),
-  result: z.unknown().optional(),
-  errors: z.array(cloudflareErrorSchema).optional(),
-  messages: z.array(z.unknown()).optional(),
-});
+function cloudflareResponse<T extends z.ZodTypeAny>(result: T) {
+  return z.object({
+    success: z.boolean().optional(),
+    result: result.optional(),
+    errors: z.array(cloudflareErrorSchema).optional(),
+    messages: z.array(z.unknown()).optional(),
+  });
+}
 
-export const cloudflareZonesResponseSchema = z.object({
-  success: z.boolean().optional(),
-  result: z.array(cloudflareZoneSchema).optional(),
-  errors: z.array(cloudflareErrorSchema).optional(),
-  messages: z.array(z.unknown()).optional(),
-});
+export const cloudflareEnvelopeSchema = cloudflareResponse(z.unknown());
 
-export const cloudflareRecordResponseSchema = z.object({
-  success: z.boolean().optional(),
-  result: cloudflareDnsRecordSchema.nullable().optional(),
-  errors: z.array(cloudflareErrorSchema).optional(),
-  messages: z.array(z.unknown()).optional(),
-});
+export const cloudflareZonesResponseSchema = cloudflareResponse(z.array(cloudflareZoneSchema));
 
-export const cloudflareRecordsResponseSchema = z.object({
-  success: z.boolean().optional(),
-  result: z.array(cloudflareDnsRecordSchema).optional(),
-  errors: z.array(cloudflareErrorSchema).optional(),
-  messages: z.array(z.unknown()).optional(),
-});
+export const cloudflareRecordResponseSchema = cloudflareResponse(
+  cloudflareDnsRecordSchema.nullable(),
+);
+
+export const cloudflareRecordsResponseSchema = cloudflareResponse(
+  z.array(cloudflareDnsRecordSchema),
+);
 
 export type CloudflareError = z.infer<typeof cloudflareErrorSchema>;
 export type CloudflareDnsRecord = z.infer<typeof cloudflareDnsRecordSchema>;
