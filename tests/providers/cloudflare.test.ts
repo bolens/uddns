@@ -176,6 +176,43 @@ describe('cloudflare provider', () => {
     });
   });
 
+  it('patches a record when only its TTL changed', async () => {
+    const fetchMock = stubFetch(async (input, init = {}) => {
+      const url = fetchInputUrl(input);
+      const method = init.method ?? 'GET';
+      if (url.includes('/dns_records?')) {
+        return jsonResponse({
+          success: true,
+          result: [{ id: 'record1', content: '9.9.9.9', proxied: false, ttl: 120 }],
+        });
+      }
+      if (method === 'PATCH') {
+        return jsonResponse({ success: true, result: { id: 'record1' } });
+      }
+      return jsonResponse({ success: false }, 500);
+    });
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneId: 'zone1',
+            recordName: 'home.example.com',
+            ttl: 300,
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({ ok: true, message: expect.stringContaining('-> 9.9.9.9') });
+
+    const patch = getCall(
+      fetchMock,
+      fetchMock.mock.calls.findIndex(([, init = {}]) => (init.method ?? 'GET') === 'PATCH'),
+    );
+    expect(JSON.parse(patch.body ?? '{}')).toMatchObject({ ttl: 300 });
+  });
+
   it('fails when createIfMissing is false or Cloudflare returns API errors', async () => {
     stubFetch(async () => jsonResponse({ success: true, result: [] }));
 
@@ -327,6 +364,129 @@ describe('cloudflare provider', () => {
         hint: expect.stringContaining('apex domain'),
       }),
     });
+  });
+
+  it('rejects success=false zone and pinned-record lookups', async () => {
+    stubFetch(async () =>
+      jsonResponse({ success: false, errors: [{ code: 9109, message: 'Invalid access token' }] }),
+    );
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: { apiToken: 'bad', zoneName: 'example.com', recordName: 'home.example.com' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).rejects.toThrow(/zone lookup.*Invalid access token/i);
+
+    stubFetch(async () =>
+      jsonResponse({ success: false, errors: [{ code: 9109, message: 'Invalid access token' }] }),
+    );
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'bad',
+            zoneId: 'zone1',
+            recordName: 'home.example.com',
+            recordId: 'pinned1',
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).rejects.toThrow(/record lookup for pinned1.*Invalid access token/i);
+  });
+
+  it('reports patch and create failures even when the error body is bare', async () => {
+    // PATCH failure: HTTP 200 with success=false and no errors array.
+    stubFetch(async (input, init = {}) => {
+      const url = fetchInputUrl(input);
+      const method = init.method ?? 'GET';
+      if (url.includes('/dns_records?') && method === 'GET') {
+        return jsonResponse({
+          success: true,
+          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
+        });
+      }
+      return jsonResponse({ success: false });
+    });
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: { apiToken: 'token', zoneId: 'zone1', recordName: 'home.example.com' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringMatching(/Cloudflare API request failed/),
+      details: expect.objectContaining({
+        results: [
+          expect.objectContaining({
+            details: expect.objectContaining({ action: 'patch', errors: null }),
+          }),
+        ],
+      }),
+    });
+
+    // Create failure: record missing, POST rejected.
+    stubFetch(async (input, init = {}) => {
+      const url = fetchInputUrl(input);
+      const method = init.method ?? 'GET';
+      if (url.includes('/dns_records?') && method === 'GET') {
+        return jsonResponse({ success: true, result: [] });
+      }
+      return jsonResponse(
+        { success: false, errors: [{ code: 81057, message: 'Record already exists' }] },
+        400,
+      );
+    });
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneId: 'zone1',
+            recordName: 'home.example.com',
+            createIfMissing: true,
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('Record already exists'),
+      details: expect.objectContaining({
+        results: [
+          expect.objectContaining({
+            details: expect.objectContaining({ action: 'create' }),
+          }),
+        ],
+      }),
+    });
+  });
+
+  it('rejects success=false lookup envelopes instead of treating them as missing', async () => {
+    const fetchMock = stubFetch(async () =>
+      jsonResponse(
+        { success: false, errors: [{ code: 10000, message: 'Authentication error' }] },
+        403,
+      ),
+    );
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: { apiToken: 'bad', zoneId: 'zone1', recordName: 'home.example.com' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).rejects.toThrow(/record lookup.*Authentication error/i);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('fetches the pinned record by id for A and updates AAAA independently', async () => {

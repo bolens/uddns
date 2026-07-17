@@ -157,6 +157,7 @@ async function listZones(apiToken: string, name: string) {
   url.searchParams.set('per_page', '1');
 
   const payload = await cloudflareJson(apiToken, url);
+  assertCloudflareSuccess(payload, `zone lookup for ${name}`);
   const parsed = cloudflareZonesResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new Error(`Cloudflare zones response failed validation: ${parsed.error.message}`);
@@ -184,7 +185,13 @@ async function upsertRecord(options: UpsertOptions): Promise<UpdateResult> {
     ? await getRecord(apiToken, zoneId, recordId)
     : await findRecord(apiToken, zoneId, name, type);
 
-  if (record && record.content === content && record.proxied === proxied) {
+  const desiredTtl = Number.isFinite(ttl) && ttl > 0 ? ttl : 1;
+  if (
+    record &&
+    record.content === content &&
+    record.proxied === proxied &&
+    (record.ttl === undefined || record.ttl === desiredTtl)
+  ) {
     return skipped(`${type} ${name} unchanged (${content})`, {
       zoneId,
       recordId: record.id,
@@ -192,6 +199,7 @@ async function upsertRecord(options: UpsertOptions): Promise<UpdateResult> {
       name,
       content,
       proxied,
+      ttl: desiredTtl,
       action: 'unchanged',
     });
   }
@@ -200,7 +208,7 @@ async function upsertRecord(options: UpsertOptions): Promise<UpdateResult> {
     type,
     name,
     content,
-    ttl: Number.isFinite(ttl) && ttl > 0 ? ttl : 1,
+    ttl: desiredTtl,
     proxied,
   };
 
@@ -284,6 +292,7 @@ async function getRecord(
   recordId: string,
 ): Promise<CloudflareDnsRecord | null> {
   const payload = await cloudflareJson(apiToken, `${API}/zones/${zoneId}/dns_records/${recordId}`);
+  assertCloudflareSuccess(payload, `record lookup for ${recordId}`);
   const parsed = cloudflareRecordResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new Error(`Cloudflare record response failed validation: ${parsed.error.message}`);
@@ -306,6 +315,7 @@ async function findRecord(
   url.searchParams.set('per_page', '1');
 
   const payload = await cloudflareJson(apiToken, url);
+  assertCloudflareSuccess(payload, `${type} record lookup for ${name}`);
   const parsed = cloudflareRecordsResponseSchema.safeParse(payload);
   if (!parsed.success) {
     throw new Error(`Cloudflare records response failed validation: ${parsed.error.message}`);
@@ -371,5 +381,17 @@ function formatCloudflareError(payload: CloudflarePayload): string {
     return `Cloudflare API request failed (HTTP ${payload.meta.status} ${payload.meta.statusText})`;
   }
 
+  /* v8 ignore next: defensive fallback; cloudflareJson always attaches meta */
   return 'Cloudflare API request failed';
+}
+
+function assertCloudflareSuccess(payload: CloudflarePayload, operation: string): void {
+  if (payload.success !== false) {
+    return;
+  }
+  const error = new Error(`Cloudflare ${operation} failed: ${formatCloudflareError(payload)}`);
+  if (payload.meta) {
+    Object.assign(error, { status: payload.meta.status });
+  }
+  throw error;
 }

@@ -14,6 +14,7 @@ export const cloudflareDnsRecordSchema = z.object({
   id: z.string(),
   content: z.string(),
   proxied: z.boolean(),
+  ttl: z.number().int().optional(),
 });
 
 export const cloudflareEnvelopeSchema = z.object({
