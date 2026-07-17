@@ -1,0 +1,15 @@
+name: uDDNS config dry run
+description: Validate a uDDNS environment or multi-account YAML without provider calls
+inputs:
+  config-file:
+    description: Optional multi-account YAML path
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Validate uDDNS configuration
+      shell: bash
+      env:
+        UDDNS_CONFIG_FILE: ${{ inputs.config-file }}
+      run: node dist/cli.js check-config
