@@ -139,7 +139,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
 
   const notifyResources = (): void => {
     const updates = [MCP_RESOURCE_URIS.status, MCP_RESOURCE_URIS.history]
-      .filter((uri) => subscriptions.size === 0 || subscriptions.has(uri))
+      .filter((uri) => subscriptions.has(uri))
       .map((uri) => server.server.sendResourceUpdated({ uri }));
     void Promise.all(updates).catch(() => {
       // Client may disconnect between the cycle event and notification.

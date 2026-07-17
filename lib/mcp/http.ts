@@ -148,14 +148,16 @@ export async function startMcpHttpServer(options: {
     res.status(result.ok ? 200 : 503).json(result);
   });
 
-  app.get('/metrics', (_req, res) => {
+  const requireAuth = requireBearer(mcpConfig.authToken);
+
+  app.get('/metrics', requireAuth, (_req, res) => {
     res
       .status(200)
       .type('text/plain; version=0.0.4; charset=utf-8')
       .send(renderPrometheus(mergeMetrics(accounts)));
   });
 
-  app.use(requireBearer(mcpConfig.authToken));
+  app.use(requireAuth);
 
   app.get('/events', (req, res) => {
     res.status(200).set({

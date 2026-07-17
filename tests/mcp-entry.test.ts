@@ -53,6 +53,59 @@ describe('MCP entrypoint', () => {
     expect(log.success).toHaveBeenCalledWith(expect.stringContaining('Configuration is valid'));
   });
 
+  it('validates every account from resolveAccountsFn for --check-config', async () => {
+    const log = silentLog();
+    await main({
+      argv: ['--check-config'],
+      env: {},
+      log,
+      resolveAccountsFn: () => [
+        { id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) },
+        { id: 'b', config: makeConfig({ hosts: ['b.example.com'] }) },
+      ],
+      getProviderFn: () => stubProvider,
+      on: vi.fn(),
+      exit: vi.fn(),
+    });
+    expect(log.success).toHaveBeenCalledWith(expect.stringContaining('[a]'));
+    expect(log.success).toHaveBeenCalledWith(expect.stringContaining('[b]'));
+  });
+
+  it('starts sessions via resolveAccounts when loadConfigFn is omitted', async () => {
+    const updater = stubUpdater();
+    const { connectStdioFn } = stdioOk();
+    const createSessionFn = vi.fn(async () => ({
+      accountId: 'default',
+      config: makeConfig(),
+      provider: stubProvider,
+      updater,
+      log: silentLog(),
+      accounts: [
+        {
+          id: 'default',
+          config: makeConfig(),
+          provider: stubProvider,
+          updater,
+        },
+      ],
+    }));
+
+    await main({
+      argv: ['--transport', 'stdio'],
+      env: {},
+      log: silentLog(),
+      createSessionFn,
+      createUpdaterFn: () => updater,
+      connectStdioFn,
+      on: vi.fn(),
+      exit: vi.fn(),
+    });
+
+    expect(createSessionFn).toHaveBeenCalledWith(
+      expect.not.objectContaining({ loadConfigFn: expect.anything() }),
+    );
+  });
+
   it('starts the updater loop for HTTP transport', async () => {
     const updater = stubUpdater();
     const { startHttpFn } = httpOk();

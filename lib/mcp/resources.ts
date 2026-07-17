@@ -23,7 +23,16 @@ export async function readMcpResource(
 
   switch (uri) {
     case MCP_RESOURCE_URIS.config:
-      return { mimeType: 'application/json', text: jsonText(handlers.getConfig()) };
+      return {
+        mimeType: 'application/json',
+        text: jsonText(
+          session.accounts && session.accounts.length > 1
+            ? {
+                accounts: session.accounts.map((account) => handlers.getConfig(account.id)),
+              }
+            : handlers.getConfig(),
+        ),
+      };
     case MCP_RESOURCE_URIS.publicIp:
       return { mimeType: 'application/json', text: jsonText(await handlers.getPublicIp()) };
     case MCP_RESOURCE_URIS.status:
@@ -36,7 +45,18 @@ export async function readMcpResource(
         ),
       };
     case MCP_RESOURCE_URIS.history:
-      return { mimeType: 'application/json', text: jsonText(await handlers.getHistory()) };
+      return {
+        mimeType: 'application/json',
+        text: jsonText(
+          session.accounts && session.accounts.length > 1
+            ? {
+                accounts: await Promise.all(
+                  session.accounts.map((account) => handlers.getHistory(account.id)),
+                ),
+              }
+            : await handlers.getHistory(),
+        ),
+      };
     default:
       throw new Error(`Unknown resource URI: ${uri}`);
   }

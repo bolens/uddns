@@ -417,6 +417,57 @@ describe('MCP prompts and resources', () => {
 
     await expect(readMcpResource(session, 'uddns://nope')).rejects.toThrow(/Unknown resource/);
   });
+
+  it('aggregates config and history resources across MCP accounts', async () => {
+    const updaterA = createUpdater({
+      config: makeConfig({ hosts: ['a.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const updaterB = createUpdater({
+      config: makeConfig({ hosts: ['b.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const session = {
+      accountId: 'a',
+      config: makeConfig({ hosts: ['a.example.com'] }),
+      provider: mockProvider(),
+      updater: updaterA,
+      log: silentLog(),
+      accounts: [
+        {
+          id: 'a',
+          config: makeConfig({ hosts: ['a.example.com'] }),
+          provider: mockProvider(),
+          updater: updaterA,
+          history: null,
+        },
+        {
+          id: 'b',
+          config: makeConfig({ hosts: ['b.example.com'] }),
+          provider: mockProvider(),
+          updater: updaterB,
+          history: null,
+        },
+      ],
+    };
+
+    const config = JSON.parse((await readMcpResource(session, MCP_RESOURCE_URIS.config)).text) as {
+      accounts: unknown[];
+    };
+    const history = JSON.parse(
+      (await readMcpResource(session, MCP_RESOURCE_URIS.history)).text,
+    ) as { accounts: Array<{ accountId: string }> };
+    expect(config.accounts).toHaveLength(2);
+    expect(history.accounts.map((entry) => entry.accountId)).toEqual(['a', 'b']);
+    await updaterA.stop();
+    await updaterB.stop();
+  });
 });
 
 describe('createUddnsMcpServer', () => {
@@ -936,6 +987,8 @@ describe('MCP HTTP auth', () => {
       expect(unauthorized.status).toBe(401);
       const unauthorizedEvents = await fetch(`${new URL(http.url).origin}/events`);
       expect(unauthorizedEvents.status).toBe(401);
+      const unauthorizedMetrics = await fetch(`${new URL(http.url).origin}/metrics`);
+      expect(unauthorizedMetrics.status).toBe(401);
 
       const authorized = await fetch(http.url, {
         method: 'POST',

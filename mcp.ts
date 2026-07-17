@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { loadConfig } from './lib/config.js';
+import { resolveAccounts } from './lib/config-file.js';
 import type { McpConfig, McpTransport } from './lib/mcp/config.js';
 import { loadMcpConfig } from './lib/mcp/config.js';
 import { startMcpHttpServer, type McpHttpServer } from './lib/mcp/http.js';
@@ -23,6 +23,9 @@ export type AppOptions = {
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   log?: Logger;
   loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
+  resolveAccountsFn?: (
+    env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  ) => Array<{ id: string; config: AppConfig }> | Promise<Array<{ id: string; config: AppConfig }>>;
   loadMcpConfigFn?: (
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
     options?: { transportOverride?: McpTransport | null },
@@ -33,6 +36,11 @@ export type AppOptions = {
     env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
     log: Logger;
     loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
+    resolveAccountsFn?: (
+      env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+    ) =>
+      | Array<{ id: string; config: AppConfig }>
+      | Promise<Array<{ id: string; config: AppConfig }>>;
     getProviderFn?: (id: string) => Provider;
     createUpdaterFn?: (options: UpdaterOptions) => Updater;
   }) => McpSession | Promise<McpSession>;
@@ -70,6 +78,7 @@ async function connectStdio(session: McpSession): Promise<{ close: () => Promise
   await server.connect(transport);
   return {
     async close() {
+      server.dispose();
       await server.close();
     },
   };
@@ -84,7 +93,6 @@ export async function main(options: AppOptions = {}): Promise<void> {
     (transportOverride ?? env['UDDNS_MCP_TRANSPORT'] ?? 'stdio') !== 'http' &&
     !argv.includes('--check-config');
   const log = options.log ?? (useStderrLogger ? createStderrLogger() : createLogger());
-  const loadConfigFn = options.loadConfigFn ?? loadConfig;
   const loadMcpConfigFn = options.loadMcpConfigFn ?? loadMcpConfig;
   const getProviderFn = options.getProviderFn ?? getProvider;
   const createSessionFn = options.createSessionFn ?? createMcpSession;
@@ -120,9 +128,24 @@ export async function main(options: AppOptions = {}): Promise<void> {
 
   try {
     if (argv.includes('--check-config')) {
-      const config = loadConfigFn(env);
-      const provider = getProviderFn(config.provider);
-      log.success(`Configuration is valid for ${provider.label} (${provider.id})`);
+      const resolveAccountsFn =
+        options.resolveAccountsFn ??
+        (options.loadConfigFn
+          ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>) => [
+              { id: 'default', config: options.loadConfigFn!(resolveEnv) },
+            ]
+          : resolveAccounts);
+      const accounts = await Promise.resolve(resolveAccountsFn(env));
+      if (accounts.length === 0) {
+        throw new Error('No accounts configured');
+      }
+      for (const account of accounts) {
+        const provider = getProviderFn(account.config.provider);
+        log.success(
+          `Configuration is valid for ${provider.label} (${provider.id})` +
+            (account.id !== 'default' ? ` [${account.id}]` : ''),
+        );
+      }
       return;
     }
 
@@ -130,7 +153,8 @@ export async function main(options: AppOptions = {}): Promise<void> {
     const session = await createSessionFn({
       env,
       log,
-      loadConfigFn,
+      ...(options.loadConfigFn ? { loadConfigFn: options.loadConfigFn } : {}),
+      ...(options.resolveAccountsFn ? { resolveAccountsFn: options.resolveAccountsFn } : {}),
       getProviderFn,
       ...(options.createUpdaterFn ? { createUpdaterFn: options.createUpdaterFn } : {}),
     });
