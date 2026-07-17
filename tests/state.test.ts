@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vite-plus/test';
 
+import { stateFileSchema } from '../lib/schemas/state.js';
 import { createFileStateStore } from '../lib/state.js';
 
 const directories: string[] = [];
@@ -17,6 +18,47 @@ async function statePath(): Promise<string> {
   directories.push(directory);
   return path.join(directory, 'nested', 'state.json');
 }
+
+describe('stateFileSchema', () => {
+  it('accepts valid provider checkpoints', () => {
+    expect(
+      stateFileSchema.parse({
+        version: 1,
+        provider: 'cloudflare',
+        hosts: {
+          'home.example.com': { v4: '203.0.113.10', v6: '2001:db8::10' },
+        },
+      }),
+    ).toEqual({
+      version: 1,
+      provider: 'cloudflare',
+      hosts: {
+        'home.example.com': { v4: '203.0.113.10', v6: '2001:db8::10' },
+      },
+    });
+  });
+
+  it('rejects invalid versions, providers, host keys, and addresses', () => {
+    const invalid = [
+      { version: 2, provider: 'cloudflare', hosts: {} },
+      { version: 1, provider: 'unknown', hosts: {} },
+      {
+        version: 1,
+        provider: 'cloudflare',
+        hosts: { '': { v4: '203.0.113.10', v6: null } },
+      },
+      {
+        version: 1,
+        provider: 'cloudflare',
+        hosts: { home: { v4: 'not-an-ip', v6: null } },
+      },
+    ];
+
+    for (const value of invalid) {
+      expect(stateFileSchema.safeParse(value).success, JSON.stringify(value)).toBe(false);
+    }
+  });
+});
 
 describe('file state store', () => {
   it('returns empty state for a missing file and round-trips valid checkpoints', async () => {

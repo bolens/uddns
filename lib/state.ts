@@ -7,19 +7,14 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { hasErrorCode } from './errors.js';
-import { publicIpSchema, type ProviderId, type PublicIP } from './schemas/provider.js';
+import type { ProviderId, PublicIP } from './schemas/provider.js';
+import { stateFileSchema, type StateFile } from './schemas/state.js';
 
 export type HostState = Record<string, PublicIP>;
 
 export type StateStore = {
   load: () => Promise<HostState>;
   save: (state: HostState) => Promise<void>;
-};
-
-type StateFile = {
-  version: 1;
-  provider: ProviderId;
-  hosts: HostState;
 };
 
 export function createFileStateStore(file: string, provider: ProviderId): StateStore {
@@ -37,11 +32,11 @@ export function createFileStateStore(file: string, provider: ProviderId): StateS
         throw error;
       }
 
-      const parsed: unknown = JSON.parse(raw);
-      if (!isStateFile(parsed) || parsed.provider !== provider) {
+      const parsed = stateFileSchema.safeParse(JSON.parse(raw));
+      if (!parsed.success || parsed.data.provider !== provider) {
         return {};
       }
-      return parsed.hosts;
+      return parsed.data.hosts;
     },
 
     async save(hosts) {
@@ -56,22 +51,4 @@ export function createFileStateStore(file: string, provider: ProviderId): StateS
       await rename(temporary, resolved);
     },
   };
-}
-
-function isStateFile(value: unknown): value is StateFile {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-  const candidate = value as { version?: unknown; provider?: unknown; hosts?: unknown };
-  if (
-    candidate.version !== 1 ||
-    typeof candidate.provider !== 'string' ||
-    !candidate.hosts ||
-    typeof candidate.hosts !== 'object'
-  ) {
-    return false;
-  }
-  return Object.entries(candidate.hosts).every(
-    ([host, ip]) => host.length > 0 && publicIpSchema.safeParse(ip).success,
-  );
 }
