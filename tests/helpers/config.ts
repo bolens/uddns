@@ -1,3 +1,10 @@
+import {
+  DEFAULT_CLOUDFLARE_TTL,
+  DEFAULT_DYNDNS_UPDATE_URL,
+  DEFAULT_INTERVAL_MS,
+  DEFAULT_NAMECHEAP_HOST,
+  DEFAULT_PROVIDER,
+} from '../../lib/defaults.js';
 import type {
   AppConfig,
   CloudflareConfig,
@@ -33,8 +40,8 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
   const hostname = hostnameOverride ?? hosts[0] ?? null;
 
   return {
-    provider: 'cloudflare',
-    interval: 900_000,
+    provider: DEFAULT_PROVIDER,
+    interval: DEFAULT_INTERVAL_MS,
     stateFile: null,
     user: null,
     password: null,
@@ -49,7 +56,7 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
       recordName: hostname,
       recordId: null,
       proxied: false,
-      ttl: 1,
+      ttl: DEFAULT_CLOUDFLARE_TTL,
       createIfMissing: true,
       ...cloudflareOverrides,
     },
@@ -59,13 +66,13 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
       ...duckdnsOverrides,
     },
     namecheap: {
-      host: '@',
+      host: DEFAULT_NAMECHEAP_HOST,
       domain: null,
       password: null,
       ...namecheapOverrides,
     },
     dyndns: {
-      updateUrl: 'https://members.dyndns.org/nic/update',
+      updateUrl: DEFAULT_DYNDNS_UPDATE_URL,
       username: null,
       password: null,
       hostname,

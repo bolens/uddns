@@ -13,9 +13,7 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    # State lives on the volume; override the in-image default path to match.
-    environment:
-      UDDNS_STATE_FILE: /data/state.json
+    # Image default is already UDDNS_STATE_FILE=/data/state.json (see Dockerfile).
     volumes:
       - uddns-state:/data
     # No inbound ports: uDDNS only makes outbound HTTPS/DNS requests.

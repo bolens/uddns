@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+import {
+  DEFAULT_CLOUDFLARE_TTL,
+  DEFAULT_DYNDNS_UPDATE_URL,
+  DEFAULT_INTERVAL_MS,
+  DEFAULT_NAMECHEAP_HOST,
+  DEFAULT_PROVIDER,
+  DEFAULT_STATE_FILE,
+} from '../defaults.js';
 import { resolveHosts } from '../hosts.js';
 import { appConfigSchema, PROVIDER_IDS, providerIdSchema, type AppConfig } from './provider.js';
 
@@ -77,7 +85,7 @@ export function loadConfig(
   rejectUnknownManagedEnv(env);
   const parsedEnv = envSchema.parse({ ...env });
 
-  const providerRaw = (parsedEnv['UDDNS_PROVIDER'] ?? 'cloudflare').toLowerCase();
+  const providerRaw = (parsedEnv['UDDNS_PROVIDER'] ?? DEFAULT_PROVIDER).toLowerCase();
 
   const providerResult = providerIdSchema.safeParse(providerRaw);
   if (!providerResult.success) {
@@ -86,7 +94,7 @@ export function loadConfig(
     );
   }
 
-  const interval = Number(parsedEnv['UDDNS_INTERVAL'] ?? 900_000);
+  const interval = Number(parsedEnv['UDDNS_INTERVAL'] ?? DEFAULT_INTERVAL_MS);
 
   if (!Number.isFinite(interval) || interval < 1_000) {
     throw new Error('UDDNS_INTERVAL must be a number of milliseconds >= 1000');
@@ -113,7 +121,7 @@ export function loadConfig(
 
   const firstHost = hosts[0] ?? null;
 
-  const dyndnsUpdateUrl = parsedEnv['DYNDNS_UPDATE_URL'] ?? 'https://members.dyndns.org/nic/update';
+  const dyndnsUpdateUrl = parsedEnv['DYNDNS_UPDATE_URL'] ?? DEFAULT_DYNDNS_UPDATE_URL;
   if (!isHttpsUrl(dyndnsUpdateUrl)) {
     throw new Error(
       'DYNDNS_UPDATE_URL must be a valid https:// URL (credentials would travel in cleartext over http)',
@@ -126,7 +134,7 @@ export function loadConfig(
     stateFile:
       parsedEnv['UDDNS_STATE_FILE'] === ''
         ? null
-        : (parsedEnv['UDDNS_STATE_FILE'] ?? '.uddns-state.json'),
+        : (parsedEnv['UDDNS_STATE_FILE'] ?? DEFAULT_STATE_FILE),
     hosts,
     hostname: firstHost,
     user: parsedEnv['UDDNS_USER'] ?? null,
@@ -143,7 +151,7 @@ export function loadConfig(
       recordName: parsedEnv['CLOUDFLARE_RECORD_NAME'] ?? firstHost,
       recordId: hosts.length === 1 ? (parsedEnv['CLOUDFLARE_RECORD_ID'] ?? null) : null,
       proxied: parseBoolean('CLOUDFLARE_PROXIED', parsedEnv['CLOUDFLARE_PROXIED'], false),
-      ttl: Number(parsedEnv['CLOUDFLARE_TTL'] ?? 1),
+      ttl: Number(parsedEnv['CLOUDFLARE_TTL'] ?? DEFAULT_CLOUDFLARE_TTL),
       createIfMissing: parseBoolean(
         'CLOUDFLARE_CREATE_IF_MISSING',
         parsedEnv['CLOUDFLARE_CREATE_IF_MISSING'],
@@ -155,7 +163,7 @@ export function loadConfig(
       token: parsedEnv['DUCKDNS_TOKEN'] ?? parsedEnv['UDDNS_TOKEN'] ?? null,
     },
     namecheap: {
-      host: parsedEnv['NAMECHEAP_HOST'] ?? '@',
+      host: parsedEnv['NAMECHEAP_HOST'] ?? DEFAULT_NAMECHEAP_HOST,
       domain: parsedEnv['NAMECHEAP_DOMAIN'] ?? null,
       password: parsedEnv['NAMECHEAP_PASSWORD'] ?? parsedEnv['UDDNS_PASS'] ?? null,
     },

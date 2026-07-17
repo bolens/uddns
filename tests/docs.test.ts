@@ -2,6 +2,12 @@ import { readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vite-plus/test';
 
+import {
+  DEFAULT_DYNDNS_UPDATE_URL,
+  DEFAULT_INTERVAL_MS,
+  DEFAULT_PROVIDER,
+  DEFAULT_STATE_FILE,
+} from '../lib/defaults.js';
 import { userAgent } from '../lib/providers/http.js';
 import { listProviderIds } from '../lib/providers/index.js';
 
@@ -46,6 +52,20 @@ describe('documentation contracts', () => {
         `${key} is accepted by lib/schemas/config.ts but missing from .env.example`,
       ).toMatch(new RegExp(`^#?\\s*${key}=`, 'm'));
     }
+  });
+
+  it('keeps documented default values in sync with lib/defaults.ts', async () => {
+    const [readme, envExample] = await Promise.all([read('README.md'), read('.env.example')]);
+
+    expect(envExample).toMatch(new RegExp(`^UDDNS_PROVIDER=${DEFAULT_PROVIDER}$`, 'm'));
+    expect(envExample).toMatch(new RegExp(`^UDDNS_INTERVAL=${DEFAULT_INTERVAL_MS}$`, 'm'));
+    expect(envExample).toMatch(new RegExp(`^UDDNS_STATE_FILE=${DEFAULT_STATE_FILE}$`, 'm'));
+    expect(envExample).toContain(`DYNDNS_UPDATE_URL=${DEFAULT_DYNDNS_UPDATE_URL}`);
+
+    expect(readme).toContain(`\`${DEFAULT_INTERVAL_MS}\``);
+    expect(readme).toContain(`UDDNS_INTERVAL=${DEFAULT_INTERVAL_MS}`);
+    expect(readme).toContain(`.uddns-state.json`);
+    expect(readme).toContain(DEFAULT_DYNDNS_UPDATE_URL);
   });
 
   it('keeps the HTTP User-Agent in sync with the brand and package version', async () => {
