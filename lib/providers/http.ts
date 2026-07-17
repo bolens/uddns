@@ -4,8 +4,9 @@
 
 import { errorMessage, networkErrorFields } from '../errors.js';
 import { isSensitiveKey } from '../sensitive.js';
+import packageJson from '../../package.json' with { type: 'json' };
 
-export const userAgent = 'uDDNS/2.0.0';
+export const userAgent = `uDDNS/${packageJson.version}`;
 
 /** Default cap on any single provider/API request so a hung endpoint cannot stall a cycle. */
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
