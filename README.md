@@ -37,7 +37,7 @@ Set `UDDNS_LOG_LEVEL` to `error`, `warn`, `info` (default), or `debug`.
 
 ### Public IP discovery
 
-Public addresses are discovered without a third-party IP package: DNS first (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT), with HTTPS echo fallbacks (icanhazip, ipify, ifconfig.co).
+Public addresses are discovered without a third-party IP package: HTTPS echo services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer, so it cannot be spoofed by an on-path attacker), with DNS fallbacks (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) for networks where the HTTPS services are unreachable.
 
 ## Providers
 
@@ -124,7 +124,7 @@ UDDNS_PROVIDER=dyndns
 UDDNS_USER=your_username
 UDDNS_PASS=your_password
 UDDNS_HOSTS=myhost.example.com,other.example.com
-# Optional custom endpoint:
+# Optional custom endpoint (must be https:// — credentials are sent with the request):
 # DYNDNS_UPDATE_URL=https://members.dyndns.org/nic/update
 ```
 
