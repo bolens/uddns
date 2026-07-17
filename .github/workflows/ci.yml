@@ -85,7 +85,7 @@ jobs:
       matrix:
         group:
           - name: providers
-            paths: tests/providers
+            paths: tests/providers tests/live
           - name: config
             paths: tests/config.test.ts tests/hosts.test.ts
           - name: core

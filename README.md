@@ -134,7 +134,7 @@ UDDNS_HOSTS=myhost.example.com,other.example.com
 vp check              # format + type-aware lint + types
 vp fmt --write        # format in place
 vp lint               # oxlint
-vp test               # unit tests, including documentation contracts
+vp test               # unit + live provider checks (Dyn test account) + docs contracts
 vp staged             # run checks on staged files
 vp config             # install Vite+ git hooks (skip with VITE_GIT_HOOKS=0)
 vp run docs:check     # focused documentation-drift check
@@ -171,15 +171,18 @@ lib/
 tests/
   helpers/             # shared fixtures (makeConfig, stubFetch)
   *.test.ts            # config / ip / updater
-  providers/           # one suite per provider + registry + nic-update
+  providers/           # mocked unit suites per provider + registry + nic-update
+  live/                # real HTTP against provider test endpoints (Dyn only today)
 ```
+
+Provider HTTP suites mock `fetch` by default. Dyn is the only bundled provider that publishes a public client-development test account ([test account docs](https://help.dyn.com/test-account.html)); `tests/live/dyndns.test.ts` hits that endpoint. Other providers have no DDNS sandbox, so they stay mocked.
 
 ### Adding a provider
 
 1. Create `lib/providers/<id>.ts` exporting a `Provider` (`id`, `label`, `update`)
 2. Register it in `lib/providers/index.ts` and `PROVIDER_IDS` in `lib/schemas/provider.ts`
 3. Map env vars in `lib/schemas/config.ts`
-4. Add `tests/providers/<id>.test.ts`
+4. Add `tests/providers/<id>.test.ts` (and a `tests/live/` suite only if the provider publishes a real test/sandbox DDNS API)
 5. Document env vars in this README and `.env.example`
 
 Prefer returning `fail("...")` for validation errors instead of throwing, so the loop keeps running.
