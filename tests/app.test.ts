@@ -310,6 +310,61 @@ describe('application entrypoint', () => {
     listeners.get('SIGTERM')?.();
   });
 
+  it('stops orphaned accounts when reload fails after they already started', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const env: Record<string, string | undefined> = {
+      UDDNS_HEALTH: '1',
+      UDDNS_HEALTH_PORT: '0',
+    };
+    const log = silentLog();
+    const previous = stubUpdater();
+    const orphaned = stubUpdater();
+    let createCalls = 0;
+    let resolveCalls = 0;
+    let sideServerCalls = 0;
+
+    await main({
+      env,
+      log,
+      resolveAccountsFn: () => {
+        resolveCalls += 1;
+        return [{ id: `a${resolveCalls}`, config: makeConfig({ hosts: ['a.example.com'] }) }];
+      },
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => {
+        createCalls += 1;
+        return createCalls === 1 ? previous : orphaned;
+      },
+      startSideServerFn: async () => {
+        sideServerCalls += 1;
+        if (sideServerCalls > 1) {
+          throw new Error('side server boom');
+        }
+        return {
+          server: {} as never,
+          url: 'http://127.0.0.1:0',
+          close: async () => {},
+        };
+      },
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    env['UDDNS_METRICS'] = '1';
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      expect(log.error).toHaveBeenCalledWith(
+        'Configuration reload failed',
+        expect.objectContaining({ message: 'side server boom' }),
+      );
+    });
+    expect(orphaned.stop).toHaveBeenCalled();
+    expect(previous.start.mock.calls.length).toBeGreaterThan(1);
+    listeners.get('SIGTERM')?.();
+  });
+
   it('restores previous accounts when SIGHUP reload fails', async () => {
     const listeners = new Map<string, (value?: unknown) => void>();
     const log = silentLog();

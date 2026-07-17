@@ -23,6 +23,7 @@ export type AppOptions = {
   ) => LoadedAccount[] | Promise<LoadedAccount[]>;
   getProviderFn?: (id: string) => Provider;
   createUpdaterFn?: (options: UpdaterOptions) => Updater;
+  startSideServerFn?: typeof startSideServer;
   on?: (event: string, listener: (value?: unknown) => void) => void;
   exit?: (code: number) => void;
 };
@@ -61,11 +62,19 @@ export async function main(options: AppOptions = {}): Promise<void> {
     shuttingDown = true;
     log.info(`Received ${signal}; shutting down.`);
     try {
-      await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
-      await Promise.all(bundles.map((bundle) => bundle.flushNotifications()));
+      const stopResults = await Promise.allSettled(bundles.map((bundle) => bundle.updater.stop()));
+      const flushResults = await Promise.allSettled(
+        bundles.map((bundle) => bundle.flushNotifications()),
+      );
       if (sideServer) {
         await sideServer.close();
         sideServer = null;
+      }
+      const failure = [...stopResults, ...flushResults].find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (failure) {
+        throw failure.reason;
       }
     } catch (error) {
       log.error('Graceful shutdown failed', formatError(error));
@@ -120,7 +129,8 @@ export async function main(options: AppOptions = {}): Promise<void> {
     if (!health.enabled) {
       return;
     }
-    sideServer = await startSideServer({
+    const startSideServerFn = options.startSideServerFn ?? startSideServer;
+    sideServer = await startSideServerFn({
       config: {
         host: health.host,
         port: health.port,
@@ -192,7 +202,12 @@ export async function main(options: AppOptions = {}): Promise<void> {
       }
       log.success(`Reloaded ${accounts.length} account(s)`);
     } catch (error) {
+      const orphaned = bundles;
       bundles = previous;
+      if (orphaned !== previous) {
+        await Promise.allSettled(orphaned.map((bundle) => bundle.updater.stop()));
+        await Promise.allSettled(orphaned.map((bundle) => bundle.flushNotifications()));
+      }
       if (wasRunning && previous.length > 0) {
         const restored = await Promise.allSettled(previous.map((bundle) => bundle.updater.start()));
         const restoreFailure = restored.find(
