@@ -8,6 +8,8 @@ const envSchema = z
   .object({
     UDDNS_PROVIDER: optionalEnv,
     UDDNS_INTERVAL: optionalEnv,
+    UDDNS_STATE_FILE: optionalEnv,
+    UDDNS_LOG_LEVEL: optionalEnv,
     UDDNS_HOST: optionalEnv,
     UDDNS_HOSTNAME: optionalEnv,
     UDDNS_HOSTS: optionalEnv,
@@ -31,11 +33,31 @@ const envSchema = z
   })
   .passthrough();
 
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+const MANAGED_ENV_PREFIXES = ['UDDNS_', 'CLOUDFLARE_', 'DUCKDNS_', 'NAMECHEAP_', 'DYNDNS_'];
+const KNOWN_ENV_KEYS = new Set(Object.keys(envSchema.shape));
+
+function rejectUnknownManagedEnv(env: Record<string, string | undefined>): void {
+  const unknown = Object.keys(env).filter(
+    (key) =>
+      MANAGED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix)) && !KNOWN_ENV_KEYS.has(key),
+  );
+  if (unknown.length > 0) {
+    throw new Error(`Unknown uDDNS environment variable(s): ${unknown.sort().join(', ')}`);
+  }
+}
+
+function parseBoolean(name: string, value: string | undefined, fallback: boolean): boolean {
   if (value == null || value === '') {
     return fallback;
   }
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+  const normalized = value.toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`${name} must be one of: true, false, 1, 0, yes, no, on, off`);
 }
 
 function isHttpsUrl(value: string): boolean {
@@ -52,6 +74,7 @@ function isHttpsUrl(value: string): boolean {
 export function loadConfig(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
 ): AppConfig {
+  rejectUnknownManagedEnv(env);
   const parsedEnv = envSchema.parse({ ...env });
 
   const providerRaw = (parsedEnv['UDDNS_PROVIDER'] ?? 'cloudflare').toLowerCase();
@@ -82,6 +105,11 @@ export function loadConfig(
   if (hosts.length === 0) {
     throw new Error('No hosts configured. Set UDDNS_HOSTS (comma-separated) or UDDNS_HOST.');
   }
+  for (const host of hosts) {
+    if (!isValidHostname(host)) {
+      throw new Error(`Invalid hostname in uDDNS configuration: "${host}"`);
+    }
+  }
 
   const firstHost = hosts[0] ?? null;
 
@@ -95,6 +123,10 @@ export function loadConfig(
   const config = {
     provider: providerResult.data,
     interval,
+    stateFile:
+      parsedEnv['UDDNS_STATE_FILE'] === ''
+        ? null
+        : (parsedEnv['UDDNS_STATE_FILE'] ?? '.uddns-state.json'),
     hosts,
     hostname: firstHost,
     user: parsedEnv['UDDNS_USER'] ?? null,
@@ -110,9 +142,13 @@ export function loadConfig(
       zoneName: parsedEnv['CLOUDFLARE_ZONE_NAME'] ?? null,
       recordName: parsedEnv['CLOUDFLARE_RECORD_NAME'] ?? firstHost,
       recordId: hosts.length === 1 ? (parsedEnv['CLOUDFLARE_RECORD_ID'] ?? null) : null,
-      proxied: parseBoolean(parsedEnv['CLOUDFLARE_PROXIED'], false),
+      proxied: parseBoolean('CLOUDFLARE_PROXIED', parsedEnv['CLOUDFLARE_PROXIED'], false),
       ttl: Number(parsedEnv['CLOUDFLARE_TTL'] ?? 1),
-      createIfMissing: parseBoolean(parsedEnv['CLOUDFLARE_CREATE_IF_MISSING'], true),
+      createIfMissing: parseBoolean(
+        'CLOUDFLARE_CREATE_IF_MISSING',
+        parsedEnv['CLOUDFLARE_CREATE_IF_MISSING'],
+        true,
+      ),
     },
     duckdns: {
       domains: parsedEnv['DUCKDNS_DOMAINS'] ?? hosts.join(',') ?? null,
@@ -131,7 +167,53 @@ export function loadConfig(
     },
   };
 
-  return appConfigSchema.parse(config);
+  const parsedConfig = appConfigSchema.parse(config);
+  validateProviderConfig(parsedConfig);
+  return parsedConfig;
+}
+
+function isValidHostname(value: string): boolean {
+  if (value.length > 253 || value.startsWith('.') || value.endsWith('.')) {
+    return false;
+  }
+  return value
+    .split('.')
+    .every(
+      (label) =>
+        label.length >= 1 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label),
+    );
+}
+
+export function validateProviderConfig(config: AppConfig): void {
+  const missing: string[] = [];
+
+  switch (config.provider) {
+    case 'cloudflare':
+      if (!config.cloudflare.apiToken) missing.push('CLOUDFLARE_API_TOKEN');
+      if (!config.cloudflare.recordName) missing.push('CLOUDFLARE_RECORD_NAME or UDDNS_HOST(S)');
+      break;
+    case 'duckdns':
+      if (!config.duckdns.token) missing.push('DUCKDNS_TOKEN');
+      if (!config.duckdns.domains) missing.push('DUCKDNS_DOMAINS or UDDNS_HOST(S)');
+      break;
+    case 'namecheap':
+      if (!config.namecheap.password) missing.push('NAMECHEAP_PASSWORD');
+      if (!config.namecheap.domain && config.hosts.some((host) => !host.includes('.'))) {
+        missing.push('NAMECHEAP_DOMAIN (required when hosts are not FQDNs)');
+      }
+      break;
+    case 'noip':
+    case 'dynu':
+    case 'dyndns':
+      if (!config.dyndns.username) missing.push('UDDNS_USER');
+      if (!config.dyndns.password) missing.push('UDDNS_PASS');
+      if (!config.dyndns.hostname) missing.push('UDDNS_HOST(S)');
+      break;
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`Invalid ${config.provider} configuration; missing: ${missing.join(', ')}`);
+  }
 }
 
 export type { AppConfig };

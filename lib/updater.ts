@@ -6,6 +6,8 @@ import { configForHost } from './hosts.js';
 import { discoverPublicIP, formatPublicIP, ipChanged, type PublicIPDiscovery } from './ip.js';
 import { createLogger, formatError, type Logger } from './log.js';
 import { formatResultSummary } from './result.js';
+import { HttpError } from './providers/http.js';
+import { createFileStateStore, type HostState, type StateStore } from './state.js';
 import type {
   AppConfig,
   CheckResult,
@@ -23,6 +25,12 @@ export type UpdaterOptions = {
   log?: Logger;
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
+  stateStore?: StateStore;
+  sleep?: (milliseconds: number) => Promise<void>;
+  random?: () => number;
+  retryAttempts?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
 };
 
 export function createUpdater(options: UpdaterOptions) {
@@ -32,7 +40,15 @@ export function createUpdater(options: UpdaterOptions) {
     log = createLogger(),
     setIntervalFn = setInterval,
     clearIntervalFn = clearInterval,
+    sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    random = Math.random,
+    retryAttempts = 3,
+    retryBaseDelayMs = 1_000,
+    retryMaxDelayMs = 30_000,
   } = options;
+  const stateStore =
+    options.stateStore ??
+    (config.stateFile ? createFileStateStore(config.stateFile, provider.id) : null);
 
   const resolveDiscovery =
     options.discoverPublicIP ??
@@ -44,9 +60,35 @@ export function createUpdater(options: UpdaterOptions) {
       : discoverPublicIP);
 
   let currentIP: PublicIP = { v4: null, v6: null };
+  let hostState: HostState = {};
+  let stateLoaded = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let cycle = 0;
   let inFlight = false;
+  let inFlightPromise: Promise<CheckResult | null> | null = null;
+  let stopping = false;
+
+  async function loadState(): Promise<void> {
+    if (stateLoaded) {
+      return;
+    }
+    stateLoaded = true;
+    if (!stateStore) {
+      return;
+    }
+    try {
+      const loaded = await stateStore.load();
+      hostState = Object.fromEntries(
+        config.hosts
+          .filter((host) => loaded[host] !== undefined)
+          .map((host) => [host, loaded[host]!]),
+      );
+      refreshCurrentIP();
+      log.debug('Loaded updater state', { hosts: Object.keys(hostState), currentIP });
+    } catch (error) {
+      log.warn('Could not load updater state; starting without a checkpoint', formatError(error));
+    }
+  }
 
   /**
    * Run one cycle unless the previous one is still in flight. Slow provider
@@ -60,14 +102,16 @@ export function createUpdater(options: UpdaterOptions) {
     }
 
     inFlight = true;
-    try {
-      return await checkOnce();
-    } finally {
+    const run = checkOnce();
+    inFlightPromise = run;
+    return await run.finally(() => {
       inFlight = false;
-    }
+      inFlightPromise = null;
+    });
   }
 
   async function checkOnce(): Promise<CheckResult> {
+    await loadState();
     cycle += 1;
     const started = Date.now();
     log.debug(`Starting check cycle #${cycle}`, {
@@ -97,28 +141,44 @@ export function createUpdater(options: UpdaterOptions) {
       });
     }
 
-    if (!ipChanged(ip, currentIP)) {
+    const pendingHosts = config.hosts.filter((host) =>
+      ipChanged(ip, hostState[host] ?? { v4: null, v6: null }),
+    );
+
+    if (pendingHosts.length === 0) {
+      const previousIP = currentIP;
+      currentIP = { ...ip };
       const message = 'No update required.';
       log.info(message, {
         cycle,
         ip,
-        previousIP: currentIP,
+        previousIP,
         durationMs: Date.now() - started,
       });
       return { status: 'unchanged', ip, message };
     }
 
-    log.info(`Updating DNS -> ${formatPublicIP(ip)} for ${config.hosts.length} host(s)`, {
+    log.info(`Updating DNS -> ${formatPublicIP(ip)} for ${pendingHosts.length} host(s)`, {
       cycle,
       provider: `${provider.label} (${provider.id})`,
-      hosts: config.hosts,
+      hosts: pendingHosts,
       previousIP: currentIP,
       nextIP: ip,
     });
 
-    const hostResults: HostUpdateResult[] = [];
+    const hostResults: HostUpdateResult[] = config.hosts
+      .filter((host) => !pendingHosts.includes(host))
+      .map((host) => ({
+        host,
+        result: {
+          ok: true,
+          skipped: true,
+          message: `already committed for ${formatPublicIP(ip)}`,
+        },
+      }));
+    let stateChanged = false;
 
-    for (const host of config.hosts) {
+    for (const host of pendingHosts) {
       const hostStarted = Date.now();
       const hostConfig = configForHost(config, host);
 
@@ -134,9 +194,13 @@ export function createUpdater(options: UpdaterOptions) {
           dyndnsHostname: hostConfig.dyndns.hostname,
         });
 
-        const result = await provider.update(hostConfig, ip);
+        const result = await updateWithRetry(hostConfig, ip, host);
         const durationMs = Date.now() - hostStarted;
         hostResults.push({ host, result, durationMs });
+        if (result.ok) {
+          hostState[host] = { ...ip };
+          stateChanged = true;
+        }
 
         const summary = `${formatResultSummary(result)} (${durationMs}ms)`;
         if (result.ok) {
@@ -164,9 +228,18 @@ export function createUpdater(options: UpdaterOptions) {
       }
     }
 
+    if (stateChanged && stateStore) {
+      try {
+        await stateStore.save(hostState);
+      } catch (error) {
+        log.warn('Could not persist updater state', formatError(error));
+      }
+    }
+
     const summary = summarizeHostResults(ip, hostResults, (nextIP) => {
       currentIP = nextIP;
     });
+    refreshCurrentIP();
 
     log.info(`Cycle #${cycle} finished: ${summary.status}`, {
       durationMs: Date.now() - started,
@@ -182,6 +255,7 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   async function start() {
+    await loadState();
     log.info(`Using provider: ${provider.label} (${provider.id})`, {
       logLevel: log.level,
       intervalMs: config.interval,
@@ -199,30 +273,131 @@ export function createUpdater(options: UpdaterOptions) {
     log.info(`Check interval: ${config.interval}ms (${formatInterval(config.interval)})`);
 
     await checkOnceGuarded();
-    timer = setIntervalFn(() => {
-      checkOnceGuarded().catch((error: unknown) => {
-        log.error('Check cycle failed', formatError(error));
-      });
-    }, config.interval);
+    if (!stopping) {
+      timer = setIntervalFn(() => {
+        checkOnceGuarded().catch((error: unknown) => {
+          log.error('Check cycle failed', formatError(error));
+        });
+      }, config.interval);
+    }
 
     return {
-      stop() {
-        if (timer != null) {
-          clearIntervalFn(timer);
-          timer = null;
-          log.info('Updater stopped');
-        }
+      async stop() {
+        await stop();
       },
     };
+  }
+
+  async function stop(): Promise<void> {
+    stopping = true;
+    if (timer != null) {
+      clearIntervalFn(timer);
+      timer = null;
+    }
+    if (inFlightPromise) {
+      log.info('Waiting for active update cycle to finish');
+      await inFlightPromise;
+    }
+    log.info('Updater stopped');
+  }
+
+  function refreshCurrentIP(): void {
+    const committed = config.hosts.map((host) => hostState[host]);
+    if (
+      committed.length === config.hosts.length &&
+      committed.every(
+        (value) =>
+          value !== undefined && value.v4 === committed[0]?.v4 && value.v6 === committed[0]?.v6,
+      )
+    ) {
+      currentIP = { ...committed[0]! };
+    }
+  }
+
+  async function updateWithRetry(
+    hostConfig: AppConfig,
+    ip: PublicIP,
+    host: string,
+  ): Promise<UpdateResult> {
+    const attempts = Math.max(1, Math.floor(retryAttempts));
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const result = await provider.update(hostConfig, ip);
+        if (!isRetryableResult(result) || attempt >= attempts || stopping) {
+          return result;
+        }
+        await waitBeforeRetry(host, attempt, result.message);
+      } catch (error) {
+        if (!isRetryableError(error) || attempt >= attempts || stopping) {
+          throw error;
+        }
+        await waitBeforeRetry(
+          host,
+          attempt,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+  }
+
+  async function waitBeforeRetry(host: string, attempt: number, reason: string): Promise<void> {
+    const exponential = Math.min(retryMaxDelayMs, retryBaseDelayMs * 2 ** (attempt - 1));
+    const delayMs = Math.max(0, Math.round(exponential * (0.8 + random() * 0.4)));
+    log.warn(`Transient update failure for ${host}; retrying`, {
+      attempt,
+      nextAttempt: attempt + 1,
+      delayMs,
+      reason,
+    });
+    await sleep(delayMs);
   }
 
   return {
     checkOnce,
     start,
+    stop,
     getCurrentIP(): PublicIP {
       return { ...currentIP };
     },
   };
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof HttpError) {
+    return true;
+  }
+  const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
+  if (typeof status === 'number' && (status === 429 || status >= 500)) {
+    return true;
+  }
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+  return ['ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN', 'ENETUNREACH', 'ETIMEDOUT'].includes(code);
+}
+
+function isRetryableResult(result: UpdateResult): boolean {
+  return !result.ok && containsRetryableStatus(result.details);
+}
+
+function containsRetryableStatus(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(containsRetryableStatus);
+  }
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    if (
+      (key === 'status' || key === 'httpStatus') &&
+      typeof nested === 'number' &&
+      (nested === 429 || nested >= 500)
+    ) {
+      return true;
+    }
+    if (containsRetryableStatus(nested)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function summarizeHostResults(

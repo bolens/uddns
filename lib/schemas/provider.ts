@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isIPv4, isIPv6 } from 'node:net';
 
 import type { JsonObject } from './json.js';
 
@@ -14,9 +15,15 @@ export const PROVIDER_IDS = [
 export const providerIdSchema = z.enum(PROVIDER_IDS);
 export type ProviderId = z.infer<typeof providerIdSchema>;
 
-const publicIpSchema = z.object({
-  v4: z.string().nullable(),
-  v6: z.string().nullable(),
+export const publicIpSchema = z.object({
+  v4: z
+    .string()
+    .refine((value) => isIPv4(value), 'Invalid IPv4 address')
+    .nullable(),
+  v6: z
+    .string()
+    .refine((value) => isIPv6(value), 'Invalid IPv6 address')
+    .nullable(),
 });
 export type PublicIP = z.infer<typeof publicIpSchema>;
 
@@ -42,7 +49,12 @@ const cloudflareConfigSchema = z.object({
   recordName: z.string().nullable(),
   recordId: z.string().nullable(),
   proxied: z.boolean(),
-  ttl: z.number(),
+  ttl: z
+    .number()
+    .int()
+    .refine((value) => value === 1 || (value >= 60 && value <= 86_400), {
+      message: 'Cloudflare TTL must be 1 (automatic) or an integer from 60 to 86400',
+    }),
   createIfMissing: z.boolean(),
 });
 export type CloudflareConfig = z.infer<typeof cloudflareConfigSchema>;
@@ -70,7 +82,8 @@ export type DynDnsConfig = z.infer<typeof dynDnsConfigSchema>;
 
 export const appConfigSchema = z.object({
   provider: providerIdSchema,
-  interval: z.number(),
+  interval: z.number().int().min(1_000),
+  stateFile: z.string().min(1).nullable(),
   hosts: z.array(z.string()).min(1),
   hostname: z.string().nullable(),
   user: z.string().nullable(),

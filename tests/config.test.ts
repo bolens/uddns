@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vite-plus/test';
 
 import { loadConfig } from '../lib/config.js';
+import { validateProviderConfig } from '../lib/schemas/config.js';
+import { makeConfig } from './helpers/config.js';
 
 describe('loadConfig', () => {
   it('defaults to cloudflare with a 15-minute interval and singular host', () => {
-    const config = loadConfig({ UDDNS_HOST: 'home.example.com' });
+    const config = loadConfig({
+      UDDNS_HOST: 'home.example.com',
+      CLOUDFLARE_API_TOKEN: 'token',
+    });
     expect(config.provider).toBe('cloudflare');
     expect(config.interval).toBe(900_000);
+    expect(config.stateFile).toBe('.uddns-state.json');
     expect(config.hosts).toEqual(['home.example.com']);
     expect(config.hostname).toBe('home.example.com');
   });
@@ -128,5 +134,97 @@ describe('loadConfig', () => {
       /UDDNS_INTERVAL/,
     );
     expect(() => loadConfig({})).toThrow(/No hosts configured/);
+  });
+
+  it('fails fast on missing provider credentials', () => {
+    expect(() =>
+      loadConfig({ UDDNS_PROVIDER: 'cloudflare', UDDNS_HOST: 'home.example.com' }),
+    ).toThrow(/CLOUDFLARE_API_TOKEN/);
+    expect(() => loadConfig({ UDDNS_PROVIDER: 'duckdns', UDDNS_HOST: 'home' })).toThrow(
+      /DUCKDNS_TOKEN/,
+    );
+    expect(() => loadConfig({ UDDNS_PROVIDER: 'noip', UDDNS_HOST: 'home.example.com' })).toThrow(
+      /UDDNS_USER.*UDDNS_PASS/,
+    );
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'namecheap',
+        UDDNS_HOSTS: 'home',
+        NAMECHEAP_PASSWORD: 'ddns',
+      }),
+    ).toThrow(/NAMECHEAP_DOMAIN \(required when hosts are not FQDNs\)/);
+    expect(() => loadConfig({ UDDNS_HOST: 'x.com', UDDNS_INTERVAL: 'abc' })).toThrow(
+      /UDDNS_INTERVAL/,
+    );
+  });
+
+  it('validateProviderConfig rejects hand-built configs missing derived fields', () => {
+    // These fields are auto-derived by loadConfig, so only direct callers can miss them.
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({ provider: 'cloudflare', cloudflare: { apiToken: 't', recordName: null } }),
+      ),
+    ).toThrow(/CLOUDFLARE_RECORD_NAME or UDDNS_HOST/);
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({ provider: 'duckdns', duckdns: { token: 't', domains: null } }),
+      ),
+    ).toThrow(/DUCKDNS_DOMAINS or UDDNS_HOST/);
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({
+          provider: 'dyndns',
+          dyndns: { username: 'u', password: 'p', hostname: null },
+        }),
+      ),
+    ).toThrow(/UDDNS_HOST\(S\)/);
+
+    // Valid configs pass silently.
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({ provider: 'namecheap', namecheap: { password: 'p', domain: 'example.com' } }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({
+          provider: 'noip',
+          dyndns: { username: 'u', password: 'p', hostname: 'home.example.com' },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects malformed booleans, TTLs, hostnames, and managed env typos', () => {
+    const base = {
+      UDDNS_HOST: 'home.example.com',
+      CLOUDFLARE_API_TOKEN: 'token',
+    };
+
+    expect(() => loadConfig({ ...base, CLOUDFLARE_PROXIED: 'treu' })).toThrow(
+      /CLOUDFLARE_PROXIED must be one of/,
+    );
+    expect(() => loadConfig({ ...base, CLOUDFLARE_TTL: '30' })).toThrow(/Cloudflare TTL/);
+    expect(() => loadConfig({ ...base, UDDNS_HOST: '-invalid.example.com' })).toThrow(
+      /Invalid hostname/,
+    );
+    expect(() => loadConfig({ ...base, UDDNS_HOST: `${'a'.repeat(254)}.example.com` })).toThrow(
+      /Invalid hostname/,
+    );
+    expect(() => loadConfig({ ...base, UDDNS_HOST: `${'a'.repeat(64)}.example.com` })).toThrow(
+      /Invalid hostname/,
+    );
+    expect(() => loadConfig({ ...base, CLOUDFLARE_API_T0KEN: 'typo' })).toThrow(
+      /Unknown uDDNS environment variable.*API_T0KEN/,
+    );
+  });
+
+  it('allows disabling the persisted state file explicitly', () => {
+    const config = loadConfig({
+      UDDNS_HOST: 'home.example.com',
+      CLOUDFLARE_API_TOKEN: 'token',
+      UDDNS_STATE_FILE: '',
+    });
+    expect(config.stateFile).toBeNull();
   });
 });

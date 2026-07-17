@@ -106,7 +106,7 @@ describe('createUpdater', () => {
     expect(update).toHaveBeenCalledOnce();
   });
 
-  it('does not advance current IP on partial failure, then retries until all hosts succeed', async () => {
+  it('checkpoints successful hosts and retries only failed hosts', async () => {
     let vpnShouldFail = true;
     const update = vi.fn(async (config: AppConfig) => {
       if (config.hostname === 'vpn.example.com' && vpnShouldFail) {
@@ -130,12 +130,13 @@ describe('createUpdater', () => {
 
     const second = await updater.checkOnce();
     expect(second.status).toBe('partial');
-    expect(update).toHaveBeenCalledTimes(4);
+    expect(update).toHaveBeenCalledTimes(3);
+    expect(update.mock.calls[2]?.[0].hostname).toBe('vpn.example.com');
 
     vpnShouldFail = false;
     const third = await updater.checkOnce();
     expect(third.status).toBe('updated');
-    expect(update).toHaveBeenCalledTimes(6);
+    expect(update).toHaveBeenCalledTimes(4);
     expect(updater.getCurrentIP()).toEqual({ v4: '9.9.9.9', v6: null });
   });
 
@@ -155,6 +156,7 @@ describe('createUpdater', () => {
       provider: mockProvider(update),
       getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
       log,
+      sleep: async () => {},
     });
 
     const result = await updater.checkOnce();
@@ -207,7 +209,7 @@ describe('createUpdater', () => {
   });
 
   it('debug-logs partial discovery errors but proceeds with the available family', async () => {
-    const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
+    const update = vi.fn(async (_config: AppConfig) => ({ ok: true, message: 'ok' }));
     const log = silentLog();
     const updater = createUpdater({
       config: makeConfig({ hosts: ['home.example.com'] }),
@@ -255,7 +257,7 @@ describe('createUpdater', () => {
     firstTimer!.fn();
     expect(update).toHaveBeenCalledOnce();
 
-    handle.stop();
+    await handle.stop();
     expect(clear).toHaveBeenCalledWith(42);
   });
 
@@ -376,10 +378,225 @@ describe('createUpdater', () => {
       });
 
       const handle = await updater.start();
-      handle.stop();
+      await handle.stop();
 
       expect(log.info).toHaveBeenCalledWith(expect.stringContaining(expected));
     }
+  });
+
+  it('retries failed results that carry retryable HTTP statuses in their details', async () => {
+    const delays: number[] = [];
+    const update = vi
+      .fn<Provider['update']>()
+      .mockResolvedValueOnce({
+        ok: false,
+        message: 'server error',
+        details: { results: [{ details: { http: { status: 503 } } }] },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        message: 'rate limited',
+        details: { httpStatus: 429 },
+      })
+      .mockResolvedValue({ ok: true, message: 'ok' });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async (delay) => {
+        delays.push(delay);
+      },
+      random: () => 0.5,
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(update).toHaveBeenCalledTimes(3);
+    expect(delays).toEqual([1_000, 2_000]);
+  });
+
+  it('does not retry non-retryable failed results or errors', async () => {
+    const sleep = vi.fn(async () => {});
+
+    const badauth = vi.fn<Provider['update']>().mockResolvedValue({
+      ok: false,
+      message: 'badauth',
+      details: { httpStatus: 401 },
+    });
+    const authUpdater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(badauth),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep,
+    });
+    await expect(authUpdater.checkOnce()).resolves.toMatchObject({ status: 'error' });
+    expect(badauth).toHaveBeenCalledOnce();
+
+    const typeError = vi.fn<Provider['update']>().mockRejectedValue(new TypeError('bug'));
+    const bugUpdater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(typeError),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep,
+    });
+    await expect(bugUpdater.checkOnce()).resolves.toMatchObject({ status: 'error' });
+    expect(typeError).toHaveBeenCalledOnce();
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('returns the last failed result once retry attempts are exhausted', async () => {
+    const update = vi.fn<Provider['update']>().mockResolvedValue({
+      ok: false,
+      message: 'still down',
+      details: { httpStatus: 502 },
+    });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async () => {},
+      retryAttempts: 2,
+    });
+
+    const result = await updater.checkOnce();
+    expect(result.status).toBe('error');
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(result.hostResults?.[0]?.result.message).toBe('still down');
+  });
+
+  it('retries HttpError and status-carrying thrown errors', async () => {
+    const { HttpError } = await import('../lib/providers/http.js');
+    const update = vi
+      .fn<Provider['update']>()
+      .mockRejectedValueOnce(new HttpError('socket closed'))
+      .mockRejectedValueOnce(Object.assign(new Error('cf 500'), { status: 500 }))
+      .mockResolvedValue({ ok: true, message: 'ok' });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      // No injected sleep: exercises the real setTimeout-based delay with a tiny budget.
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(update).toHaveBeenCalledTimes(3);
+  });
+
+  it('warns and continues when state loading or saving fails', async () => {
+    const log = silentLog();
+    const update = vi.fn(async (_config: AppConfig) => ({ ok: true, message: 'ok' }));
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log,
+      stateStore: {
+        load: async () => {
+          throw new Error('corrupt state');
+        },
+        save: async () => {
+          throw new Error('disk full');
+        },
+      },
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Could not load updater state'),
+      expect.objectContaining({ message: 'corrupt state' }),
+    );
+    expect(log.warn).toHaveBeenCalledWith(
+      'Could not persist updater state',
+      expect.objectContaining({ message: 'disk full' }),
+    );
+  });
+
+  it('retries transient transport failures with exponential jittered backoff', async () => {
+    const delays: number[] = [];
+    const update = vi
+      .fn<Provider['update']>()
+      .mockRejectedValueOnce(Object.assign(new Error('reset'), { code: 'ECONNRESET' }))
+      .mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }))
+      .mockResolvedValue({ ok: true, message: 'ok' });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async (delay) => {
+        delays.push(delay);
+      },
+      random: () => 0.5,
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(update).toHaveBeenCalledTimes(3);
+    expect(delays).toEqual([1_000, 2_000]);
+  });
+
+  it('loads and persists per-host checkpoints', async () => {
+    const save = vi.fn(async () => {});
+    const update = vi.fn(async (_config: AppConfig) => ({ ok: true, message: 'ok' }));
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com', 'vpn.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      stateStore: {
+        load: async () => ({ 'home.example.com': { v4: '9.9.9.9', v6: null } }),
+        save,
+      },
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(update).toHaveBeenCalledOnce();
+    expect(update.mock.calls[0]?.[0].hostname).toBe('vpn.example.com');
+    expect(save).toHaveBeenCalledWith({
+      'home.example.com': { v4: '9.9.9.9', v6: null },
+      'vpn.example.com': { v4: '9.9.9.9', v6: null },
+    });
+  });
+
+  it('waits for an active cycle during graceful shutdown', async () => {
+    let release: ((result: UpdateResult) => void) | undefined;
+    const update = vi.fn(
+      () =>
+        new Promise<UpdateResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+    });
+
+    const startPromise = updater.start();
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledOnce();
+    });
+    const stopPromise = updater.stop();
+    let stopped = false;
+    void stopPromise.then(() => {
+      stopped = true;
+    });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+
+    release?.({ ok: true, message: 'ok' });
+    await Promise.all([startPromise, stopPromise]);
+    expect(stopped).toBe(true);
   });
 });
 

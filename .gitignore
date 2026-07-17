@@ -52,6 +52,7 @@ blob-report
 # --- Logs & runtime ---
 logs/
 *.log
+.uddns-state.json
 pids/
 *.pid
 *.seed

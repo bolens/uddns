@@ -35,6 +35,7 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
   return {
     provider: 'cloudflare',
     interval: 900_000,
+    stateFile: null,
     user: null,
     password: null,
     token: null,
