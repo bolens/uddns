@@ -157,11 +157,11 @@ describe('createLogger', () => {
     expect(error).toHaveBeenCalledOnce();
   });
 
-  it('falls back to console writers and DDNS_LOG_LEVEL by default', () => {
+  it('falls back to console writers and UDDNS_LOG_LEVEL by default', () => {
     const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => {});
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubEnv('DDNS_LOG_LEVEL', 'debug');
+    vi.stubEnv('UDDNS_LOG_LEVEL', 'debug');
 
     try {
       const logger = createLogger();

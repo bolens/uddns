@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe('dynu provider', () => {
-  it('uses DDNS_TOKEN as password fallback and sends ipv4/ipv6', async () => {
+  it('uses UDDNS_TOKEN as password fallback and sends ipv4/ipv6', async () => {
     const fetchMock = stubFetch(async () => textResponse('good 203.0.113.8'));
 
     const result = await dynuProvider.update(
@@ -33,7 +33,7 @@ describe('dynu provider', () => {
     expect(call.auth).toEqual({ user: 'dynu-user', pass: 'token-as-pass' });
   });
 
-  it('prefers DDNS_PASS over token and validates required fields', async () => {
+  it('prefers UDDNS_PASS over token and validates required fields', async () => {
     const fetchMock = stubFetch(async () => textResponse('nochg 1.1.1.1'));
 
     const result = await dynuProvider.update(

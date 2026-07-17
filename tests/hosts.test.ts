@@ -18,7 +18,7 @@ describe('parseHostList', () => {
 });
 
 describe('resolveHosts', () => {
-  it('prefers DDNS_HOSTS over singular values', () => {
+  it('prefers UDDNS_HOSTS over singular values', () => {
     expect(
       resolveHosts({
         hosts: 'a.example.com,b.example.com',

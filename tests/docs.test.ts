@@ -13,7 +13,7 @@ async function read(path: string): Promise<string> {
 describe('documentation contracts', () => {
   it('keeps the documented provider list in sync with the registry', async () => {
     const readme = await read('README.md');
-    const providerLine = readme.match(/Set `DDNS_PROVIDER` to one of: ([^\n]+)/)?.[1] ?? '';
+    const providerLine = readme.match(/Set `UDDNS_PROVIDER` to one of: ([^\n]+)/)?.[1] ?? '';
     const documented = [...providerLine.matchAll(/`([a-z0-9-]+)`/g)]
       .map((match) => match[1])
       .filter((provider): provider is string => provider !== undefined);
@@ -36,7 +36,7 @@ describe('documentation contracts', () => {
       ]
         .map((match) => match[1])
         .filter((key): key is string => Boolean(key))
-        .filter((key) => key !== 'DDNS_HOSTNAME'),
+        .filter((key) => key !== 'UDDNS_HOSTNAME'),
     );
 
     for (const key of runtimeKeys) {

@@ -26,10 +26,10 @@ describe('provider registry', () => {
   it('accepts every registered provider id in loadConfig', () => {
     for (const id of listProviderIds()) {
       const config = loadConfig({
-        DDNS_PROVIDER: id,
-        DDNS_HOST: 'home.example.com',
-        DDNS_USER: 'user',
-        DDNS_PASS: 'pass',
+        UDDNS_PROVIDER: id,
+        UDDNS_HOST: 'home.example.com',
+        UDDNS_USER: 'user',
+        UDDNS_PASS: 'pass',
         CLOUDFLARE_API_TOKEN: 'token',
         DUCKDNS_TOKEN: 'token',
         NAMECHEAP_DOMAIN: 'example.com',

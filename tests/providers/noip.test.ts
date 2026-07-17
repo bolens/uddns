@@ -47,7 +47,7 @@ describe('noip provider', () => {
       }),
     ).resolves.toMatchObject({
       ok: false,
-      message: expect.stringContaining('DDNS_USER'),
+      message: expect.stringContaining('UDDNS_USER'),
       details: { hasUser: false, hasPassword: false, hostname: 'home.ddns.net' },
     });
 

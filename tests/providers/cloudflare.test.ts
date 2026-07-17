@@ -31,7 +31,7 @@ describe('cloudflare provider', () => {
       ),
     ).resolves.toMatchObject({
       ok: false,
-      message: expect.stringMatching(/RECORD_NAME|DDNS_HOST/),
+      message: expect.stringMatching(/RECORD_NAME|UDDNS_HOST/),
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
