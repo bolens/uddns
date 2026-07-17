@@ -89,6 +89,22 @@ Set `UDDNS_HEALTH=1` to bind the side server (`UDDNS_HEALTH_HOST` /
 - `GET /metrics` — Prometheus text when `UDDNS_METRICS=1`
 - `GET /events` — SSE cycle events
 
-Notification webhooks and ntfy requests run asynchronously after a cycle so a
-slow notification endpoint cannot delay DNS checks. Delivery failures are
-logged and do not change cycle status.
+Notification webhooks, ntfy, Slack, and Discord requests run asynchronously
+after a cycle so a slow notification endpoint cannot delay DNS checks. Delivery
+failures are logged and do not change cycle status.
+
+Optional OpenTelemetry spans are enabled with `UDDNS_OTEL=1`. The process uses
+the OpenTelemetry API only; register an SDK/exporter in the embedding runtime to
+export traces.
+
+## One-shot exit codes
+
+`uddns once` / `node dist/cli.js once`:
+
+| Status                                               | Exit |
+| ---------------------------------------------------- | ---- |
+| `updated`, `unchanged`, `dry_run`                    | `0`  |
+| `error`, `partial`, `skipped_no_ip`, startup failure | `1`  |
+
+Use `check-config` (not live `once --dry-run`) in CI when you only need
+configuration validation without public-IP discovery.

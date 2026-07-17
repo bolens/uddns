@@ -13,6 +13,7 @@ import { getProvider } from './providers/index.js';
 import type { CycleEvent } from './schemas/cycle.js';
 import type { AppConfig, Provider } from './schemas/provider.js';
 import { createMetricsTracker } from './side-server.js';
+import { createTelemetry } from './telemetry.js';
 import { createUpdater, type Updater, type UpdaterOptions } from './updater.js';
 
 export type RuntimeBundle = {
@@ -52,6 +53,7 @@ export function createRuntimeBundle(options: {
   const eventListeners = new Set<(event: CycleEvent) => void>();
 
   const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
+  const telemetry = createTelemetry(options.config.telemetryEnabled);
   const discoverDeps: Parameters<typeof discoverPublicIP>[0] = {
     fetch: globalThis.fetch.bind(globalThis),
     createResolver: createDefaultResolver,
@@ -69,6 +71,7 @@ export function createRuntimeBundle(options: {
     config: options.config,
     provider,
     log,
+    telemetry,
     applyIpPolicy: (discovered, previous) =>
       applyIpPolicy(discovered, previous, {
         family: options.config.ipFamily,
@@ -88,6 +91,8 @@ export function createRuntimeBundle(options: {
         {
           webhookUrl: options.config.notifyWebhookUrl,
           ntfyUrl: options.config.notifyNtfyUrl,
+          slackUrl: options.config.notifySlackUrl,
+          discordUrl: options.config.notifyDiscordUrl,
           on: options.config.notifyOn,
         },
         event,

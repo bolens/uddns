@@ -36,7 +36,7 @@ export async function runOnce(options: OnceOptions = {}): Promise<void> {
       ...(options.force ? { force: true } : {}),
       ...(options.dryRun ? { dryRun: true } : {}),
     });
-    if (result.status === 'error') {
+    if (result.status === 'error' || result.status === 'skipped_no_ip') {
       log.error(result.message, result);
       exit(1);
       return;
@@ -47,6 +47,7 @@ export async function runOnce(options: OnceOptions = {}): Promise<void> {
       return;
     }
     log.success(result.message, { status: result.status, ip: result.ip });
+    exit(0);
   } catch (error) {
     log.error('One-shot update failed', formatError(error));
     exit(1);

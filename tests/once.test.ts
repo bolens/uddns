@@ -40,7 +40,26 @@ describe('once', () => {
     });
 
     expect(checkOnce).toHaveBeenCalledWith({ force: true, dryRun: true });
-    expect(exit).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(0);
+  });
+
+  it('exits zero on successful updates', async () => {
+    const exit = vi.fn();
+    await runOnce({
+      log: silentLog(),
+      loadConfigFn: () => makeConfig(),
+      getProviderFn: () => mockProvider(),
+      createUpdaterFn: () =>
+        updaterWith(
+          vi.fn(async () => ({
+            status: 'updated' as const,
+            ip: { v4: '203.0.113.10', v6: null },
+            message: 'ok',
+          })),
+        ),
+      exit,
+    });
+    expect(exit).toHaveBeenCalledWith(0);
   });
 
   it('exits non-zero on error and partial results', async () => {

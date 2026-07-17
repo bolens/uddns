@@ -37,6 +37,25 @@ describe('createUpdater', () => {
     );
   });
 
+  it('skips hosts listed in disabledHosts', async () => {
+    const update = vi.fn(async () => ({ ok: true, message: 'updated' }));
+    const updater = createUpdater({
+      config: makeConfig({
+        hosts: ['home.example.com', 'vpn.example.com'],
+        disabledHosts: ['vpn.example.com'],
+      }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+    });
+
+    const result = await updater.checkOnce();
+    expect(result.status).toBe('updated');
+    expect(update).toHaveBeenCalledTimes(1);
+    const [hostConfig] = update.mock.calls[0] as unknown as [AppConfig, PublicIP];
+    expect(hostConfig).toMatchObject({ hostname: 'home.example.com' });
+  });
+
   it('updates every configured host with host-bound config and IP payload', async () => {
     const update = vi.fn(async (config: AppConfig, ip: PublicIP) => ({
       ok: true,
@@ -388,6 +407,33 @@ describe('createUpdater', () => {
     await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
     expect(update).toHaveBeenCalledTimes(3);
     expect(delays).toEqual([1_000, 2_000]);
+  });
+
+  it('honors Retry-After delays from failed provider results', async () => {
+    const delays: number[] = [];
+    const update = vi
+      .fn<Provider['update']>()
+      .mockResolvedValueOnce({
+        ok: false,
+        message: 'rate limited',
+        details: { httpStatus: 429, retryAfterMs: 2500 },
+      })
+      .mockResolvedValue({ ok: true, message: 'ok' });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async (delay) => {
+        delays.push(delay);
+      },
+      random: () => 0.5,
+      retryMaxDelayMs: 10_000,
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(delays).toEqual([2500]);
   });
 
   it('does not retry non-retryable failed results or errors', async () => {

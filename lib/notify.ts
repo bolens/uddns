@@ -9,6 +9,8 @@ import type { CycleEvent } from './schemas/cycle.js';
 export type NotifyConfig = {
   webhookUrl: string | null;
   ntfyUrl: string | null;
+  slackUrl?: string | null;
+  discordUrl?: string | null;
   on: Array<'change' | 'error'>;
 };
 
@@ -64,6 +66,31 @@ export async function dispatchNotifications(
       });
     } catch (error) {
       log?.warn('ntfy notification failed', formatError(error));
+    }
+  }
+
+  const summary = `uDDNS ${event.status}: ${event.message} (${event.ip.v4 ?? '-'}/${event.ip.v6 ?? '-'})`;
+  if (config.slackUrl) {
+    try {
+      await request(config.slackUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: summary }),
+      });
+    } catch (error) {
+      log?.warn('Slack notification failed', formatError(error));
+    }
+  }
+
+  if (config.discordUrl) {
+    try {
+      await request(config.discordUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: summary }),
+      });
+    } catch (error) {
+      log?.warn('Discord notification failed', formatError(error));
     }
   }
 }

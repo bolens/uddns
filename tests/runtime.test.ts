@@ -1,11 +1,16 @@
+import { tmpdir } from 'node:os';
+
 import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { createRuntimeBundle } from '../lib/runtime.js';
 import { createUpdater } from '../lib/updater.js';
 import { deferred } from './helpers/async.js';
+import { afterEachRestoreMocks } from './helpers/cleanup.js';
 import { makeConfig } from './helpers/config.js';
 import { silentLog } from './helpers/log.js';
 import { mockProvider } from './helpers/provider.js';
+
+afterEachRestoreMocks();
 
 describe('createRuntimeBundle', () => {
   it('wires IP policy, notify, and metrics on cycle complete', async () => {
@@ -126,6 +131,40 @@ describe('createRuntimeBundle', () => {
     const forced = await bundle.updater.checkOnce({ force: true });
     expect(forced.status).toBe('updated');
     expect(update).toHaveBeenCalledOnce();
+  });
+
+  it('warns when history append fails and still completes the cycle', async () => {
+    const log = silentLog();
+    const historyFile = `${tmpdir()}/uddns-history-${Date.now()}.json`;
+    const bundle = createRuntimeBundle({
+      log,
+      config: makeConfig({
+        hosts: ['home.example.com'],
+        historyFile,
+        ipHttpsV4: ['https://ipv4.example/'],
+        ipHttpsV6: ['https://ipv6.example/'],
+        notifySlackUrl: 'https://hooks.slack.com/services/T/B/X',
+        notifyOn: ['change'],
+      }),
+      accountId: 'acct',
+      getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
+      createUpdaterFn: (options) =>
+        createUpdater({
+          ...options,
+          discoverPublicIP: async () => ({
+            ip: { v4: '203.0.113.10', v6: null },
+            errors: { v4: null, v6: null },
+          }),
+        }),
+    });
+    vi.spyOn(bundle.history!, 'append').mockRejectedValue(new Error('disk full'));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+
+    await expect(bundle.updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(log.warn).toHaveBeenCalledWith(
+      'Could not append history',
+      expect.objectContaining({ message: expect.stringContaining('disk full') }),
+    );
   });
 
   it('does not block a completed cycle on slow notification delivery', async () => {

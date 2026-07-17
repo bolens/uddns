@@ -18,10 +18,12 @@ import type {
   UpdateResult,
 } from './schemas/provider.js';
 import { createFileStateStore, type HostState, type StateStore } from './state.js';
+import type { Telemetry } from './telemetry.js';
 
 type CheckOnceOptions = {
   force?: boolean;
   dryRun?: boolean;
+  hosts?: string[];
 };
 
 export type UpdaterOptions = {
@@ -43,6 +45,7 @@ export type UpdaterOptions = {
   /** Apply IP family / missing-family policy after discovery. */
   applyIpPolicy?: (discovered: PublicIP, previous: PublicIP) => PublicIP;
   now?: () => number;
+  telemetry?: Telemetry;
 };
 
 export function createUpdater(options: UpdaterOptions) {
@@ -61,6 +64,7 @@ export function createUpdater(options: UpdaterOptions) {
     accountId,
     applyIpPolicy,
     now = Date.now,
+    telemetry,
   } = options;
   const stateStore =
     options.stateStore ??
@@ -204,18 +208,35 @@ export function createUpdater(options: UpdaterOptions) {
   async function checkOnce(checkOptions: CheckOnceOptions = {}): Promise<CheckResult> {
     const forced = Boolean(checkOptions.force);
     const dryRun = Boolean(checkOptions.dryRun);
+    const enabledHosts = config.hosts.filter((host) => !config.disabledHosts.includes(host));
+    const targetHosts = checkOptions.hosts
+      ? [...new Set(checkOptions.hosts.map((host) => host.trim().toLowerCase()))]
+      : enabledHosts;
+    const unknownHosts = targetHosts.filter((host) => !config.hosts.includes(host));
+    if (targetHosts.length === 0) {
+      throw new Error('At least one host must be selected');
+    }
+    if (unknownHosts.length > 0) {
+      throw new Error(`Unknown configured host(s): ${unknownHosts.join(', ')}`);
+    }
+    const disabledTargets = targetHosts.filter((host) => config.disabledHosts.includes(host));
+    if (disabledTargets.length > 0) {
+      throw new Error(`Disabled host(s) cannot be updated: ${disabledTargets.join(', ')}`);
+    }
     await loadState();
     cycle += 1;
     const started = now();
     log.debug(`Starting check cycle #${cycle}`, {
       provider: provider.id,
-      hosts: config.hosts,
+      hosts: targetHosts,
       previousIP: currentIP,
       forced,
       dryRun,
     });
 
-    const discovery = await resolveDiscovery();
+    const discovery = telemetry
+      ? await telemetry.trace('uddns.ip.discover', { 'uddns.cycle': cycle }, resolveDiscovery)
+      : await resolveDiscovery();
     let ip = discovery.ip;
     const ipErrors = discovery.errors;
 
@@ -247,8 +268,8 @@ export function createUpdater(options: UpdaterOptions) {
     }
 
     const pendingHosts = forced
-      ? [...config.hosts]
-      : config.hosts.filter((host) => ipChanged(ip, hostState[host] ?? { v4: null, v6: null }));
+      ? [...targetHosts]
+      : targetHosts.filter((host) => ipChanged(ip, hostState[host] ?? { v4: null, v6: null }));
 
     if (pendingHosts.length === 0) {
       const previousIP = currentIP;
@@ -294,7 +315,7 @@ export function createUpdater(options: UpdaterOptions) {
       forced,
     });
 
-    const hostResults: HostUpdateResult[] = config.hosts
+    const hostResults: HostUpdateResult[] = targetHosts
       .filter((host) => !pendingHosts.includes(host))
       .map((host) => ({
         host,
@@ -376,7 +397,7 @@ export function createUpdater(options: UpdaterOptions) {
       ok: hostResults.filter(({ result }) => result.ok && !result.skipped).length,
       skipped: hostResults.filter(({ result }) => result.skipped).length,
       failed: hostResults.filter(({ result }) => !result.ok).length,
-      hosts: config.hosts.length,
+      hosts: targetHosts.length,
       ip,
       committedIP: summary.status === 'updated' ? ip : currentIP,
     });
@@ -463,7 +484,9 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   function refreshCurrentIP(): void {
-    const committed = config.hosts.map((host) => hostState[host]);
+    const committed = config.hosts
+      .filter((host) => !config.disabledHosts.includes(host))
+      .map((host) => hostState[host]);
     if (
       committed.length === config.hosts.length &&
       committed.every(
@@ -483,11 +506,27 @@ export function createUpdater(options: UpdaterOptions) {
     const attempts = Math.max(1, Math.floor(retryAttempts));
     for (let attempt = 1; ; attempt += 1) {
       try {
-        const result = await provider.update(hostConfig, ip);
+        const update = () => provider.update(hostConfig, ip);
+        const result = telemetry
+          ? await telemetry.trace(
+              'uddns.provider.update',
+              {
+                'uddns.provider': provider.id,
+                'uddns.host': host,
+                'uddns.attempt': attempt,
+              },
+              update,
+            )
+          : await update();
         if (!isRetryableResult(result) || attempt >= attempts || stopping) {
           return result;
         }
-        await waitBeforeRetry(host, attempt, result.message);
+        await waitBeforeRetry(
+          host,
+          attempt,
+          result.message,
+          findNumericField(result.details, 'retryAfterMs'),
+        );
       } catch (error) {
         if (!isRetryableError(error) || attempt >= attempts || stopping) {
           throw error;
@@ -497,9 +536,17 @@ export function createUpdater(options: UpdaterOptions) {
     }
   }
 
-  async function waitBeforeRetry(host: string, attempt: number, reason: string): Promise<void> {
+  async function waitBeforeRetry(
+    host: string,
+    attempt: number,
+    reason: string,
+    retryAfterMs: number | null = null,
+  ): Promise<void> {
     const exponential = Math.min(retryMaxDelayMs, retryBaseDelayMs * 2 ** (attempt - 1));
-    const delayMs = Math.max(0, Math.round(exponential * (0.8 + random() * 0.4)));
+    const delayMs =
+      retryAfterMs === null
+        ? Math.max(0, Math.round(exponential * (0.8 + random() * 0.4)))
+        : Math.min(retryMaxDelayMs, Math.max(0, Math.round(retryAfterMs)));
     nextRetryAt = new Date(now() + delayMs).toISOString();
     log.warn(`Transient update failure for ${host}; retrying`, {
       attempt,
@@ -566,6 +613,31 @@ function containsRetryableStatus(value: unknown): boolean {
     }
   }
   return false;
+}
+
+function findNumericField(value: unknown, field: string): number | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNumericField(item, field);
+      if (found !== null) {
+        return found;
+      }
+    }
+    return null;
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    if (key === field && typeof nested === 'number' && Number.isFinite(nested)) {
+      return nested;
+    }
+    const found = findNumericField(nested, field);
+    if (found !== null) {
+      return found;
+    }
+  }
+  return null;
 }
 
 export function summarizeHostResults(

@@ -18,6 +18,7 @@ export type RequestMeta = {
   statusText: string;
   durationMs: number;
   bodyPreview: string;
+  retryAfterMs?: number;
 };
 
 export class HttpError extends Error {
@@ -90,6 +91,7 @@ export async function request(
   try {
     const response = await fetch(url, { ...fetchInit, headers, signal });
     const body = await response.text();
+    const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
     return {
       response,
       body,
@@ -100,6 +102,7 @@ export async function request(
         statusText: response.statusText,
         durationMs: Date.now() - started,
         bodyPreview: truncateBody(body),
+        ...(retryAfterMs !== null ? { retryAfterMs } : {}),
       },
     };
   } catch (error) {
@@ -112,6 +115,18 @@ export async function request(
       ...network,
     });
   }
+}
+
+export function parseRetryAfter(value: string | null, now = Date.now()): number | null {
+  if (!value) {
+    return null;
+  }
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1000);
+  }
+  const at = Date.parse(value);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
 }
 
 /**

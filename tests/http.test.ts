@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vite-plus/test';
 import { afterEachResetFetch } from './helpers/cleanup.js';
 
-import { HttpError, request, sanitizeUrl, truncateBody, userAgent } from '../lib/providers/http.js';
+import {
+  HttpError,
+  parseRetryAfter,
+  request,
+  sanitizeUrl,
+  truncateBody,
+  userAgent,
+} from '../lib/providers/http.js';
 import { getCall, stubFetch } from './helpers/fetch.js';
 
 afterEachResetFetch();
+
+describe('parseRetryAfter', () => {
+  it('parses delta-seconds and HTTP-date values', () => {
+    expect(parseRetryAfter(null)).toBeNull();
+    expect(parseRetryAfter('1.5')).toBe(1500);
+    expect(parseRetryAfter('0')).toBe(0);
+    expect(parseRetryAfter('not-a-date')).toBeNull();
+    const now = Date.parse('2026-01-01T00:00:00.000Z');
+    expect(parseRetryAfter('Thu, 01 Jan 2026 00:00:02 GMT', now)).toBe(2000);
+    expect(parseRetryAfter('Thu, 01 Jan 2026 00:00:00 GMT', now)).toBe(0);
+  });
+});
 
 describe('sanitizeUrl', () => {
   it('redacts userinfo and sensitive query params while keeping hostname', () => {
