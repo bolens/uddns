@@ -15,17 +15,23 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Express, NextFunction, Request, Response } from 'express';
 
 import type { Logger } from '../log.js';
-import { readiness, renderPrometheus } from '../side-server.js';
+import type { CycleEvent } from '../schemas/cycle.js';
+import { readiness, renderPrometheus, type MetricsSnapshot } from '../side-server.js';
 import type { McpConfig } from './config.js';
 import { isLoopbackMcpHost } from './config.js';
-import { createUddnsMcpServer } from './server.js';
-import type { McpSession } from './session.js';
+import { createUddnsMcpServer, type UddnsMcpServer } from './server.js';
+import type { McpAccount, McpSession } from './session.js';
 
 export type McpHttpServer = {
   app: Express;
   httpServer: HttpServer;
   close: () => Promise<void>;
   url: string;
+};
+
+type HttpSession = {
+  transport: StreamableHTTPServerTransport;
+  server: UddnsMcpServer;
 };
 
 function bearerMatches(expected: string, header: string | undefined): boolean {
@@ -67,6 +73,47 @@ async function listen(httpServer: HttpServer, host: string, port: number): Promi
   return httpServer.address() as AddressInfo;
 }
 
+function sessionAccounts(session: McpSession): McpAccount[] {
+  if (session.accounts?.length) {
+    return session.accounts;
+  }
+  return [
+    {
+      id: session.accountId ?? 'default',
+      config: session.config,
+      provider: session.provider,
+      updater: session.updater,
+      history: session.history,
+      metrics: session.metrics,
+      eventListeners: session.eventListeners,
+    },
+  ];
+}
+
+function mergeMetrics(accounts: McpAccount[]): MetricsSnapshot {
+  const cyclesTotal: Record<string, number> = {};
+  let updatesTotal = 0;
+  let discoverErrors = 0;
+  let lastSuccessAt: string | null = null;
+  for (const account of accounts) {
+    const snapshot = account.metrics?.snapshot() ?? {
+      cyclesTotal: {},
+      updatesTotal: 0,
+      discoverErrors: 0,
+      lastSuccessAt: null,
+    };
+    for (const [status, count] of Object.entries(snapshot.cyclesTotal)) {
+      cyclesTotal[status] = (cyclesTotal[status] ?? 0) + count;
+    }
+    updatesTotal += snapshot.updatesTotal;
+    discoverErrors += snapshot.discoverErrors;
+    if (snapshot.lastSuccessAt && (!lastSuccessAt || snapshot.lastSuccessAt > lastSuccessAt)) {
+      lastSuccessAt = snapshot.lastSuccessAt;
+    }
+  }
+  return { cyclesTotal, updatesTotal, discoverErrors, lastSuccessAt };
+}
+
 /**
  * Start a Streamable HTTP MCP server bound according to mcpConfig.
  */
@@ -76,8 +123,9 @@ export async function startMcpHttpServer(options: {
   log: Logger;
 }): Promise<McpHttpServer> {
   const { session, mcpConfig, log } = options;
+  const accounts = sessionAccounts(session);
   const app = createMcpExpressApp({ host: mcpConfig.host });
-  const transports = new Map<string, StreamableHTTPServerTransport>();
+  const sessions = new Map<string, HttpSession>();
   const sseClients = new Set<Response>();
 
   if (!mcpConfig.authToken && isLoopbackMcpHost(mcpConfig.host)) {
@@ -91,21 +139,20 @@ export async function startMcpHttpServer(options: {
   });
 
   app.get('/readyz', (_req, res) => {
-    const result = readiness(session.updater.getStatus());
+    const result = readiness({
+      accounts: accounts.map((account) => ({
+        id: account.id,
+        status: account.updater.getStatus(),
+      })),
+    });
     res.status(result.ok ? 200 : 503).json(result);
   });
 
   app.get('/metrics', (_req, res) => {
-    const metrics = session.metrics?.snapshot() ?? {
-      cyclesTotal: {},
-      updatesTotal: 0,
-      discoverErrors: 0,
-      lastSuccessAt: null,
-    };
     res
       .status(200)
       .type('text/plain; version=0.0.4; charset=utf-8')
-      .send(renderPrometheus(metrics));
+      .send(renderPrometheus(mergeMetrics(accounts)));
   });
 
   app.use(requireBearer(mcpConfig.authToken));
@@ -118,44 +165,57 @@ export async function startMcpHttpServer(options: {
     });
     res.write(': ok\n\n');
     sseClients.add(res);
-    const listener = (event: import('../schemas/cycle.js').CycleEvent): void => {
+    const listener = (event: CycleEvent): void => {
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
-    session.eventListeners?.add(listener);
+    for (const account of accounts) {
+      account.eventListeners?.add(listener);
+    }
     req.on('close', () => {
       sseClients.delete(res);
-      session.eventListeners?.delete(listener);
+      for (const account of accounts) {
+        account.eventListeners?.delete(listener);
+      }
     });
   });
 
   app.post('/mcp', async (req, res) => {
     try {
       const sessionIdHeader = req.header('mcp-session-id');
-      let transport = sessionIdHeader ? transports.get(sessionIdHeader) : undefined;
+      let entry = sessionIdHeader ? sessions.get(sessionIdHeader) : undefined;
 
-      if (transport) {
-        await transport.handleRequest(req, res, req.body);
+      if (entry) {
+        await entry.transport.handleRequest(req, res, req.body);
         return;
       }
 
       if (!sessionIdHeader && isInitializeRequest(req.body)) {
-        transport = new StreamableHTTPServerTransport({
+        let server: UddnsMcpServer | undefined;
+        const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
           onsessioninitialized: (sessionId) => {
-            transports.set(sessionId, transport!);
+            if (server) {
+              sessions.set(sessionId, { transport, server });
+            }
           },
         });
+        server = createUddnsMcpServer(session);
         transport.onclose = () => {
-          const id = transport?.sessionId;
-          if (id) {
-            transports.delete(id);
+          const id = transport.sessionId;
+          if (!id) {
+            return;
           }
+          const closed = sessions.get(id);
+          sessions.delete(id);
+          closed?.server.dispose();
         };
-        const server = createUddnsMcpServer(session);
         // SDK optional callbacks vs exactOptionalPropertyTypes
         await server.connect(transport as unknown as Transport);
         await transport.handleRequest(req, res, req.body);
+        if (transport.sessionId && server) {
+          sessions.set(transport.sessionId, { transport, server });
+        }
         return;
       }
 
@@ -182,9 +242,9 @@ export async function startMcpHttpServer(options: {
 
   app.delete('/mcp', async (req, res) => {
     const sessionIdHeader = req.header('mcp-session-id');
-    const transport = sessionIdHeader ? transports.get(sessionIdHeader) : undefined;
-    if (transport) {
-      await transport.handleRequest(req, res);
+    const entry = sessionIdHeader ? sessions.get(sessionIdHeader) : undefined;
+    if (entry) {
+      await entry.transport.handleRequest(req, res);
       return;
     }
     res.status(404).send('Session not found');
@@ -214,10 +274,13 @@ export async function startMcpHttpServer(options: {
         client.end();
       }
       sseClients.clear();
-      for (const transport of transports.values()) {
-        await transport.close();
+      const entries = Array.from(sessions.values());
+      for (const entry of entries) {
+        entry.server.dispose();
+        await entry.transport.close();
+        await entry.server.close();
       }
-      transports.clear();
+      sessions.clear();
       await new Promise<void>((resolve, reject) => {
         httpServer.close((error) => (error ? reject(error) : resolve()));
       });

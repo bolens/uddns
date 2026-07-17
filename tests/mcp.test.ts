@@ -551,7 +551,7 @@ describe('createUddnsMcpServer', () => {
     expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
       structuredContent: {
         result: expect.objectContaining({
-          fallback: expect.any(String),
+          action: 'reject-input',
           error: expect.stringContaining('Unsupported provider'),
         }),
       },
@@ -653,11 +653,9 @@ describe('createMcpSession', () => {
       log: silentLog(),
       loadConfigFn: () => makeConfig(),
       getProviderFn: () => mockProvider(),
-      createUpdaterFn: ({ config, provider, log }) =>
+      createUpdaterFn: (options) =>
         createUpdater({
-          config,
-          provider,
-          log,
+          ...options,
           getPublicIP: async () => ({ v4: null, v6: null }),
           stateStore: memoryStateStore(),
         }),
@@ -734,6 +732,152 @@ describe('MCP HTTP auth', () => {
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
       });
       expect(badPost.status).toBe(400);
+    } finally {
+      await http.close();
+      await updater.stop();
+    }
+  });
+
+  it('aggregates readyz, metrics, and events across MCP accounts', async () => {
+    const listenersA = new Set<(event: import('../lib/schemas/cycle.js').CycleEvent) => void>();
+    const listenersB = new Set<(event: import('../lib/schemas/cycle.js').CycleEvent) => void>();
+    const updaterA = createUpdater({
+      config: makeConfig({ hosts: ['a.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const updaterB = createUpdater({
+      config: makeConfig({ hosts: ['b.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const metricsA = {
+      snapshot: () => ({
+        cyclesTotal: { updated: 1 },
+        updatesTotal: 1,
+        discoverErrors: 0,
+        lastSuccessAt: '2026-01-01T00:00:00.000Z',
+      }),
+    };
+    const metricsB = {
+      snapshot: () => ({
+        cyclesTotal: { unchanged: 2 },
+        updatesTotal: 0,
+        discoverErrors: 1,
+        lastSuccessAt: '2026-01-02T00:00:00.000Z',
+      }),
+    };
+    const http = await startMcpHttpServer({
+      session: {
+        accountId: 'a',
+        config: makeConfig({ hosts: ['a.example.com'] }),
+        provider: mockProvider(),
+        updater: updaterA,
+        log: silentLog(),
+        accounts: [
+          {
+            id: 'a',
+            config: makeConfig({ hosts: ['a.example.com'] }),
+            provider: mockProvider(),
+            updater: updaterA,
+            metrics: metricsA as never,
+            eventListeners: listenersA,
+          },
+          {
+            id: 'b',
+            config: makeConfig({ hosts: ['b.example.com'] }),
+            provider: mockProvider(),
+            updater: updaterB,
+            metrics: metricsB as never,
+            eventListeners: listenersB,
+          },
+        ],
+      },
+      mcpConfig: {
+        transport: 'http',
+        host: '127.0.0.1',
+        port: 0,
+        authToken: null,
+        tlsCert: null,
+        tlsKey: null,
+      },
+      log: silentLog(),
+    });
+
+    try {
+      const origin = new URL(http.url).origin;
+      const metrics = await (await fetch(`${origin}/metrics`)).text();
+      expect(metrics).toContain('uddns_cycles_total{status="updated"} 1');
+      expect(metrics).toContain('uddns_cycles_total{status="unchanged"} 2');
+      expect(metrics).toContain('uddns_discover_errors_total 1');
+
+      const events = await fetch(`${origin}/events`);
+      const reader = events.body!.getReader();
+      await reader.read();
+      for (const listener of listenersB) {
+        listener({
+          at: new Date().toISOString(),
+          status: 'updated',
+          ip: { v4: '9.9.9.9', v6: null },
+          message: 'from-b',
+          durationMs: 1,
+          cycle: 2,
+        });
+      }
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('from-b');
+      await reader.cancel();
+    } finally {
+      await http.close();
+      await updaterA.stop();
+      await updaterB.stop();
+    }
+  });
+
+  it('falls back to the primary account when MCP accounts is empty', async () => {
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['solo.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const http = await startMcpHttpServer({
+      session: {
+        accountId: 'default',
+        config: makeConfig({ hosts: ['solo.example.com'] }),
+        provider: mockProvider(),
+        updater,
+        log: silentLog(),
+        accounts: [],
+        metrics: {
+          snapshot: () => ({
+            cyclesTotal: {},
+            updatesTotal: 0,
+            discoverErrors: 0,
+            lastSuccessAt: null,
+          }),
+        } as never,
+      },
+      mcpConfig: {
+        transport: 'http',
+        host: '127.0.0.1',
+        port: 0,
+        authToken: null,
+        tlsCert: null,
+        tlsKey: null,
+      },
+      log: silentLog(),
+    });
+
+    try {
+      const origin = new URL(http.url).origin;
+      const ready = (await (await fetch(`${origin}/readyz`)).json()) as { ok: boolean };
+      expect(ready.ok).toBe(false);
+      expect(await (await fetch(`${origin}/metrics`)).text()).toContain('uddns_updates_total 0');
     } finally {
       await http.close();
       await updater.stop();

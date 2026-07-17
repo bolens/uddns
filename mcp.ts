@@ -16,7 +16,7 @@ import { createMcpSession, type McpSession } from './lib/mcp/session.js';
 import { createLogger, formatError, type Logger } from './lib/log.js';
 import { getProvider } from './lib/providers/index.js';
 import type { AppConfig, Provider } from './lib/schemas/provider.js';
-import { createUpdater, type Updater } from './lib/updater.js';
+import type { Updater, UpdaterOptions } from './lib/updater.js';
 
 export type AppOptions = {
   argv?: string[];
@@ -28,13 +28,13 @@ export type AppOptions = {
     options?: { transportOverride?: McpTransport | null },
   ) => McpConfig;
   getProviderFn?: (id: string) => Provider;
-  createUpdaterFn?: (options: { config: AppConfig; provider: Provider; log: Logger }) => Updater;
+  createUpdaterFn?: (options: UpdaterOptions) => Updater;
   createSessionFn?: (options: {
     env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
     log: Logger;
     loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
     getProviderFn?: (id: string) => Provider;
-    createUpdaterFn?: (options: { config: AppConfig; provider: Provider; log: Logger }) => Updater;
+    createUpdaterFn?: (options: UpdaterOptions) => Updater;
   }) => McpSession | Promise<McpSession>;
   startHttpFn?: (options: {
     session: McpSession;
@@ -87,7 +87,6 @@ export async function main(options: AppOptions = {}): Promise<void> {
   const loadConfigFn = options.loadConfigFn ?? loadConfig;
   const loadMcpConfigFn = options.loadMcpConfigFn ?? loadMcpConfig;
   const getProviderFn = options.getProviderFn ?? getProvider;
-  const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
   const createSessionFn = options.createSessionFn ?? createMcpSession;
   const startHttpFn = options.startHttpFn ?? startMcpHttpServer;
   const connectStdioFn = options.connectStdioFn ?? connectStdio;
@@ -133,7 +132,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
       log,
       loadConfigFn,
       getProviderFn,
-      createUpdaterFn,
+      ...(options.createUpdaterFn ? { createUpdaterFn: options.createUpdaterFn } : {}),
     });
     activeSession = session;
     let shuttingDown = false;

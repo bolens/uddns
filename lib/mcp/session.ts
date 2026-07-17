@@ -10,7 +10,7 @@ import { createRuntimeBundle } from '../runtime.js';
 import type { CycleEvent } from '../schemas/cycle.js';
 import type { AppConfig, Provider } from '../schemas/provider.js';
 import type { createMetricsTracker } from '../side-server.js';
-import { createUpdater, type Updater } from '../updater.js';
+import type { Updater, UpdaterOptions } from '../updater.js';
 
 export type McpAccount = {
   id: string;
@@ -43,7 +43,8 @@ export type CreateMcpSessionOptions = {
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
   ) => Array<{ id: string; config: AppConfig }> | Promise<Array<{ id: string; config: AppConfig }>>;
   getProviderFn?: (id: string) => Provider;
-  createUpdaterFn?: (options: { config: AppConfig; provider: Provider; log: Logger }) => Updater;
+  /** When set, replaces the default updater factory inside createRuntimeBundle. */
+  createUpdaterFn?: (options: UpdaterOptions) => Updater;
 };
 
 function toSession(log: Logger, accounts: McpAccount[]): McpSession {
@@ -102,26 +103,6 @@ export async function createMcpSession(options: CreateMcpSessionOptions): Promis
         ]
       : resolveAccounts);
 
-  if (options.createUpdaterFn) {
-    const accountsLoaded = await resolveAccountsFn(env);
-    const accounts = accountsLoaded.map((account) => {
-      const provider = getProviderFn(account.config.provider);
-      const updater = options.createUpdaterFn!({
-        config: account.config,
-        provider,
-        log: options.log,
-      });
-      return {
-        id: account.id,
-        config: account.config,
-        provider,
-        updater,
-        history: null,
-      } satisfies McpAccount;
-    });
-    return toSession(options.log, accounts);
-  }
-
   const accountsLoaded = await Promise.resolve(resolveAccountsFn(env));
   const accounts = accountsLoaded.map((account) => {
     const bundle = createRuntimeBundle({
@@ -129,7 +110,7 @@ export async function createMcpSession(options: CreateMcpSessionOptions): Promis
       log: options.log,
       accountId: account.id,
       getProviderFn,
-      createUpdaterFn: (updaterOptions) => createUpdater(updaterOptions),
+      ...(options.createUpdaterFn ? { createUpdaterFn: options.createUpdaterFn } : {}),
     });
     return {
       id: account.id,

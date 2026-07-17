@@ -3,6 +3,10 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 import packageJson from '../../package.json' with { type: 'json' };
@@ -17,6 +21,8 @@ import {
 import { MCP_RESOURCE_URIS, readMcpResource } from './resources.js';
 import type { McpAccount, McpSession } from './session.js';
 import { createToolHandlers, jsonText } from './tools.js';
+
+export type UddnsMcpServer = McpServer & { dispose: () => void };
 
 export const MCP_TOOL_NAMES = [
   'list_providers',
@@ -111,7 +117,7 @@ async function reportProgress(
   });
 }
 
-export function createUddnsMcpServer(sessionInput: McpSession): McpServer {
+export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
   const session = normalizeSession(sessionInput);
   const handlers = createToolHandlers(session);
   const server = new McpServer({
@@ -119,20 +125,35 @@ export function createUddnsMcpServer(sessionInput: McpSession): McpServer {
     version: packageJson.version,
   });
   server.server.registerCapabilities({
-    resources: { subscribe: true, listChanged: true },
+    resources: { subscribe: true },
+  });
+  const subscriptions = new Set<string>();
+  server.server.setRequestHandler(SubscribeRequestSchema, async (request) => {
+    subscriptions.add(request.params.uri);
+    return {};
+  });
+  server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
+    subscriptions.delete(request.params.uri);
+    return {};
   });
 
   const notifyResources = (): void => {
-    void Promise.all([
-      server.server.sendResourceUpdated({ uri: MCP_RESOURCE_URIS.status }),
-      server.server.sendResourceUpdated({ uri: MCP_RESOURCE_URIS.history }),
-    ]).catch(() => {
+    const updates = [MCP_RESOURCE_URIS.status, MCP_RESOURCE_URIS.history]
+      .filter((uri) => subscriptions.size === 0 || subscriptions.has(uri))
+      .map((uri) => server.server.sendResourceUpdated({ uri }));
+    void Promise.all(updates).catch(() => {
       // Client may disconnect between the cycle event and notification.
     });
   };
   for (const account of session.accounts) {
     account.eventListeners?.add(notifyResources);
   }
+  const dispose = (): void => {
+    for (const account of session.accounts) {
+      account.eventListeners?.delete(notifyResources);
+    }
+    subscriptions.clear();
+  };
 
   server.registerTool(
     MCP_TOOL_NAMES[0],
@@ -367,7 +388,11 @@ export function createUddnsMcpServer(sessionInput: McpSession): McpServer {
         const hosts = String(elicited.content['hosts'] ?? 'home.example.com');
         const interval = String(elicited.content['intervalMs'] ?? '900000');
         if (!PROVIDER_IDS_LIST.includes(provider)) {
-          throw new Error(`Unsupported provider "${provider}"`);
+          return toolResult({
+            error: `Unsupported provider "${provider}"`,
+            action: 'reject-input',
+            nextSteps: [`Choose a provider from: ${PROVIDER_IDS_LIST.join(', ')}`],
+          });
         }
         return toolResult({
           env: buildEnvContents({ provider, hosts, interval }),
@@ -470,5 +495,5 @@ export function createUddnsMcpServer(sessionInput: McpSession): McpServer {
     async () => buildFixConfigPrompt(session),
   );
 
-  return server;
+  return Object.assign(server, { dispose });
 }

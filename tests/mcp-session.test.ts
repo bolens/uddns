@@ -13,11 +13,9 @@ describe('mcp session runtime wiring', () => {
       log: silentLog(),
       loadConfigFn: () => makeConfig({ historyFile: null }),
       getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
-      createUpdaterFn: ({ config, provider, log }) =>
+      createUpdaterFn: (options) =>
         createUpdater({
-          config,
-          provider,
-          log,
+          ...options,
           getPublicIP: async () => ({ v4: '203.0.113.10', v6: null }),
         }),
     });
@@ -54,11 +52,9 @@ describe('mcp session runtime wiring', () => {
         { id: 'b', config: makeConfig({ hosts: ['b.example.com'], historyFile: null }) },
       ],
       getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
-      createUpdaterFn: ({ config, provider, log }) =>
+      createUpdaterFn: (options) =>
         createUpdater({
-          config,
-          provider,
-          log,
+          ...options,
           getPublicIP: async () => ({ v4: '203.0.113.10', v6: null }),
         }),
     });
@@ -74,11 +70,9 @@ describe('mcp session runtime wiring', () => {
       createMcpSession({
         log: silentLog(),
         resolveAccountsFn: () => [],
-        createUpdaterFn: ({ config, provider, log }) =>
+        createUpdaterFn: (options) =>
           createUpdater({
-            config,
-            provider,
-            log,
+            ...options,
             getPublicIP: async () => ({ v4: null, v6: null }),
           }),
       }),
