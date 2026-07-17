@@ -88,6 +88,7 @@ export function createUpdater(options: UpdaterOptions) {
   let inFlight = false;
   let inFlightPromise: Promise<CheckResult | null> | null = null;
   let stopping = false;
+  let stopPromise: Promise<void> | null = null;
   let lastCycle: CycleEvent | null = null;
   let lastSuccessAt: string | null = null;
   let lastError: string | null = null;
@@ -143,11 +144,7 @@ export function createUpdater(options: UpdaterOptions) {
       lastSuccessAt = event.at;
       lastError = null;
     }
-    if (
-      result.status === 'error' ||
-      result.status === 'partial' ||
-      result.status === 'skipped_no_ip'
-    ) {
+    if (result.status === 'error' || result.status === 'partial') {
       lastError = result.message;
     }
     nextRetryAt = null;
@@ -406,6 +403,9 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   async function start() {
+    if (stopPromise) {
+      await stopPromise;
+    }
     stopping = false;
     if (timer != null) {
       return {
@@ -433,7 +433,9 @@ export function createUpdater(options: UpdaterOptions) {
     log.info(`Check interval: ${intervalMs}ms (${formatInterval(intervalMs)})`);
 
     await checkOnceGuarded();
-    scheduleTimer();
+    if (!stopping) {
+      scheduleTimer();
+    }
 
     return {
       async stop() {
@@ -443,16 +445,27 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   async function stop(): Promise<void> {
+    if (stopPromise) {
+      await stopPromise;
+      return;
+    }
     stopping = true;
-    if (timer != null) {
-      clearIntervalFn(timer);
-      timer = null;
+    stopPromise = (async () => {
+      if (timer != null) {
+        clearIntervalFn(timer);
+        timer = null;
+      }
+      if (inFlightPromise) {
+        log.info('Waiting for active update cycle to finish');
+        await inFlightPromise;
+      }
+      log.info('Updater stopped');
+    })();
+    try {
+      await stopPromise;
+    } finally {
+      stopPromise = null;
     }
-    if (inFlightPromise) {
-      log.info('Waiting for active update cycle to finish');
-      await inFlightPromise;
-    }
-    log.info('Updater stopped');
   }
 
   function setIntervalMs(ms: number): void {
@@ -600,7 +613,17 @@ function isRetryableError(error: unknown): boolean {
 }
 
 function isRetryableResult(result: UpdateResult): boolean {
-  return !result.ok && containsRetryableStatus(result.details);
+  if (result.ok) {
+    return false;
+  }
+  if (
+    result.details &&
+    typeof result.details === 'object' &&
+    result.details['retryable'] === true
+  ) {
+    return true;
+  }
+  return containsRetryableStatus(result.details);
 }
 
 function containsRetryableStatus(value: unknown): boolean {

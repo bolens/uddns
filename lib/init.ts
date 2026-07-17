@@ -88,6 +88,10 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
         }
         const intervalAnswer = (await ask(`Interval ms (${interval}): `)).trim();
         if (intervalAnswer) {
+          const parsed = Number(intervalAnswer);
+          if (!Number.isFinite(parsed) || parsed < 1_000) {
+            throw new Error('Interval must be a number of milliseconds >= 1000');
+          }
           interval = intervalAnswer;
         }
       } finally {

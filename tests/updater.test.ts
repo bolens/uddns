@@ -667,6 +667,61 @@ describe('createUpdater', () => {
     await Promise.all([startPromise, stopPromise]);
     expect(stopped).toBe(true);
   });
+
+  it('does not leave a timer running when stop overlaps start', async () => {
+    const { setIntervalFn, clearIntervalFn } = captureInterval();
+    let release: ((result: UpdateResult) => void) | undefined;
+    let calls = 0;
+    const update = vi.fn(() => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise<UpdateResult>((resolve) => {
+          release = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true, message: 'ok' } satisfies UpdateResult);
+    });
+    const updater = createUpdater({
+      config: makeConfig({ interval: 15_000, hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      setIntervalFn,
+      clearIntervalFn,
+    });
+
+    const startPromise = updater.start();
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledOnce();
+    });
+    const stopPromise = updater.stop();
+    const restartPromise = updater.start();
+    release?.({ ok: true, message: 'ok' });
+    await Promise.all([startPromise, stopPromise, restartPromise]);
+
+    expect(updater.getStatus().running).toBe(true);
+    await updater.stop();
+    expect(updater.getStatus().running).toBe(false);
+  });
+
+  it('does not mark readiness errors for transient skipped_no_ip', async () => {
+    let ip: PublicIP = { v4: '9.9.9.9', v6: null };
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(async () => ({ ok: true, message: 'ok' })),
+      getPublicIP: async () => ip,
+      log: silentLog(),
+    });
+
+    await updater.checkOnce();
+    expect(updater.getStatus().lastSuccessAt).not.toBeNull();
+
+    ip = { v4: null, v6: null };
+    await updater.checkOnce();
+    expect(updater.getStatus().lastCycle?.status).toBe('skipped_no_ip');
+    expect(updater.getStatus().lastError).toBeNull();
+    expect(updater.getStatus().lastSuccessAt).not.toBeNull();
+  });
 });
 
 describe('isRetryableHttpStatus', () => {
