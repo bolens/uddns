@@ -1,17 +1,45 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
 
 import { cloudflareProvider } from '../../lib/providers/cloudflare.js';
+import {
+  cloudflareRecordResponseSchema,
+  cloudflareZonesResponseSchema,
+} from '../../lib/schemas/cloudflare.js';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
+import {
+  cfErr,
+  cfOk,
+  cfRecords,
+  cfZones,
+  parseJsonBody,
+  stubCloudflareFetch,
+} from '../helpers/cloudflare-fetch.js';
 import { makeConfig } from '../helpers/config.js';
 import { fetchInputUrl, getCall, jsonResponse, stubFetch } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
+afterEachResetFetch();
+
+describe('cloudflare response schemas', () => {
+  it('accepts envelope shapes built by the shared factory', () => {
+    expect(
+      cloudflareZonesResponseSchema.parse({
+        success: true,
+        result: [{ id: 'zone1', name: 'example.com' }],
+      }).result,
+    ).toEqual([{ id: 'zone1', name: 'example.com' }]);
+
+    expect(
+      cloudflareRecordResponseSchema.parse({
+        success: true,
+        result: null,
+      }).result,
+    ).toBeNull();
+  });
 });
 
 describe('cloudflare provider', () => {
   it('requires token and record name before contacting the API', async () => {
-    const fetchMock = stubFetch(async () => jsonResponse({ success: true, result: [] }));
+    const fetchMock = stubFetch(async () => cfOk([]));
 
     await expect(
       cloudflareProvider.update(makeConfig({ cloudflare: { recordName: null } }), {
@@ -38,33 +66,20 @@ describe('cloudflare provider', () => {
   });
 
   it('resolves the zone, patches an A record body, and sends a bearer token', async () => {
-    const fetchMock = stubFetch(async (input, init = {}) => {
-      const url = fetchInputUrl(input);
-      const method = init.method ?? 'GET';
-
-      if (url.includes('/zones?') && url.includes('name=example.com')) {
-        return jsonResponse({ success: true, result: [{ id: 'zone1', name: 'example.com' }] });
-      }
-
-      if (url.includes('/dns_records?') && url.includes('type=A')) {
-        return jsonResponse({
-          success: true,
-          result: [{ id: 'record1', content: '1.1.1.1', proxied: false }],
-        });
-      }
-
-      if (method === 'PATCH' && url.endsWith('/dns_records/record1')) {
-        return jsonResponse({
-          success: true,
-          result: { id: 'record1', content: '9.9.9.9', proxied: false },
-        });
-      }
-
-      return jsonResponse(
-        { success: false, errors: [{ message: `unexpected ${method} ${url}` }] },
-        500,
-      );
-    });
+    const fetchMock = stubCloudflareFetch([
+      {
+        match: (url) => url.includes('/zones?') && url.includes('name=example.com'),
+        response: cfZones([{ id: 'zone1', name: 'example.com' }]),
+      },
+      {
+        match: (url) => url.includes('/dns_records?') && url.includes('type=A'),
+        response: cfRecords([{ id: 'record1', content: '1.1.1.1', proxied: false }]),
+      },
+      {
+        match: (url, method) => method === 'PATCH' && url.endsWith('/dns_records/record1'),
+        response: cfOk({ id: 'record1', content: '9.9.9.9', proxied: false }),
+      },
+    ]);
 
     const result = await cloudflareProvider.update(
       makeConfig({
@@ -96,7 +111,7 @@ describe('cloudflare provider', () => {
     );
 
     expect(patch.headers.get('Authorization')).toBe('Bearer cf-token');
-    expect(JSON.parse(patch.body ?? '{}')).toEqual({
+    expect(parseJsonBody(patch.body)).toEqual({
       type: 'A',
       name: 'home.example.com',
       content: '9.9.9.9',
@@ -367,9 +382,7 @@ describe('cloudflare provider', () => {
   });
 
   it('rejects success=false zone and pinned-record lookups', async () => {
-    stubFetch(async () =>
-      jsonResponse({ success: false, errors: [{ code: 9109, message: 'Invalid access token' }] }),
-    );
+    stubFetch(async () => cfErr([{ code: 9109, message: 'Invalid access token' }]));
 
     await expect(
       cloudflareProvider.update(
@@ -380,9 +393,7 @@ describe('cloudflare provider', () => {
       ),
     ).rejects.toThrow(/zone lookup.*Invalid access token/i);
 
-    stubFetch(async () =>
-      jsonResponse({ success: false, errors: [{ code: 9109, message: 'Invalid access token' }] }),
-    );
+    stubFetch(async () => cfErr([{ code: 9109, message: 'Invalid access token' }]));
 
     await expect(
       cloudflareProvider.update(

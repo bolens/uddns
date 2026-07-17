@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
 
 import { dyndnsProvider } from '../../lib/providers/dyndns.js';
 import { makeConfig } from '../helpers/config.js';
 import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('dyndns provider', () => {
   it('calls a custom /nic/update endpoint with credentials', async () => {

@@ -1,12 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
 
 import { interpretNicUpdateBody, updateNicDns } from '../../lib/providers/nic-update.js';
 import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('interpretNicUpdateBody', () => {
   it('maps good/nochg and known failure codes with hints', () => {

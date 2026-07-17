@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
 
 import { noipProvider } from '../../lib/providers/noip.js';
 import { makeConfig } from '../helpers/config.js';
 import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('noip provider', () => {
   it('posts hostname/myip to No-IP with basic auth', async () => {

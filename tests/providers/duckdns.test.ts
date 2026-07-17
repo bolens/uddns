@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
 
 import { duckdnsProvider } from '../../lib/providers/duckdns.js';
 import { makeConfig } from '../helpers/config.js';
 import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('duckdns provider', () => {
   it('updates with token, strips .duckdns.org, and can send ipv6', async () => {

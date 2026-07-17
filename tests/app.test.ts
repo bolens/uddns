@@ -1,43 +1,18 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { main } from '../app.js';
-import type { Logger } from '../lib/log.js';
-import type { Provider } from '../lib/schemas/provider.js';
+import { deferred } from './helpers/async.js';
+import { afterEachRestoreMocks } from './helpers/cleanup.js';
 import { makeConfig } from './helpers/config.js';
+import { silentLog } from './helpers/log.js';
+import { mockProvider, stubUpdater } from './helpers/provider.js';
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+afterEachRestoreMocks();
 
-function silentLog(): Logger {
-  return {
-    level: 'info',
-    info: vi.fn(),
-    success: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-  };
-}
-
-const stubProvider: Provider = {
+const stubProvider = mockProvider(async () => ({ ok: true, message: 'ok' }), {
   id: 'cloudflare',
   label: 'Cloudflare',
-  update: async () => ({ ok: true, message: 'ok' }),
-};
-
-function stubUpdater(stop: () => Promise<void> = async () => {}) {
-  return {
-    start: vi.fn(async () => ({ stop })),
-    stop: vi.fn(stop),
-    checkOnce: vi.fn(async () => ({
-      status: 'unchanged' as const,
-      ip: { v4: null, v6: null },
-      message: 'unchanged',
-    })),
-    getCurrentIP: () => ({ v4: null, v6: null }),
-  };
-}
+});
 
 describe('application entrypoint', () => {
   it('validates configuration without starting the updater', async () => {
@@ -49,11 +24,7 @@ describe('application entrypoint', () => {
       env: {},
       log,
       loadConfigFn: () => makeConfig(),
-      getProviderFn: () => ({
-        id: 'cloudflare',
-        label: 'Cloudflare',
-        update: async () => ({ ok: true, message: 'ok' }),
-      }),
+      getProviderFn: () => stubProvider,
       createUpdaterFn,
       on: vi.fn(),
       exit: vi.fn(),
@@ -66,33 +37,15 @@ describe('application entrypoint', () => {
   it('waits for updater shutdown before exiting on a signal', async () => {
     const listeners = new Map<string, (value?: unknown) => void>();
     const exit = vi.fn();
-    let releaseStop: (() => void) | undefined;
-    const stop = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          releaseStop = resolve;
-        }),
-    );
-    const updater = {
-      start: vi.fn(async () => ({ stop })),
-      stop,
-      checkOnce: vi.fn(async () => ({
-        status: 'unchanged' as const,
-        ip: { v4: null, v6: null },
-        message: 'unchanged',
-      })),
-      getCurrentIP: () => ({ v4: null, v6: null }),
-    };
+    const stopGate = deferred<void>();
+    const stop = vi.fn(() => stopGate.promise);
+    const updater = stubUpdater(stop);
 
     await main({
       env: {},
       log: silentLog(),
       loadConfigFn: () => makeConfig(),
-      getProviderFn: () => ({
-        id: 'cloudflare',
-        label: 'Cloudflare',
-        update: async () => ({ ok: true, message: 'ok' }),
-      }),
+      getProviderFn: () => stubProvider,
       createUpdaterFn: () => updater,
       on: (event, listener) => {
         listeners.set(event, listener);
@@ -104,7 +57,7 @@ describe('application entrypoint', () => {
     expect(stop).toHaveBeenCalledOnce();
     expect(exit).not.toHaveBeenCalled();
 
-    releaseStop?.();
+    stopGate.resolve();
     await vi.waitFor(() => {
       expect(exit).toHaveBeenCalledWith(0);
     });

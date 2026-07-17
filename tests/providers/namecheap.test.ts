@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
 
 import { namecheapProvider } from '../../lib/providers/namecheap.js';
 import { makeConfig } from '../helpers/config.js';
 import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('namecheap provider', () => {
   it('sends host/domain/password/ip and accepts ErrCount=0', async () => {

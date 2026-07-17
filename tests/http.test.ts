@@ -1,12 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it, vi } from 'vite-plus/test';
+import { afterEachResetFetch } from './helpers/cleanup.js';
 
 import { HttpError, request, sanitizeUrl, truncateBody, userAgent } from '../lib/providers/http.js';
 import { getCall } from './helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('sanitizeUrl', () => {
   it('redacts userinfo and sensitive query params while keeping hostname', () => {

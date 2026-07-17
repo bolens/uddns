@@ -1,30 +1,11 @@
 import { describe, expect, it, vi } from 'vite-plus/test';
 
-import type { Logger } from '../lib/log.js';
 import type { AppConfig, Provider, PublicIP, UpdateResult } from '../lib/schemas/provider.js';
-import { createUpdater, summarizeHostResults } from '../lib/updater.js';
+import { createUpdater, isRetryableHttpStatus, summarizeHostResults } from '../lib/updater.js';
+import { captureInterval, deferred, flushMicrotasks } from './helpers/async.js';
 import { makeConfig } from './helpers/config.js';
-
-function silentLog(): Logger {
-  return {
-    level: 'info',
-    info: vi.fn(),
-    success: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-    error: vi.fn(),
-  };
-}
-
-function mockProvider(
-  update: (config: AppConfig, ip: PublicIP) => Promise<UpdateResult>,
-): Provider {
-  return {
-    id: 'cloudflare',
-    label: 'Mock',
-    update,
-  };
-}
+import { silentLog } from './helpers/log.js';
+import { mockProvider } from './helpers/provider.js';
 
 describe('createUpdater', () => {
   it('skips when no public IP is available and logs discovery errors', async () => {
@@ -233,19 +214,15 @@ describe('createUpdater', () => {
 
   it('starts and stops the interval loop with the configured delay', async () => {
     const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
-    const timers: Array<{ fn: () => void; delay: number }> = [];
-    const clear = vi.fn();
+    const { timers, setIntervalFn, clearIntervalFn, clear } = captureInterval();
 
     const updater = createUpdater({
       config: makeConfig({ interval: 15_000, hosts: ['home.example.com'] }),
       provider: mockProvider(update),
       getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
       log: silentLog(),
-      setIntervalFn: ((fn: () => void, delay?: number) => {
-        timers.push({ fn, delay: delay ?? 0 });
-        return 42 as unknown as ReturnType<typeof setInterval>;
-      }) as typeof setInterval,
-      clearIntervalFn: clear as typeof clearInterval,
+      setIntervalFn,
+      clearIntervalFn,
     });
 
     const handle = await updater.start();
@@ -258,24 +235,22 @@ describe('createUpdater', () => {
     expect(update).toHaveBeenCalledOnce();
 
     await handle.stop();
-    expect(clear).toHaveBeenCalledWith(42);
+    expect(clear).toHaveBeenCalledWith(1);
   });
 
   it('skips interval ticks while a previous cycle is still in flight', async () => {
-    const timers: Array<{ fn: () => void }> = [];
+    const { timers, setIntervalFn, clearIntervalFn } = captureInterval();
     const log = silentLog();
 
     let ipCounter = 0;
-    let releaseUpdate: ((result: UpdateResult) => void) | null = null;
     let updateCalls = 0;
+    const pending = deferred<UpdateResult>();
     const update = vi.fn((): Promise<UpdateResult> => {
       updateCalls += 1;
       if (updateCalls === 1) {
         return Promise.resolve({ ok: true, message: 'ok' });
       }
-      return new Promise<UpdateResult>((resolve) => {
-        releaseUpdate = resolve;
-      });
+      return pending.promise;
     });
 
     const updater = createUpdater({
@@ -287,11 +262,8 @@ describe('createUpdater', () => {
         return { v4: `203.0.113.${ipCounter}`, v6: null };
       },
       log,
-      setIntervalFn: ((fn: () => void) => {
-        timers.push({ fn });
-        return 1 as unknown as ReturnType<typeof setInterval>;
-      }) as typeof setInterval,
-      clearIntervalFn: (() => {}) as typeof clearInterval,
+      setIntervalFn,
+      clearIntervalFn,
     });
 
     await updater.start();
@@ -308,7 +280,7 @@ describe('createUpdater', () => {
     // Further ticks while the cycle is in flight are skipped with a warning.
     tick();
     tick();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushMicrotasks();
     expect(update).toHaveBeenCalledTimes(2);
     expect(log.warn).toHaveBeenCalledWith(
       expect.stringContaining('previous cycle still in progress'),
@@ -316,8 +288,8 @@ describe('createUpdater', () => {
     );
 
     // Once the slow cycle finishes, the next tick runs normally again.
-    releaseUpdate!({ ok: true, message: 'ok' });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    pending.resolve({ ok: true, message: 'ok' });
+    await flushMicrotasks();
     tick();
     await vi.waitFor(() => {
       expect(update).toHaveBeenCalledTimes(3);
@@ -325,7 +297,7 @@ describe('createUpdater', () => {
   });
 
   it('logs interval cycle failures instead of leaving rejections unhandled', async () => {
-    const timers: Array<{ fn: () => void }> = [];
+    const { timers, setIntervalFn, clearIntervalFn } = captureInterval();
     const log = silentLog();
     let discoveries = 0;
 
@@ -340,11 +312,8 @@ describe('createUpdater', () => {
         return { ip: { v4: '203.0.113.1', v6: null }, errors: { v4: null, v6: null } };
       },
       log,
-      setIntervalFn: ((fn: () => void) => {
-        timers.push({ fn });
-        return 1 as unknown as ReturnType<typeof setInterval>;
-      }) as typeof setInterval,
-      clearIntervalFn: (() => {}) as typeof clearInterval,
+      setIntervalFn,
+      clearIntervalFn,
     });
 
     await updater.start();
@@ -597,6 +566,24 @@ describe('createUpdater', () => {
     release?.({ ok: true, message: 'ok' });
     await Promise.all([startPromise, stopPromise]);
     expect(stopped).toBe(true);
+  });
+});
+
+describe('isRetryableHttpStatus', () => {
+  it('treats 429 and 5xx as retryable', () => {
+    expect(isRetryableHttpStatus(429)).toBe(true);
+    expect(isRetryableHttpStatus(500)).toBe(true);
+    expect(isRetryableHttpStatus(503)).toBe(true);
+    expect(isRetryableHttpStatus(599)).toBe(true);
+  });
+
+  it('rejects other statuses and non-numbers', () => {
+    expect(isRetryableHttpStatus(200)).toBe(false);
+    expect(isRetryableHttpStatus(401)).toBe(false);
+    expect(isRetryableHttpStatus(499)).toBe(false);
+    expect(isRetryableHttpStatus('429')).toBe(false);
+    expect(isRetryableHttpStatus(undefined)).toBe(false);
+    expect(isRetryableHttpStatus(null)).toBe(false);
   });
 });
 

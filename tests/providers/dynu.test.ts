@@ -1,13 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
+import { afterEachResetFetch } from '../helpers/cleanup.js';
 
 import { dynuProvider } from '../../lib/providers/dynu.js';
 import { makeConfig } from '../helpers/config.js';
 import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEachResetFetch();
 
 describe('dynu provider', () => {
   it('uses UDDNS_TOKEN as password fallback and sends ipv4/ipv6', async () => {

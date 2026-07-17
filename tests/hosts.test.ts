@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { bindNamecheapHost, configForHost, parseHostList, resolveHosts } from '../lib/hosts.js';
+import {
+  bindNamecheapHost,
+  configForHost,
+  parseHostList,
+  resolveHosts,
+  stripDuckDnsSuffix,
+} from '../lib/hosts.js';
 import { makeConfig } from './helpers/config.js';
+
+describe('stripDuckDnsSuffix', () => {
+  it('strips a trailing .duckdns.org suffix case-insensitively', () => {
+    expect(stripDuckDnsSuffix('home.duckdns.org')).toBe('home');
+    expect(stripDuckDnsSuffix('HOME.DuckDNS.ORG')).toBe('HOME');
+    expect(stripDuckDnsSuffix('home.example.com')).toBe('home.example.com');
+    expect(stripDuckDnsSuffix('home')).toBe('home');
+  });
+});
 
 describe('parseHostList', () => {
   it('splits on commas and whitespace, dedupes, and lowercases', () => {
