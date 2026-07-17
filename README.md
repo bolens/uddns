@@ -1,6 +1,6 @@
-# ddns-updater
+# uDDNS
 
-Multi-provider Dynamic DNS updater. Defaults to **Cloudflare**, and also supports DuckDNS, No-IP, Dynu, Namecheap, and generic DynDNS-compatible endpoints.
+Micro multi-provider Dynamic DNS updater. Defaults to **Cloudflare**, and also supports DuckDNS, No-IP, Dynu, Namecheap, and generic DynDNS-compatible endpoints.
 
 Checks your public IP on an interval and updates DNS only when it changes. Recommended interval: `900000` (15 minutes).
 
@@ -28,7 +28,7 @@ vp run start
 
 ### Logging
 
-Set `DDNS_LOG_LEVEL` to `error`, `warn`, `info` (default), or `debug`.
+Set `UDDNS_LOG_LEVEL` to `error`, `warn`, `info` (default), or `debug`.
 
 - Timestamps include seconds
 - Failures include HTTP status/timing, sanitized URLs, response previews, and hints
@@ -41,26 +41,26 @@ Public addresses are discovered without a third-party IP package: DNS first (Ope
 
 ## Providers
 
-Set `DDNS_PROVIDER` to one of: `cloudflare` (default), `duckdns`, `noip`, `dynu`, `namecheap`, `dyndns`.
+Set `UDDNS_PROVIDER` to one of: `cloudflare` (default), `duckdns`, `noip`, `dynu`, `namecheap`, `dyndns`.
 
 ### Multiple hosts
 
 Update several names on the same provider/account with one process:
 
 ```env
-DDNS_HOSTS=home.example.com,vpn.example.com,api.example.com
+UDDNS_HOSTS=home.example.com,vpn.example.com,api.example.com
 ```
 
-`DDNS_HOST` still works for a single name. Each host is updated independently; the remembered public IP only advances when **all** hosts succeed (so partial failures retry next cycle).
+`UDDNS_HOST` still works for a single name. Each host is updated independently; the remembered public IP only advances when **all** hosts succeed (so partial failures retry next cycle).
 
 ### Cloudflare (default)
 
 Create an API token with **Zone → DNS → Edit** (and Zone → Zone → Read if you resolve zones by name).
 
 ```env
-DDNS_PROVIDER=cloudflare
-DDNS_INTERVAL=900000
-DDNS_HOSTS=home.example.com,vpn.example.com
+UDDNS_PROVIDER=cloudflare
+UDDNS_INTERVAL=900000
+UDDNS_HOSTS=home.example.com,vpn.example.com
 
 CLOUDFLARE_API_TOKEN=your_api_token
 # One of:
@@ -79,28 +79,28 @@ If `CLOUDFLARE_ZONE_ID` is omitted, the updater tries `CLOUDFLARE_ZONE_NAME`, th
 ### DuckDNS
 
 ```env
-DDNS_PROVIDER=duckdns
+UDDNS_PROVIDER=duckdns
 DUCKDNS_TOKEN=your_token
-DDNS_HOSTS=myhost,otherhost
+UDDNS_HOSTS=myhost,otherhost
 # or: DUCKDNS_DOMAINS=myhost,otherhost
 ```
 
 ### No-IP
 
 ```env
-DDNS_PROVIDER=noip
-DDNS_USER=your_username
-DDNS_PASS=your_password
-DDNS_HOSTS=myhost.ddns.net,other.ddns.net
+UDDNS_PROVIDER=noip
+UDDNS_USER=your_username
+UDDNS_PASS=your_password
+UDDNS_HOSTS=myhost.ddns.net,other.ddns.net
 ```
 
 ### Dynu
 
 ```env
-DDNS_PROVIDER=dynu
-DDNS_USER=your_username
-DDNS_PASS=your_password
-DDNS_HOSTS=myhost.dynu.com,other.dynu.com
+UDDNS_PROVIDER=dynu
+UDDNS_USER=your_username
+UDDNS_PASS=your_password
+UDDNS_HOSTS=myhost.dynu.com,other.dynu.com
 ```
 
 ### Namecheap
@@ -108,11 +108,11 @@ DDNS_HOSTS=myhost.dynu.com,other.dynu.com
 Use the Dynamic DNS password from Namecheap (not your account password).
 
 ```env
-DDNS_PROVIDER=namecheap
+UDDNS_PROVIDER=namecheap
 NAMECHEAP_DOMAIN=example.com
 NAMECHEAP_PASSWORD=your_ddns_password
-DDNS_HOSTS=home,vpn,api
-# or FQDNs: DDNS_HOSTS=home.example.com,vpn.example.com
+UDDNS_HOSTS=home,vpn,api
+# or FQDNs: UDDNS_HOSTS=home.example.com,vpn.example.com
 ```
 
 ### DynDNS-compatible
@@ -120,10 +120,10 @@ DDNS_HOSTS=home,vpn,api
 Generic `/nic/update` clients (Dyn.com and similar).
 
 ```env
-DDNS_PROVIDER=dyndns
-DDNS_USER=your_username
-DDNS_PASS=your_password
-DDNS_HOSTS=myhost.example.com,other.example.com
+UDDNS_PROVIDER=dyndns
+UDDNS_USER=your_username
+UDDNS_PASS=your_password
+UDDNS_HOSTS=myhost.example.com,other.example.com
 # Optional custom endpoint:
 # DYNDNS_UPDATE_URL=https://members.dyndns.org/nic/update
 ```
