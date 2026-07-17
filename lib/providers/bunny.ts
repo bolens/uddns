@@ -34,9 +34,13 @@ export const bunnyProvider: Provider = {
     if (!host) return fail(`Host ${config.hostname} is outside BUNNY_DOMAIN`);
     const headers = { AccessKey: auth.apiKey!, 'Content-Type': 'application/json' };
     const zone = await request(`https://api.bunny.net/dnszone/${auth.zoneId}`, { headers });
-    const parsed = zoneSchema.safeParse(JSON.parse(zone.body));
-    if (!zone.response.ok || !parsed.success)
+    if (!zone.response.ok) {
       return fail('Bunny DNS zone lookup failed', { http: zone.meta });
+    }
+    const parsed = zoneSchema.safeParse(JSON.parse(zone.body));
+    if (!parsed.success) {
+      return fail('Bunny DNS zone lookup failed', { http: zone.meta });
+    }
     const results: UpdateResult[] = [];
     if (ip.v4)
       results.push(

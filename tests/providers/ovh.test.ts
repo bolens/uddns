@@ -139,6 +139,56 @@ describe('ovh provider', () => {
     });
   });
 
+  it('fails when the time endpoint is unavailable', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/auth/time'),
+        response: textResponse('unavailable', 503),
+      },
+    ]);
+
+    await expect(ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null })).rejects.toThrow(
+      /OVH time sync failed/,
+    );
+  });
+
+  it('fails when the time endpoint returns a non-numeric timestamp', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/auth/time'),
+        response: textResponse('not-a-number'),
+      },
+    ]);
+
+    await expect(ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null })).rejects.toThrow(
+      /non-numeric timestamp/,
+    );
+  });
+
+  it('fails when record detail returns non-JSON', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/auth/time'),
+        response: textResponse('1700000000'),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/record?fieldType=A'),
+        response: jsonResponse([55]),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/record/55'),
+        response: new Response('nope', { status: 500 }),
+      },
+    ]);
+
+    await expect(
+      ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: 'OVH returned invalid record data',
+    });
+  });
+
   it('fails when record id listing is invalid', async () => {
     stubRoutedFetch([
       {

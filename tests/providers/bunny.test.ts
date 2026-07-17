@@ -139,6 +139,23 @@ describe('bunny provider', () => {
     });
   });
 
+  it('returns a graceful failure when zone lookup returns non-JSON', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/dnszone/7'),
+        response: new Response('<html>nope</html>', { status: 503 }),
+      },
+    ]);
+
+    await expect(
+      bunnyProvider.update(bunnyConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: 'Bunny DNS zone lookup failed',
+      details: expect.objectContaining({ http: expect.objectContaining({ status: 503 }) }),
+    });
+  });
+
   it('uses empty Name for apex hosts and numeric AAAA type', async () => {
     const fetchMock = stubRoutedFetch([
       {

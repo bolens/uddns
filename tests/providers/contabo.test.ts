@@ -206,6 +206,24 @@ describe('contabo provider', () => {
     });
   });
 
+  it('matches apex records as zone FQDN or @', async () => {
+    stubRoutedFetch(
+      authAndDnsRoutes({
+        records: [{ recordId: 11, name: 'example.com', type: 'A', ttl: 300, data: '9.9.9.9' }],
+      }),
+    );
+
+    await expect(
+      contaboProvider.update(contaboConfig({ hosts: ['example.com'], hostname: 'example.com' }), {
+        v4: '9.9.9.9',
+        v6: null,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+    });
+  });
+
   it('fails when DNS record listing is invalid', async () => {
     stubRoutedFetch([
       {

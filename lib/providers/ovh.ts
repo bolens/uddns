@@ -57,8 +57,11 @@ async function upsert(
   let record: z.infer<typeof recordSchema> | null = null;
   if (ids.data[0] !== undefined) {
     const current = await signedRequest(auth, 'GET', `/domain/zone/${zone}/record/${ids.data[0]}`);
+    if (!current.response.ok) {
+      return fail('OVH returned invalid record data', { http: current.meta });
+    }
     const parsed = recordSchema.safeParse(JSON.parse(current.body));
-    if (!current.response.ok || !parsed.success) return fail('OVH returned invalid record data');
+    if (!parsed.success) return fail('OVH returned invalid record data', { http: current.meta });
     record = parsed.data;
   }
   if (record?.target === target && record.ttl === auth.ttl) {
@@ -85,7 +88,13 @@ async function signedRequest(
   const base = BASE[auth.endpoint];
   const body = payload ? JSON.stringify(payload) : '';
   const time = await request(`${base}/auth/time`);
+  if (!time.response.ok) {
+    throw new Error(`OVH time sync failed (HTTP ${time.meta.status})`);
+  }
   const timestamp = Number(time.body);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error('OVH time sync returned a non-numeric timestamp');
+  }
   const url = `${base}${path}`;
   const signature = `$1$${createHash('sha1')
     .update(`${auth.applicationSecret}+${auth.consumerKey}+${method}+${url}+${body}+${timestamp}`)

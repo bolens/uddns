@@ -83,8 +83,11 @@ async function upsert(
   const parsed = listed.response.ok ? recordsSchema.safeParse(JSON.parse(listed.body)) : null;
   if (!parsed?.success) return fail('Contabo record lookup failed', { http: listed.meta });
   const label = name === '@' ? '' : name;
+  const fqdn = label ? `${label}.${auth.zone}` : auth.zone!;
   const record = parsed.data.data.find(
-    (item) => item.type === type && (item.name === label || item.name === `${label}.${auth.zone}`),
+    (item) =>
+      item.type === type &&
+      (item.name === label || item.name === fqdn || item.name === '@' || item.name === name),
   );
   if (record?.data === data && record.ttl === auth.ttl) {
     return skipped(`${type} ${name} unchanged (${data})`);

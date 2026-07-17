@@ -182,6 +182,30 @@ describe('linode provider', () => {
     expect(JSON.parse(post.body ?? '{}').name).toBe('');
   });
 
+  it('matches and skips existing apex records stored with an empty name', async () => {
+    const fetchMock = stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?type=A&name='),
+        response: linodeRecords([{ id: 7, type: 'A', name: '', target: '9.9.9.9', ttl_sec: 300 }]),
+      },
+    ]);
+
+    await expect(
+      linodeProvider.update(linodeConfig({ hosts: ['example.com'], hostname: 'example.com' }), {
+        v4: '9.9.9.9',
+        v6: null,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+      message: expect.stringContaining('unchanged'),
+    });
+    expect(getCall(fetchMock, 0).url.href).toContain('name=');
+    expect(
+      fetchMock.mock.calls.some(([, init = {}]) => ['POST', 'PUT'].includes(init.method ?? 'GET')),
+    ).toBe(false);
+  });
+
   it('updates A and AAAA independently', async () => {
     stubRoutedFetch([
       {

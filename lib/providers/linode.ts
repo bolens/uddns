@@ -50,9 +50,10 @@ async function upsert(
   target: string,
   ttl: number,
 ): Promise<UpdateResult> {
+  const apiName = name === '@' ? '' : name;
   const base = `https://api.linode.com/v4/domains/${domainId}/records`;
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-  const listed = await request(`${base}?type=${type}&name=${encodeURIComponent(name)}`, {
+  const listed = await request(`${base}?type=${type}&name=${encodeURIComponent(apiName)}`, {
     headers,
   });
   if (!listed.response.ok) {
@@ -60,14 +61,14 @@ async function upsert(
   }
   const parsed = recordsSchema.safeParse(JSON.parse(listed.body));
   if (!parsed.success) return fail('Linode returned invalid record data');
-  const record = parsed.data.data.find((item) => item.type === type && item.name === name);
+  const record = parsed.data.data.find((item) => item.type === type && item.name === apiName);
   if (record?.target === target && record.ttl_sec === ttl) {
     return skipped(`${type} ${name} unchanged (${target})`);
   }
   const changed = await request(record ? `${base}/${record.id}` : base, {
     method: record ? 'PUT' : 'POST',
     headers,
-    body: JSON.stringify({ type, name: name === '@' ? '' : name, target, ttl_sec: ttl }),
+    body: JSON.stringify({ type, name: apiName, target, ttl_sec: ttl }),
   });
   return changed.response.ok
     ? ok(`${type} ${name} -> ${target}`, { http: changed.meta })
