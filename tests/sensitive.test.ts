@@ -14,6 +14,7 @@ describe('isSensitiveKey', () => {
       'authorization',
       'api-key',
       'api_key',
+      'secretapikey',
       'credential',
       'private',
       'auth',

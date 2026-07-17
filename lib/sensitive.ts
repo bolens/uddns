@@ -4,7 +4,7 @@
 
 /** Matches one complete sensitive key segment, never an arbitrary substring. */
 export const SENSITIVE_KEY_PATTERN =
-  /^(?:pass(?:word)?|token|secret|authorization|api[-_]?key|apikey|credential|private|auth|key)$/i;
+  /^(?:pass(?:word)?|token|secret(?:apikey)?|authorization|api[-_]?key|apikey|credential|private|auth|key)$/i;
 
 export function isSensitiveKey(key: string): boolean {
   if (SENSITIVE_KEY_PATTERN.test(key)) {

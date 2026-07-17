@@ -126,12 +126,12 @@ describe('file state store', () => {
     await expect(store.load()).rejects.toThrow(/EISDIR|directory/i);
   });
 
-  it('propagates invalid JSON as an error', async () => {
+  it('treats invalid JSON as an empty checkpoint', async () => {
     const file = await statePath();
     const store = createFileStateStore(file, 'cloudflare');
     await createFileStateStore(file, 'cloudflare').save({});
     await writeFile(file, '{not json');
 
-    await expect(store.load()).rejects.toThrow();
+    await expect(store.load()).resolves.toEqual({});
   });
 });

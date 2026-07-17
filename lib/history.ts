@@ -48,7 +48,14 @@ export function createFileHistoryStore(
         throw error;
       }
 
-      const parsed = historyFileSchema.safeParse(JSON.parse(raw));
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(raw);
+      } catch {
+        return [];
+      }
+
+      const parsed = historyFileSchema.safeParse(parsedJson);
       if (!parsed.success) {
         return [];
       }

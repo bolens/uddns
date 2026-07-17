@@ -9,22 +9,49 @@ describe('loadHealthConfig', () => {
       host: '127.0.0.1',
       port: 3924,
       metricsEnabled: false,
+      authToken: null,
     });
   });
 
-  it('parses enabled health and metrics', () => {
+  it('parses enabled health and metrics on loopback without a token', () => {
+    expect(
+      loadHealthConfig({
+        UDDNS_HEALTH: '1',
+        UDDNS_HEALTH_HOST: '127.0.0.1',
+        UDDNS_HEALTH_PORT: '4000',
+        UDDNS_METRICS: 'true',
+      }),
+    ).toEqual({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 4000,
+      metricsEnabled: true,
+      authToken: null,
+    });
+  });
+
+  it('requires an auth token when binding off loopback', () => {
+    expect(() =>
+      loadHealthConfig({
+        UDDNS_HEALTH: '1',
+        UDDNS_HEALTH_HOST: '0.0.0.0',
+      }),
+    ).toThrow(/UDDNS_HEALTH_AUTH_TOKEN/);
+
     expect(
       loadHealthConfig({
         UDDNS_HEALTH: '1',
         UDDNS_HEALTH_HOST: '0.0.0.0',
         UDDNS_HEALTH_PORT: '4000',
         UDDNS_METRICS: 'true',
+        UDDNS_HEALTH_AUTH_TOKEN: 'health-secret',
       }),
     ).toEqual({
       enabled: true,
       host: '0.0.0.0',
       port: 4000,
       metricsEnabled: true,
+      authToken: 'health-secret',
     });
   });
 

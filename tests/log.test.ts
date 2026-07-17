@@ -88,6 +88,21 @@ describe('formatError', () => {
     });
   });
 
+  it('preserves HTTP status and Retry-After metadata for retries', () => {
+    const error = Object.assign(new Error('Cloudflare returned non-JSON (429)'), {
+      status: 429,
+      retryAfterMs: 5_000,
+      details: { http: { status: 429, retryAfterMs: 5_000 } },
+    });
+
+    expect(formatError(error)).toMatchObject({
+      message: 'Cloudflare returned non-JSON (429)',
+      status: 429,
+      retryAfterMs: 5_000,
+      details: { http: { status: 429, retryAfterMs: 5_000 } },
+    });
+  });
+
   it('redacts and JSON-normalizes non-Error objects', () => {
     const formatted = formatError({
       token: 'super-secret',

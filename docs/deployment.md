@@ -85,9 +85,14 @@ Set `UDDNS_HEALTH=1` to bind the side server (`UDDNS_HEALTH_HOST` /
 
 - `GET /healthz` — liveness
 - `GET /readyz` — readiness + status; returns 503 until every updater is
-  running, has completed a successful cycle, and has no current error
+  running and has completed a successful cycle (transient
+  `skipped_no_ip` does not clear readiness)
 - `GET /metrics` — Prometheus text when `UDDNS_METRICS=1`
-- `GET /events` — SSE cycle events
+- `GET /events` — SSE cycle events (payloads are redacted)
+
+Non-loopback binds require `UDDNS_HEALTH_AUTH_TOKEN`. When set, that bearer
+token is required for `/metrics` and `/events` (`/healthz` and `/readyz`
+stay open for probes).
 
 Notification webhooks, ntfy, Slack, and Discord requests run asynchronously
 after a cycle so a slow notification endpoint cannot delay DNS checks. Delivery

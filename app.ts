@@ -112,7 +112,8 @@ export async function main(options: AppOptions = {}): Promise<void> {
       left.enabled === right.enabled &&
       left.host === right.host &&
       left.port === right.port &&
-      left.metricsEnabled === right.metricsEnabled
+      left.metricsEnabled === right.metricsEnabled &&
+      left.authToken === right.authToken
     );
   }
 
@@ -135,6 +136,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
         host: health.host,
         port: health.port,
         metricsEnabled: health.metricsEnabled,
+        authToken: health.authToken,
       },
       getStatus: () => {
         if (bundles.length === 1) {

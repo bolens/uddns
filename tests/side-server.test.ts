@@ -84,6 +84,53 @@ describe('side server', () => {
     }
   });
 
+  it('requires bearer auth for metrics and events when configured', async () => {
+    const server = await startSideServer({
+      config: {
+        host: '127.0.0.1',
+        port: 0,
+        metricsEnabled: true,
+        authToken: 'health-secret',
+      },
+      getStatus: () => ({
+        running: true,
+        stopping: false,
+        intervalMs: 1000,
+        currentIP: { v4: null, v6: null },
+        cycle: 1,
+        inFlight: false,
+        hosts: {},
+        lastCycle: null,
+        lastSuccessAt: new Date().toISOString(),
+        lastError: null,
+        nextRetryAt: null,
+        accountId: null,
+      }),
+      getMetrics: () => ({
+        cyclesTotal: {},
+        updatesTotal: 0,
+        discoverErrors: 0,
+        lastSuccessAt: null,
+      }),
+    });
+
+    try {
+      expect((await fetch(`${server.url}/healthz`)).status).toBe(200);
+      expect((await fetch(`${server.url}/readyz`)).status).toBe(200);
+      expect((await fetch(`${server.url}/metrics`)).status).toBe(401);
+      expect((await fetch(`${server.url}/events`)).status).toBe(401);
+      expect(
+        (
+          await fetch(`${server.url}/metrics`, {
+            headers: { Authorization: 'Bearer health-secret' },
+          })
+        ).status,
+      ).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('returns 404 for metrics when disabled', async () => {
     const server = await startSideServer({
       config: { host: '127.0.0.1', port: 0, metricsEnabled: false },

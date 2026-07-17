@@ -3,7 +3,9 @@
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 
+import { redact } from './log.js';
 import type { CycleEvent } from './schemas/cycle.js';
 import type { UpdaterStatus } from './updater.js';
 
@@ -11,6 +13,7 @@ export type SideServerConfig = {
   host: string;
   port: number;
   metricsEnabled: boolean;
+  authToken?: string | null;
 };
 
 export type MetricsSnapshot = {
@@ -44,6 +47,31 @@ function writeJson(res: ServerResponse, status: number, body: unknown): void {
     'Content-Length': Buffer.byteLength(text),
   });
   res.end(text);
+}
+
+function bearerMatches(expected: string, header: string | undefined): boolean {
+  if (!header?.startsWith('Bearer ')) {
+    return false;
+  }
+  const provided = header.slice('Bearer '.length);
+  const left = Buffer.from(provided);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function requireAuth(
+  req: IncomingMessage,
+  res: ServerResponse,
+  authToken: string | null | undefined,
+): boolean {
+  if (!authToken) {
+    return true;
+  }
+  if (bearerMatches(authToken, req.headers.authorization)) {
+    return true;
+  }
+  writeJson(res, 401, { error: 'unauthorized' });
+  return false;
 }
 
 export function renderPrometheus(metrics: MetricsSnapshot): string {
@@ -125,7 +153,7 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
   const sseClients = new Set<ServerResponse>();
 
   const unsubscribe = onEventSubscribe?.((event) => {
-    const data = `data: ${JSON.stringify(event)}\n\n`;
+    const data = `data: ${JSON.stringify(redact(event))}\n\n`;
     for (const client of sseClients) {
       client.write(data);
     }
@@ -143,6 +171,9 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
       return;
     }
     if (req.method === 'GET' && url === '/metrics') {
+      if (!requireAuth(req, res, config.authToken)) {
+        return;
+      }
       if (!config.metricsEnabled || !getMetrics) {
         writeJson(res, 404, { error: 'metrics disabled' });
         return;
@@ -153,6 +184,9 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
       return;
     }
     if (req.method === 'GET' && url === '/events') {
+      if (!requireAuth(req, res, config.authToken)) {
+        return;
+      }
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',

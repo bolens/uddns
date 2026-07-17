@@ -166,6 +166,23 @@ export function formatError(error: unknown): ErrorInfo {
     if ('hostname' in error && typeof error.hostname === 'string') {
       out['hostname'] = error.hostname;
     }
+    if (
+      'status' in error &&
+      typeof (error as { status?: unknown }).status === 'number' &&
+      Number.isFinite((error as { status: number }).status)
+    ) {
+      out['status'] = (error as { status: number }).status;
+    }
+    if (
+      'retryAfterMs' in error &&
+      typeof (error as { retryAfterMs?: unknown }).retryAfterMs === 'number' &&
+      Number.isFinite((error as { retryAfterMs: number }).retryAfterMs)
+    ) {
+      out['retryAfterMs'] = (error as { retryAfterMs: number }).retryAfterMs;
+    }
+    if ('details' in error && (error as { details?: unknown }).details !== undefined) {
+      out['details'] = toJsonValue(redact((error as { details: unknown }).details));
+    }
     if (error.stack) {
       out['stack'] = error.stack;
     }

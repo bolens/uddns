@@ -32,7 +32,14 @@ export function createFileStateStore(file: string, provider: ProviderId): StateS
         throw error;
       }
 
-      const parsed = stateFileSchema.safeParse(JSON.parse(raw));
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(raw);
+      } catch {
+        return {};
+      }
+
+      const parsed = stateFileSchema.safeParse(parsedJson);
       if (!parsed.success || parsed.data.provider !== provider) {
         return {};
       }
