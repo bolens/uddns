@@ -19,6 +19,10 @@ import { request, type RequestMeta } from './http.js';
 
 const API = 'https://api.cloudflare.com/client/v4';
 
+function normalizeDnsLabel(name: string): string {
+  return name.toLowerCase().replace(/\.$/, '');
+}
+
 type CloudflarePayload = CloudflareEnvelope & {
   meta?: RequestMeta;
 };
@@ -40,7 +44,8 @@ export const cloudflareProvider: Provider = {
   async update(config, ip) {
     const cf = config.cloudflare;
     const apiToken = cf.apiToken;
-    const recordName = cf.recordName;
+    const recordName = cf.recordName ? normalizeDnsLabel(cf.recordName) : cf.recordName;
+    const zoneName = cf.zoneName ? normalizeDnsLabel(cf.zoneName) : cf.zoneName;
 
     if (!apiToken) {
       return fail('cloudflare requires CLOUDFLARE_API_TOKEN', {
@@ -56,13 +61,13 @@ export const cloudflareProvider: Provider = {
       return fail('No public IP available', { recordName, ip });
     }
 
-    const zoneId = cf.zoneId ?? (await resolveZoneId(apiToken, cf.zoneName, recordName));
+    const zoneId = cf.zoneId ?? (await resolveZoneId(apiToken, zoneName, recordName));
     if (!zoneId) {
       return fail(
         'Could not resolve Cloudflare zone. Set CLOUDFLARE_ZONE_ID or CLOUDFLARE_ZONE_NAME.',
         {
           recordName,
-          zoneName: cf.zoneName,
+          zoneName,
           hint: 'Zone name is usually the apex domain (example.com), not the subdomain',
         },
       );
@@ -399,7 +404,7 @@ function assertCloudflareSuccess(payload: CloudflarePayload, operation: string):
     Object.assign(error, {
       status: payload.meta.status,
       details: { http: payload.meta },
-      ...(payload.meta.retryAfterMs != null ? { retryAfterMs: payload.meta.retryAfterMs } : {}),
+      retryAfterMs: payload.meta.retryAfterMs,
     });
   }
   throw error;

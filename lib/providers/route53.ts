@@ -202,9 +202,15 @@ async function findRecordSet(
 
   const listed = await route53Request(credentials, 'GET', url);
   if (!listed.response.ok) {
-    throw new Error(
+    const error = new Error(
       `Route53 ${type} record lookup for ${fqdn} failed: ${formatRoute53Error(listed.body, listed.meta)}`,
     );
+    Object.assign(error, {
+      status: listed.meta.status,
+      details: { http: listed.meta },
+      retryAfterMs: listed.meta.retryAfterMs,
+    });
+    throw error;
   }
 
   const recordSet = parseFirstRecordSet(listed.body);

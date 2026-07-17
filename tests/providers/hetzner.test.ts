@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vite-plus/test';
 import { hetznerProvider } from '../../lib/providers/hetzner.js';
 import { afterEachResetFetch } from '../helpers/cleanup.js';
 import { makeConfig } from '../helpers/config.js';
-import { getCall, jsonResponse, stubRoutedFetch, textResponse } from '../helpers/fetch.js';
+import {
+  getCall,
+  jsonResponse,
+  stubRoutedFetch,
+  textResponse,
+  fetchInputUrl,
+  type FetchInput,
+} from '../helpers/fetch.js';
 
 afterEachResetFetch();
 
@@ -104,11 +111,60 @@ describe('hetzner provider', () => {
       fetchMock.mock.calls.findIndex(([, init = {}]) => (init.method ?? 'GET') === 'PUT'),
     );
     expect(put.headers.get('Auth-API-Token')).toBe('hz-token');
+    const list = getCall(
+      fetchMock,
+      fetchMock.mock.calls.findIndex(([input]) => {
+        const url = fetchInputUrl(input as FetchInput);
+        return url.includes('/records?') && url.includes('zone_id=zone1');
+      }),
+    );
+    expect(list.url.searchParams.get('page')).toBe('1');
+    expect(list.url.searchParams.get('per_page')).toBe('100');
     expect(JSON.parse(put.body ?? '{}')).toEqual({
       zone_id: 'zone1',
       type: 'A',
       name: 'home',
       value: '9.9.9.9',
+    });
+  });
+
+  it('pages through Hetzner records until the target is found', async () => {
+    const filler = Array.from({ length: 100 }, (_, index) => ({
+      id: `filler-${index}`,
+      type: 'A',
+      name: `host${index}`,
+      value: '1.1.1.1',
+    }));
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: hzZone('zone1', 'example.com'),
+      },
+      {
+        match: (url, method) => {
+          if (method !== 'GET' || !url.includes('/records?')) {
+            return false;
+          }
+          return new URL(url).searchParams.get('page') === '1';
+        },
+        response: hzRecords(filler),
+      },
+      {
+        match: (url, method) => {
+          if (method !== 'GET' || !url.includes('/records?')) {
+            return false;
+          }
+          return new URL(url).searchParams.get('page') === '2';
+        },
+        response: hzRecords([{ id: 'r-home', type: 'A', name: 'home', value: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      hetznerProvider.update(hzConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
     });
   });
 

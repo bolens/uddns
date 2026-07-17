@@ -182,6 +182,39 @@ describe('cloudflare provider', () => {
     });
   });
 
+  it('strips trailing dots from Cloudflare record and zone names', async () => {
+    stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.includes('/zones?name=example.com'),
+        response: cfZones([{ id: 'zone1', name: 'example.com' }]),
+      },
+      {
+        match: (url, method) =>
+          method === 'GET' &&
+          url.includes('/dns_records?') &&
+          url.includes('name=home.example.com'),
+        response: cfRecords([{ id: 'r1', content: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneName: 'example.com.',
+            recordName: 'home.example.com.',
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+      details: expect.objectContaining({ recordName: 'home.example.com' }),
+    });
+  });
+
   it('patches a record when only its TTL changed', async () => {
     const fetchMock = stubCloudflareFetch([
       {

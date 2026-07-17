@@ -105,7 +105,15 @@ async function resolveZone(
   if (zoneId) {
     const payload = await hetznerJson(apiToken, `${API}/zones/${zoneId}`);
     if (!payload.response.ok) {
-      throw new Error(`Hetzner zone lookup for ${zoneId} failed: ${formatHetznerError(payload)}`);
+      const error = new Error(
+        `Hetzner zone lookup for ${zoneId} failed: ${formatHetznerError(payload)}`,
+      );
+      Object.assign(error, {
+        status: payload.meta.status,
+        details: { http: payload.meta },
+        retryAfterMs: payload.meta.retryAfterMs,
+      });
+      throw error;
     }
     return parseHetzner(hetznerZoneResponseSchema, payload, 'zone').zone;
   }
@@ -136,7 +144,15 @@ async function findZoneByName(apiToken: string, name: string): Promise<HetznerZo
     return null;
   }
   if (!payload.response.ok) {
-    throw new Error(`Hetzner zone lookup for ${name} failed: ${formatHetznerError(payload)}`);
+    const error = new Error(
+      `Hetzner zone lookup for ${name} failed: ${formatHetznerError(payload)}`,
+    );
+    Object.assign(error, {
+      status: payload.meta.status,
+      details: { http: payload.meta },
+      retryAfterMs: payload.meta.retryAfterMs,
+    });
+    throw error;
   }
 
   return parseHetzner(hetznerZonesResponseSchema, payload, 'zones').zones[0] ?? null;
@@ -245,18 +261,36 @@ async function findRecord(
   name: string,
   type: 'A' | 'AAAA',
 ): Promise<HetznerRecord | null> {
-  const url = new URL(`${API}/records`);
-  url.searchParams.set('zone_id', zoneId);
+  let page = 1;
+  for (;;) {
+    const url = new URL(`${API}/records`);
+    url.searchParams.set('zone_id', zoneId);
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('per_page', '100');
 
-  const payload = await hetznerJson(apiToken, url);
-  if (!payload.response.ok) {
-    throw new Error(
-      `Hetzner ${type} record lookup for ${name} failed: ${formatHetznerError(payload)}`,
-    );
+    const payload = await hetznerJson(apiToken, url);
+    if (!payload.response.ok) {
+      const error = new Error(
+        `Hetzner ${type} record lookup for ${name} failed: ${formatHetznerError(payload)}`,
+      );
+      Object.assign(error, {
+        status: payload.meta.status,
+        details: { http: payload.meta },
+        retryAfterMs: payload.meta.retryAfterMs,
+      });
+      throw error;
+    }
+
+    const records = parseHetzner(hetznerRecordsResponseSchema, payload, 'records').records ?? [];
+    const match = records.find((record) => record.type === type && record.name === name) ?? null;
+    if (match) {
+      return match;
+    }
+    if (records.length < 100 || page >= 50) {
+      return null;
+    }
+    page += 1;
   }
-
-  const records = parseHetzner(hetznerRecordsResponseSchema, payload, 'records').records ?? [];
-  return records.find((record) => record.type === type && record.name === name) ?? null;
 }
 
 type HetznerPayload = {

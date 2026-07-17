@@ -198,9 +198,15 @@ async function findRecord(
 
   const payload = await digitaloceanJson(apiToken, url);
   if (!payload.response.ok) {
-    throw new Error(
+    const error = new Error(
       `DigitalOcean ${type} record lookup for ${fqdn} failed: ${formatDigitalOceanError(payload)}`,
     );
+    Object.assign(error, {
+      status: payload.meta.status,
+      details: { http: payload.meta },
+      retryAfterMs: payload.meta.retryAfterMs,
+    });
+    throw error;
   }
 
   const parsed = doRecordsResponseSchema.safeParse(payload.data);
