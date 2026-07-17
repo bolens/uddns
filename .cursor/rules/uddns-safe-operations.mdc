@@ -1,0 +1,14 @@
+---
+description: Keep AI-driven uDDNS operations scoped and reversible
+alwaysApply: true
+---
+
+# Safe uDDNS Operations
+
+- Call `validate_config` before suggesting configuration changes.
+- Use `dry_run` before `check_once`, `force_update`, or `update_hosts`.
+- Prefer `update_hosts` with an explicit host list over account-wide updates.
+- Explain the intended DNS changes and affected hosts before destructive tools.
+- Never print, infer, or place real credentials in patches or tool output.
+- Use `explain_last_cycle` and `get_history` before retrying a failed update.
+- Respect disabled hosts; do not bypass them.
