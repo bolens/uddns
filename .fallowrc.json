@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": ["app.ts"],
+  "ignoreExports": [
+    {
+      "file": "lib/schemas/**/*.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "lib/providers/http.ts",
+      "exports": ["HttpError"]
+    }
+  ]
+}
