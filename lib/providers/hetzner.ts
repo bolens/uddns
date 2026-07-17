@@ -8,6 +8,7 @@ import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request, type RequestMeta } from './http.js';
+import { normalizeDnsName } from './domain-host.js';
 
 const API = 'https://dns.hetzner.com/api/v1';
 
@@ -119,7 +120,7 @@ async function resolveZone(
   }
 
   if (zoneName) {
-    return await findZoneByName(apiToken, zoneName);
+    return await findZoneByName(apiToken, normalizeDnsName(zoneName));
   }
 
   const labels = hostname.split('.');

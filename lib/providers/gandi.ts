@@ -45,7 +45,12 @@ async function upsert(
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const current = await request(url, { headers });
   if (current.response.ok) {
-    const parsed = recordSchema.safeParse(JSON.parse(current.body));
+    let parsed: ReturnType<typeof recordSchema.safeParse> | null = null;
+    try {
+      parsed = recordSchema.safeParse(JSON.parse(current.body));
+    } catch {
+      return fail(`Gandi returned invalid ${type} record data`, { http: current.meta });
+    }
     if (!parsed.success) return fail(`Gandi returned invalid ${type} record data`);
     if (
       parsed.data.rrset_values.length === 1 &&

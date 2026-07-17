@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { ContaboConfig, Provider, UpdateResult } from '../schemas/provider.js';
-import { splitDomainHost } from './domain-host.js';
+import { splitDomainHost, normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request } from './http.js';
 
@@ -34,13 +34,15 @@ export const contaboProvider: Provider = {
     ]);
     if (missing) return missing;
     if (!config.hostname) return fail('contabo requires UDDNS_HOST or UDDNS_HOSTS');
-    const host = splitDomainHost(config.hostname, auth.zone);
+    const zone = normalizeDnsName(auth.zone!);
+    const host = splitDomainHost(config.hostname, zone);
     if (!host) return fail(`Host ${config.hostname} is outside CONTABO_ZONE`);
     const token = await getToken(auth);
     if (!token) return fail('Contabo OAuth authentication failed');
+    const scoped = { ...auth, zone };
     const results: UpdateResult[] = [];
-    if (ip.v4) results.push(await upsert(token, auth, host.name, 'A', ip.v4));
-    if (ip.v6) results.push(await upsert(token, auth, host.name, 'AAAA', ip.v6));
+    if (ip.v4) results.push(await upsert(token, scoped, host.name, 'A', ip.v4));
+    if (ip.v6) results.push(await upsert(token, scoped, host.name, 'AAAA', ip.v6));
     return results.length ? combineRecordResults(results, host) : fail('No public IP available');
   },
 };
@@ -61,7 +63,15 @@ async function getToken(auth: ContaboConfig): Promise<string | null> {
       body,
     },
   );
-  const parsed = result.response.ok ? tokenSchema.safeParse(JSON.parse(result.body)) : null;
+  const parsed = result.response.ok
+    ? (() => {
+        try {
+          return tokenSchema.safeParse(JSON.parse(result.body));
+        } catch {
+          return null;
+        }
+      })()
+    : null;
   return parsed?.success ? parsed.data.access_token : null;
 }
 

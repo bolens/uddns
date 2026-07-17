@@ -37,7 +37,12 @@ export const bunnyProvider: Provider = {
     if (!zone.response.ok) {
       return fail('Bunny DNS zone lookup failed', { http: zone.meta });
     }
-    const parsed = zoneSchema.safeParse(JSON.parse(zone.body));
+    let parsed: ReturnType<typeof zoneSchema.safeParse> | null = null;
+    try {
+      parsed = zoneSchema.safeParse(JSON.parse(zone.body));
+    } catch {
+      return fail('Bunny DNS zone lookup failed', { http: zone.meta });
+    }
     if (!parsed.success) {
       return fail('Bunny DNS zone lookup failed', { http: zone.meta });
     }

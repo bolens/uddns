@@ -143,13 +143,21 @@ describe('ovh provider', () => {
     stubRoutedFetch([
       {
         match: (url, method) => method === 'GET' && url.endsWith('/auth/time'),
-        response: textResponse('unavailable', 503),
+        response: new Response('unavailable', {
+          status: 503,
+          headers: { 'Retry-After': '12' },
+        }),
       },
     ]);
 
-    await expect(ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null })).rejects.toThrow(
-      /OVH time sync failed/,
-    );
+    await expect(
+      ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/OVH time sync failed/),
+      status: 503,
+      retryAfterMs: 12_000,
+      details: { http: expect.objectContaining({ status: 503 }) },
+    });
   });
 
   it('fails when the time endpoint returns a non-numeric timestamp', async () => {

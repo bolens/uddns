@@ -1,10 +1,15 @@
+/** Lowercase and strip a trailing DNS root dot. */
+export function normalizeDnsName(value: string): string {
+  return value.toLowerCase().replace(/\.$/, '');
+}
+
 export function splitDomainHost(
   hostname: string,
   domain: string | null,
 ): { domain: string; name: string } | null {
-  const host = hostname.toLowerCase().replace(/\.$/, '');
+  const host = normalizeDnsName(hostname);
   if (domain) {
-    const apex = domain.toLowerCase().replace(/\.$/, '');
+    const apex = normalizeDnsName(domain);
     if (host === apex) {
       return { domain: apex, name: '@' };
     }

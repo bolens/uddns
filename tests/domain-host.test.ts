@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { splitDomainHost } from '../lib/providers/domain-host.js';
+import { normalizeDnsName, splitDomainHost } from '../lib/providers/domain-host.js';
+
+describe('normalizeDnsName', () => {
+  it('lowercases and strips trailing dots', () => {
+    expect(normalizeDnsName('Example.COM.')).toBe('example.com');
+    expect(normalizeDnsName('home.example.com')).toBe('home.example.com');
+  });
+});
 
 describe('splitDomainHost', () => {
   it('uses an explicit domain and maps apex to @', () => {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
+import { normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request, type RequestMeta } from './http.js';
 
@@ -45,7 +46,7 @@ export const digitaloceanProvider: Provider = {
       return fail('No public IP available', { hostname, ip });
     }
 
-    const domain = dio.domain?.toLowerCase() ?? deriveDomain(hostname);
+    const domain = dio.domain ? normalizeDnsName(dio.domain) : deriveDomain(hostname);
     if (!domain) {
       return fail(
         `Cannot determine DigitalOcean domain for "${hostname}". Set DIGITALOCEAN_DOMAIN.`,

@@ -59,8 +59,13 @@ async function upsert(
   if (!listed.response.ok) {
     return fail(`Linode record lookup failed (HTTP ${listed.meta.status})`, { http: listed.meta });
   }
-  const parsed = recordsSchema.safeParse(JSON.parse(listed.body));
-  if (!parsed.success) return fail('Linode returned invalid record data');
+  let parsed: ReturnType<typeof recordsSchema.safeParse> | null = null;
+  try {
+    parsed = recordsSchema.safeParse(JSON.parse(listed.body));
+  } catch {
+    return fail('Linode returned invalid record data', { http: listed.meta });
+  }
+  if (!parsed.success) return fail('Linode returned invalid record data', { http: listed.meta });
   const record = parsed.data.data.find((item) => item.type === type && item.name === apiName);
   if (record?.target === target && record.ttl_sec === ttl) {
     return skipped(`${type} ${name} unchanged (${target})`);

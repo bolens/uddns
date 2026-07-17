@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { OvhConfig, Provider, UpdateResult } from '../schemas/provider.js';
-import { splitDomainHost } from './domain-host.js';
+import { splitDomainHost, normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request } from './http.js';
 
@@ -28,13 +28,15 @@ export const ovhProvider: Provider = {
     ]);
     if (missing) return missing;
     if (!config.hostname) return fail('ovh requires UDDNS_HOST or UDDNS_HOSTS');
-    const host = splitDomainHost(config.hostname, auth.zone);
+    const zone = normalizeDnsName(auth.zone!);
+    const host = splitDomainHost(config.hostname, zone);
     if (!host) return fail(`Host ${config.hostname} is outside OVH_ZONE`);
+    const scoped = { ...auth, zone };
     const results: UpdateResult[] = [];
-    if (ip.v4) results.push(await upsert(auth, host.name, 'A', ip.v4));
-    if (ip.v6) results.push(await upsert(auth, host.name, 'AAAA', ip.v6));
+    if (ip.v4) results.push(await upsert(scoped, host.name, 'A', ip.v4));
+    if (ip.v6) results.push(await upsert(scoped, host.name, 'AAAA', ip.v6));
     if (results.some((result) => result.ok && !result.skipped)) {
-      await signedRequest(auth, 'POST', `/domain/zone/${encodeURIComponent(auth.zone!)}/refresh`);
+      await signedRequest(scoped, 'POST', `/domain/zone/${encodeURIComponent(zone)}/refresh`);
     }
     return results.length ? combineRecordResults(results, host) : fail('No public IP available');
   },
@@ -52,15 +54,25 @@ async function upsert(
   const listed = await signedRequest(auth, 'GET', listPath);
   if (!listed.response.ok)
     return fail(`OVH record lookup failed (HTTP ${listed.meta.status})`, { http: listed.meta });
-  const ids = idsSchema.safeParse(JSON.parse(listed.body));
-  if (!ids.success) return fail('OVH returned invalid record IDs');
+  let ids: ReturnType<typeof idsSchema.safeParse> | null = null;
+  try {
+    ids = idsSchema.safeParse(JSON.parse(listed.body));
+  } catch {
+    return fail('OVH returned invalid record IDs', { http: listed.meta });
+  }
+  if (!ids.success) return fail('OVH returned invalid record IDs', { http: listed.meta });
   let record: z.infer<typeof recordSchema> | null = null;
   if (ids.data[0] !== undefined) {
     const current = await signedRequest(auth, 'GET', `/domain/zone/${zone}/record/${ids.data[0]}`);
     if (!current.response.ok) {
       return fail('OVH returned invalid record data', { http: current.meta });
     }
-    const parsed = recordSchema.safeParse(JSON.parse(current.body));
+    let parsed: ReturnType<typeof recordSchema.safeParse> | null = null;
+    try {
+      parsed = recordSchema.safeParse(JSON.parse(current.body));
+    } catch {
+      return fail('OVH returned invalid record data', { http: current.meta });
+    }
     if (!parsed.success) return fail('OVH returned invalid record data', { http: current.meta });
     record = parsed.data;
   }
@@ -89,7 +101,13 @@ async function signedRequest(
   const body = payload ? JSON.stringify(payload) : '';
   const time = await request(`${base}/auth/time`);
   if (!time.response.ok) {
-    throw new Error(`OVH time sync failed (HTTP ${time.meta.status})`);
+    const error = new Error(`OVH time sync failed (HTTP ${time.meta.status})`);
+    Object.assign(error, {
+      status: time.meta.status,
+      details: { http: time.meta },
+      retryAfterMs: time.meta.retryAfterMs,
+    });
+    throw error;
   }
   const timestamp = Number(time.body);
   if (!Number.isFinite(timestamp)) {
