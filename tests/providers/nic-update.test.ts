@@ -103,4 +103,22 @@ describe('updateNicDns', () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('sanitizes credentials embedded in the update URL before logging it', async () => {
+    stubFetch(async () => textResponse('good'));
+
+    const result = await updateNicDns({
+      updateUrl: 'https://user:hunter2@example.test/nic/update?token=abc',
+      username: 'user',
+      password: 'pass',
+      hostname: 'home.example.com',
+      ip: { v4: null, v6: null },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.details?.['updateUrl']).toBe(
+      'https://***:***@example.test/nic/update?token=%5Bredacted%5D',
+    );
+    expect(JSON.stringify(result.details)).not.toContain('hunter2');
+  });
 });

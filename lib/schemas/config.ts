@@ -38,6 +38,14 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
 
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Load and validate runtime configuration from environment variables.
  */
@@ -77,6 +85,13 @@ export function loadConfig(
 
   const firstHost = hosts[0] ?? null;
 
+  const dyndnsUpdateUrl = parsedEnv['DYNDNS_UPDATE_URL'] ?? 'https://members.dyndns.org/nic/update';
+  if (!isHttpsUrl(dyndnsUpdateUrl)) {
+    throw new Error(
+      'DYNDNS_UPDATE_URL must be a valid https:// URL (credentials would travel in cleartext over http)',
+    );
+  }
+
   const config = {
     provider: providerResult.data,
     interval,
@@ -109,7 +124,7 @@ export function loadConfig(
       password: parsedEnv['NAMECHEAP_PASSWORD'] ?? parsedEnv['UDDNS_PASS'] ?? null,
     },
     dyndns: {
-      updateUrl: parsedEnv['DYNDNS_UPDATE_URL'] ?? 'https://members.dyndns.org/nic/update',
+      updateUrl: dyndnsUpdateUrl,
       username: parsedEnv['UDDNS_USER'] ?? null,
       password: parsedEnv['UDDNS_PASS'] ?? null,
       hostname: firstHost,

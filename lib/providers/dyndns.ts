@@ -1,5 +1,6 @@
 import { fail } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
+import { sanitizeUrl } from './http.js';
 import { updateNicDns } from './nic-update.js';
 
 export const dyndnsProvider: Provider = {
@@ -12,7 +13,7 @@ export const dyndnsProvider: Provider = {
       return fail(
         'dyndns requires UDDNS_USER, UDDNS_PASS, and UDDNS_HOST / UDDNS_HOSTS (or DYNDNS_* equivalents)',
         {
-          updateUrl,
+          updateUrl: sanitizeUrl(updateUrl),
           hasUser: Boolean(username),
           hasPassword: Boolean(password),
           hostname,

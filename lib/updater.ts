@@ -46,6 +46,26 @@ export function createUpdater(options: UpdaterOptions) {
   let currentIP: PublicIP = { v4: null, v6: null };
   let timer: ReturnType<typeof setInterval> | null = null;
   let cycle = 0;
+  let inFlight = false;
+
+  /**
+   * Run one cycle unless the previous one is still in flight. Slow provider
+   * APIs must never let cycles overlap: overlapping cycles race on
+   * `currentIP` and can issue duplicate or out-of-order provider updates.
+   */
+  async function checkOnceGuarded(): Promise<CheckResult | null> {
+    if (inFlight) {
+      log.warn('Skipping check cycle: previous cycle still in progress', { cycle });
+      return null;
+    }
+
+    inFlight = true;
+    try {
+      return await checkOnce();
+    } finally {
+      inFlight = false;
+    }
+  }
 
   async function checkOnce(): Promise<CheckResult> {
     cycle += 1;
@@ -178,9 +198,11 @@ export function createUpdater(options: UpdaterOptions) {
     log.info(`Hosts (${config.hosts.length}): ${config.hosts.join(', ')}`);
     log.info(`Check interval: ${config.interval}ms (${formatInterval(config.interval)})`);
 
-    await checkOnce();
+    await checkOnceGuarded();
     timer = setIntervalFn(() => {
-      void checkOnce();
+      checkOnceGuarded().catch((error: unknown) => {
+        log.error('Check cycle failed', formatError(error));
+      });
     }, config.interval);
 
     return {

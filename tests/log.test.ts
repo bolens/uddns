@@ -30,6 +30,16 @@ describe('redact', () => {
     expect(redact('Basic dXNlcjpwYXNz')).toBe('[redacted]');
     expect(redact(['Bearer abc', 'plain'])).toEqual(['[redacted]', 'plain']);
   });
+
+  it('scrubs credentials embedded mid-string (echoed headers, response bodies)', () => {
+    expect(redact('request failed: Authorization: Bearer abc.123 (rejected)')).toBe(
+      'request failed: Authorization: Bearer [redacted] (rejected)',
+    );
+    expect(redact('proxy said Basic dXNlcjpwYXNz then closed')).toBe(
+      'proxy said Basic [redacted] then closed',
+    );
+    expect(redact('no secrets here')).toBe('no secrets here');
+  });
 });
 
 describe('formatError', () => {
@@ -86,6 +96,17 @@ describe('formatError', () => {
     expect(formatError('boom')).toEqual({ message: 'boom' });
     expect(formatError(42)).toEqual({ message: '42' });
     expect(formatError(undefined)).toEqual({ message: 'undefined' });
+  });
+
+  it('redacts credentials leaked into error messages, stacks, and causes', () => {
+    const error = new Error('upstream echoed Authorization: Bearer super-secret-token');
+    error.cause = new Error('retry with Basic dXNlcjpwYXNz header');
+
+    const formatted = formatError(error);
+
+    expect(formatted.message).toBe('upstream echoed Authorization: Bearer [redacted]');
+    expect(formatted.stack).not.toContain('super-secret-token');
+    expect(formatted.cause?.message).toBe('retry with Basic [redacted] header');
   });
 });
 

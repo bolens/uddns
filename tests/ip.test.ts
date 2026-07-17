@@ -41,13 +41,22 @@ describe('discoverPublicIP', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns both families when DNS lookups succeed', async () => {
+  it('prefers HTTPS (TLS-authenticated) sources and never consults DNS when they succeed', async () => {
+    const resolverCreations: number[] = [];
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = fetchInputUrl(input);
+      if (url.includes('ipv6') || url.includes('api64')) {
+        return new Response('2001:db8::10\n');
+      }
+      return new Response('203.0.113.10\n');
+    });
+
     const deps: DiscoverDeps = {
-      fetch: vi.fn(),
-      createResolver: createStubResolver({
-        resolve4: async () => ['203.0.113.10'],
-        resolve6: async () => ['2001:db8::10'],
-      }),
+      fetch: fetchMock,
+      createResolver: () => {
+        resolverCreations.push(1);
+        throw new Error('DNS must not be consulted when HTTPS succeeds');
+      },
     };
 
     const discovered = await discoverPublicIP(deps);
@@ -56,28 +65,20 @@ describe('discoverPublicIP', () => {
       ip: { v4: '203.0.113.10', v6: '2001:db8::10' },
       errors: { v4: null, v6: null },
     });
+    expect(resolverCreations).toHaveLength(0);
     expect(await getPublicIP(deps)).toEqual({ v4: '203.0.113.10', v6: '2001:db8::10' });
   });
 
-  it('falls back to HTTPS when DNS fails for a family', async () => {
-    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      const url = fetchInputUrl(input);
-      if (url.includes('ipv4') || url.includes('ipify.org') || url.includes('ifconfig')) {
-        return new Response('203.0.113.20\n');
-      }
-      throw new Error(`unexpected fetch ${url}`);
+  it('falls back to OpenDNS when the HTTPS endpoints fail', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('https echo services unreachable');
     });
 
     const deps: DiscoverDeps = {
       fetch: fetchMock,
       createResolver: createStubResolver({
-        resolve4: async () => {
-          throw new Error('opendns down');
-        },
+        resolve4: async () => ['203.0.113.20'],
         resolve6: async () => ['2001:db8::20'],
-        resolveTxt: async () => {
-          throw new Error('google txt down');
-        },
       }),
     };
 
@@ -109,8 +110,9 @@ describe('discoverPublicIP', () => {
 
     expect(discovered.ip).toEqual({ v4: '203.0.113.10', v6: null });
     expect(discovered.errors.v4).toBeNull();
+    // Google TXT is the last resort now, so its error is the one reported.
     expect(discovered.errors.v6).toMatchObject({
-      message: expect.stringContaining('HTTPS v6 lookup failed') as string,
+      message: expect.stringContaining('txt fail') as string,
     });
   });
 
@@ -139,45 +141,19 @@ describe('discoverPublicIP', () => {
     expect(discovered.errors.v6).toMatchObject({ message: expect.any(String) as string });
   });
 
-  it('rejects invalid OpenDNS answers and falls through the chain', async () => {
-    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      const url = fetchInputUrl(input);
-      if (url.includes('ipv6') || url.includes('api64')) {
-        throw new Error('v6 unreachable');
-      }
-      return new Response('198.51.100.11');
-    });
-
-    const deps: DiscoverDeps = {
-      fetch: fetchMock,
-      createResolver: createStubResolver({
-        // OpenDNS answers with garbage; Google TXT is empty.
-        resolve4: async () => ['not-an-ip'],
-        resolve6: async () => ['also-bad'],
-        resolveTxt: async () => [],
-      }),
-    };
-
-    const discovered = await discoverPublicIP(deps);
-    expect(discovered.ip.v4).toBe('198.51.100.11');
-  });
-
-  it('falls back to Google DNS TXT when OpenDNS fails', async () => {
+  it('rejects invalid OpenDNS answers and falls back to Google DNS TXT', async () => {
     const txtServers: string[][] = [];
     const deps: DiscoverDeps = {
       fetch: vi.fn(async () => {
-        throw new Error('https should not be reached for v4');
+        throw new Error('https down');
       }),
       createResolver: () => ({
         setServers: (servers: string[]) => {
           txtServers.push(servers);
         },
-        resolve4: async () => {
-          throw new Error('opendns v4 down');
-        },
-        resolve6: async () => {
-          throw new Error('opendns v6 down');
-        },
+        // OpenDNS answers with garbage; Google TXT has the real address.
+        resolve4: async () => ['not-an-ip'],
+        resolve6: async () => ['also-bad'],
         // TXT records may be split into chunks; they must be joined.
         resolveTxt: async () => [['203.0.', '113.30']],
       }),
@@ -212,13 +188,24 @@ describe('discoverPublicIP', () => {
 
     const allFail: DiscoverDeps = {
       fetch: vi.fn(async () => new Response('nope', { status: 503 })),
-      createResolver: createStubResolver({}),
+      createResolver: createStubResolver({
+        resolve4: async () => {
+          throw new Error('opendns down');
+        },
+        resolve6: async () => {
+          throw new Error('opendns down');
+        },
+        resolveTxt: async () => {
+          throw new Error('google txt down');
+        },
+      }),
     };
 
     const failed = await discoverPublicIP(allFail);
     expect(failed.ip).toEqual({ v4: null, v6: null });
+    // Google TXT is the last source tried, so its failure is the one reported.
     expect(failed.errors.v4).toMatchObject({
-      message: expect.stringContaining('HTTP 503') as string,
+      message: expect.stringContaining('google txt down') as string,
     });
   });
 
@@ -308,7 +295,9 @@ describe('discoverPublicIP', () => {
   it('aborts both family lookups at the overall timeout', async () => {
     const never = new Promise<string[]>(() => {});
     const deps: DiscoverDeps = {
-      fetch: vi.fn(),
+      fetch: vi.fn(async () => {
+        throw new Error('https down');
+      }),
       createResolver: createStubResolver({
         resolve4: () => never,
         resolve6: () => never,
@@ -325,7 +314,6 @@ describe('discoverPublicIP', () => {
     expect(discovered.errors.v6).toMatchObject({
       message: 'Public IP discovery timed out',
     });
-    expect(deps.fetch).not.toHaveBeenCalled();
   });
 });
 

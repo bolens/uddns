@@ -100,6 +100,26 @@ describe('loadConfig', () => {
     });
   });
 
+  it('rejects non-https DYNDNS_UPDATE_URL values', () => {
+    const base = {
+      UDDNS_PROVIDER: 'dyndns',
+      UDDNS_HOST: 'home.example.com',
+      UDDNS_USER: 'user',
+      UDDNS_PASS: 'pass',
+    };
+
+    expect(() =>
+      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'http://insecure.example/nic/update' }),
+    ).toThrow(/DYNDNS_UPDATE_URL must be a valid https/);
+    expect(() => loadConfig({ ...base, DYNDNS_UPDATE_URL: 'not a url' })).toThrow(
+      /DYNDNS_UPDATE_URL must be a valid https/,
+    );
+    expect(
+      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://ddns.example/nic/update' }).dyndns
+        .updateUrl,
+    ).toBe('https://ddns.example/nic/update');
+  });
+
   it('rejects unknown providers, tiny intervals, and missing hosts', () => {
     expect(() => loadConfig({ UDDNS_PROVIDER: 'spaceship', UDDNS_HOST: 'x.com' })).toThrow(
       /Unsupported[\s\S]*cloudflare/,

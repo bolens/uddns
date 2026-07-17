@@ -148,7 +148,9 @@ export function formatError(error: unknown): ErrorInfo {
     if (error.cause !== undefined) {
       out['cause'] = formatError(error.cause);
     }
-    return out;
+    // Error messages and stacks are often built from response bodies or URLs,
+    // so scrub them like any other log context.
+    return redact(out) as ErrorInfo;
   }
 
   if (typeof error === 'object' && error !== null) {
@@ -221,11 +223,19 @@ export function redact(value: unknown): unknown {
     return out;
   }
 
-  if (typeof value === 'string' && looksLikeSecret(value)) {
-    return '[redacted]';
+  if (typeof value === 'string') {
+    return redactString(value);
   }
 
   return value;
+}
+
+function redactString(value: string): string {
+  if (looksLikeSecret(value)) {
+    return '[redacted]';
+  }
+  // Also scrub credentials embedded mid-string (e.g. echoed request headers).
+  return value.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+/gi, '$1 [redacted]');
 }
 
 function looksLikeSecret(value: string): boolean {

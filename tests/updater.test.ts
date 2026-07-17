@@ -259,6 +259,103 @@ describe('createUpdater', () => {
     expect(clear).toHaveBeenCalledWith(42);
   });
 
+  it('skips interval ticks while a previous cycle is still in flight', async () => {
+    const timers: Array<{ fn: () => void }> = [];
+    const log = silentLog();
+
+    let ipCounter = 0;
+    let releaseUpdate: ((result: UpdateResult) => void) | null = null;
+    let updateCalls = 0;
+    const update = vi.fn((): Promise<UpdateResult> => {
+      updateCalls += 1;
+      if (updateCalls === 1) {
+        return Promise.resolve({ ok: true, message: 'ok' });
+      }
+      return new Promise<UpdateResult>((resolve) => {
+        releaseUpdate = resolve;
+      });
+    });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      // Every discovery returns a fresh IP so each cycle attempts an update.
+      getPublicIP: async () => {
+        ipCounter += 1;
+        return { v4: `203.0.113.${ipCounter}`, v6: null };
+      },
+      log,
+      setIntervalFn: ((fn: () => void) => {
+        timers.push({ fn });
+        return 1 as unknown as ReturnType<typeof setInterval>;
+      }) as typeof setInterval,
+      clearIntervalFn: (() => {}) as typeof clearInterval,
+    });
+
+    await updater.start();
+    expect(update).toHaveBeenCalledTimes(1);
+
+    const tick = timers[0]!.fn;
+
+    // Second cycle starts and hangs on the provider call.
+    tick();
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledTimes(2);
+    });
+
+    // Further ticks while the cycle is in flight are skipped with a warning.
+    tick();
+    tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('previous cycle still in progress'),
+      expect.anything(),
+    );
+
+    // Once the slow cycle finishes, the next tick runs normally again.
+    releaseUpdate!({ ok: true, message: 'ok' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    tick();
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it('logs interval cycle failures instead of leaving rejections unhandled', async () => {
+    const timers: Array<{ fn: () => void }> = [];
+    const log = silentLog();
+    let discoveries = 0;
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(async () => ({ ok: true, message: 'ok' })),
+      discoverPublicIP: async () => {
+        discoveries += 1;
+        if (discoveries > 1) {
+          throw new Error('discovery exploded');
+        }
+        return { ip: { v4: '203.0.113.1', v6: null }, errors: { v4: null, v6: null } };
+      },
+      log,
+      setIntervalFn: ((fn: () => void) => {
+        timers.push({ fn });
+        return 1 as unknown as ReturnType<typeof setInterval>;
+      }) as typeof setInterval,
+      clearIntervalFn: (() => {}) as typeof clearInterval,
+    });
+
+    await updater.start();
+
+    timers[0]!.fn();
+    await vi.waitFor(() => {
+      expect(log.error).toHaveBeenCalledWith(
+        'Check cycle failed',
+        expect.objectContaining({ message: 'discovery exploded' }),
+      );
+    });
+  });
+
   it('reports the check interval in human units (h/m/s/ms)', async () => {
     const cases: Array<[number, string]> = [
       [7_200_000, '(2h)'],

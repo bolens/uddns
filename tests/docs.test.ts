@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vite-plus/test';
 
+import { userAgent } from '../lib/providers/http.js';
 import { listProviderIds } from '../lib/providers/index.js';
 
 const root = new URL('../', import.meta.url);
@@ -45,6 +46,11 @@ describe('documentation contracts', () => {
         `${key} is accepted by lib/schemas/config.ts but missing from .env.example`,
       ).toMatch(new RegExp(`^#?\\s*${key}=`, 'm'));
     }
+  });
+
+  it('keeps the HTTP User-Agent in sync with the brand and package version', async () => {
+    const { version } = JSON.parse(await read('package.json')) as { version: string };
+    expect(userAgent).toBe(`uDDNS/${version}`);
   });
 
   it('only documents package scripts that exist', async () => {

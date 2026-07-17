@@ -88,6 +88,62 @@ describe('request', () => {
     ).rejects.toBeInstanceOf(HttpError);
   });
 
+  it('always passes an abort signal to fetch so requests cannot hang forever', async () => {
+    const fetchMock = vi.fn(
+      async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
+        new Response('ok', { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await request('https://example.com/update');
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(init?.signal?.aborted).toBe(false);
+  });
+
+  it('aborts the request when the timeout elapses', async () => {
+    const fetchMock = vi.fn(
+      (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason ?? new Error('aborted'));
+          });
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(request('https://slow.example/update', { timeoutMs: 5 })).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringMatching(/HTTP GET https:\/\/slow\.example\/update failed/),
+      cause: expect.objectContaining({ name: 'TimeoutError' }),
+    });
+  });
+
+  it('combines a caller-provided signal with the timeout signal', async () => {
+    const fetchMock = vi.fn(
+      (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason ?? new Error('aborted'));
+          });
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const controller = new AbortController();
+    const pending = request('https://example.com/update', {
+      signal: controller.signal,
+      timeoutMs: 60_000,
+    });
+    controller.abort(new Error('caller cancelled'));
+
+    await expect(pending).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringContaining('caller cancelled'),
+    });
+  });
+
   it('wraps non-Error throwables without network fields', async () => {
     vi.stubGlobal(
       'fetch',

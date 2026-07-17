@@ -2,7 +2,10 @@
  * Low-level HTTP helpers shared by providers.
  */
 
-export const userAgent = 'uddns/2.0';
+export const userAgent = 'uDDNS/2.0.0';
+
+/** Default cap on any single provider/API request so a hung endpoint cannot stall a cycle. */
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 export type RequestMeta = {
   method: string;
@@ -52,21 +55,36 @@ export type RequestResult = {
   meta: RequestMeta;
 };
 
+export type RequestInitWithTimeout = RequestInit & {
+  /** Overall deadline for the request; combined with any caller-provided signal. */
+  timeoutMs?: number;
+};
+
 /**
  * Fetch a URL and return the Response, text body, and debug metadata.
+ * Every request carries a timeout so providers can never hang a cycle.
  */
-export async function request(url: string | URL, init: RequestInit = {}): Promise<RequestResult> {
-  const headers = new Headers(init.headers);
+export async function request(
+  url: string | URL,
+  init: RequestInitWithTimeout = {},
+): Promise<RequestResult> {
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers);
   if (!headers.has('User-Agent')) {
     headers.set('User-Agent', userAgent);
   }
 
-  const method = (init.method ?? 'GET').toUpperCase();
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = fetchInit.signal
+    ? AbortSignal.any([fetchInit.signal, timeoutSignal])
+    : timeoutSignal;
+
+  const method = (fetchInit.method ?? 'GET').toUpperCase();
   const safeUrl = sanitizeUrl(url);
   const started = Date.now();
 
   try {
-    const response = await fetch(url, { ...init, headers });
+    const response = await fetch(url, { ...fetchInit, headers, signal });
     const body = await response.text();
     return {
       response,

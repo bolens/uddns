@@ -1,5 +1,11 @@
 /**
- * Public IP discovery via DNS (OpenDNS / Google) then HTTPS echo fallbacks.
+ * Public IP discovery via HTTPS echo services, with DNS (OpenDNS / Google)
+ * fallbacks.
+ *
+ * HTTPS is tried first because TLS authenticates the answer's origin. Plain
+ * port-53 DNS responses can be forged by an on-path attacker, which would let
+ * them steer DNS records at an attacker-controlled address; it is kept only
+ * as a fallback for networks where the HTTPS echo services are unreachable.
  */
 
 import dns from 'node:dns/promises';
@@ -166,7 +172,7 @@ async function discoverFamily(
   signal: AbortSignal,
 ): Promise<string> {
   try {
-    return await lookupViaOpenDns(family, deps, signal);
+    return await lookupViaHttps(family, deps, signal);
   } catch {
     if (signal.aborted) {
       throw timeoutError();
@@ -175,7 +181,7 @@ async function discoverFamily(
   }
 
   try {
-    return await lookupViaGoogleTxt(family, deps, signal);
+    return await lookupViaOpenDns(family, deps, signal);
   } catch {
     if (signal.aborted) {
       throw timeoutError();
@@ -183,7 +189,7 @@ async function discoverFamily(
     // fall through
   }
 
-  return lookupViaHttps(family, deps, signal);
+  return lookupViaGoogleTxt(family, deps, signal);
 }
 
 /**

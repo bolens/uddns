@@ -78,7 +78,7 @@ describe('dyndns provider', () => {
     const result = await dyndnsProvider.update(
       makeConfig({
         dyndns: {
-          updateUrl: 'https://ddns.example.test/nic/update',
+          updateUrl: 'https://user:hunter2@ddns.example.test/nic/update',
           username: null,
           password: 'pass',
           hostname: 'home.example.com',
@@ -89,5 +89,8 @@ describe('dyndns provider', () => {
 
     expect(result.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+    // Credentials embedded in the configured URL never reach log details.
+    expect(result.details?.['updateUrl']).toBe('https://***:***@ddns.example.test/nic/update');
+    expect(JSON.stringify(result.details)).not.toContain('hunter2');
   });
 });

@@ -29,12 +29,16 @@ try {
     shutdown('SIGTERM');
   });
 
+  // Process state is undefined after an uncaught error; log and exit non-zero
+  // so a supervisor (systemd, Docker restart policy) restarts us cleanly.
   process.on('uncaughtException', (error) => {
-    log.error('Uncaught exception', formatError(error));
+    log.error('Uncaught exception; exiting', formatError(error));
+    process.exit(1);
   });
 
   process.on('unhandledRejection', (reason) => {
-    log.error('Unhandled promise rejection', formatError(reason));
+    log.error('Unhandled promise rejection; exiting', formatError(reason));
+    process.exit(1);
   });
 } catch (error) {
   log.error('Failed to start updater', formatError(error));

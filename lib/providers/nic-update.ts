@@ -5,7 +5,7 @@
 import { fail, ok, skipped } from '../result.js';
 import type { JsonObject } from '../schemas/json.js';
 import type { PublicIP, UpdateResult } from '../schemas/provider.js';
-import { basicAuthHeader, request } from './http.js';
+import { basicAuthHeader, request, sanitizeUrl } from './http.js';
 
 const NIC_HINTS: Record<string, string> = {
   badauth: 'Authentication failed — check UDDNS_USER / UDDNS_PASS',
@@ -34,7 +34,7 @@ export async function updateNicDns(options: NicUpdateOptions): Promise<UpdateRes
   if (!ip.v4) {
     return fail('No public IPv4 available', {
       hostname,
-      updateUrl,
+      updateUrl: sanitizeUrl(updateUrl),
       ip,
     });
   }
