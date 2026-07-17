@@ -27,11 +27,19 @@ describe('history store', () => {
 
     await store.append(event({ cycle: 1 }));
     await store.append(event({ cycle: 2, status: 'unchanged' }));
-    await store.append(event({ cycle: 3, status: 'error', message: 'fail' }));
+    await store.append(
+      event({
+        cycle: 3,
+        status: 'error',
+        message: 'fail',
+        discoveryErrors: { v4: true, v6: true },
+      }),
+    );
 
     const events = await store.load();
     expect(events).toHaveLength(2);
     expect(events.map((entry) => entry.cycle)).toEqual([1, 3]);
+    expect(events[1]?.discoveryErrors).toEqual({ v4: true, v6: true });
     expect(JSON.parse(await readFile(file, 'utf8')).version).toBe(1);
   });
 

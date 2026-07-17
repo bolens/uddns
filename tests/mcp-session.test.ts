@@ -38,5 +38,7 @@ describe('mcp session runtime wiring', () => {
     });
     expect(session.provider.id).toBe('duckdns');
     expect(session.history).toBeNull();
+    expect(session.metrics).toBeDefined();
+    expect(session.eventListeners).toBeInstanceOf(Set);
   });
 });

@@ -15,6 +15,7 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Express, NextFunction, Request, Response } from 'express';
 
 import type { Logger } from '../log.js';
+import { readiness, renderPrometheus } from '../side-server.js';
 import type { McpConfig } from './config.js';
 import { isLoopbackMcpHost } from './config.js';
 import { createUddnsMcpServer } from './server.js';
@@ -77,6 +78,7 @@ export async function startMcpHttpServer(options: {
   const { session, mcpConfig, log } = options;
   const app = createMcpExpressApp({ host: mcpConfig.host });
   const transports = new Map<string, StreamableHTTPServerTransport>();
+  const sseClients = new Set<Response>();
 
   if (!mcpConfig.authToken && isLoopbackMcpHost(mcpConfig.host)) {
     log.warn(
@@ -88,7 +90,43 @@ export async function startMcpHttpServer(options: {
     res.status(200).json({ ok: true });
   });
 
+  app.get('/readyz', (_req, res) => {
+    const result = readiness(session.updater.getStatus());
+    res.status(result.ok ? 200 : 503).json(result);
+  });
+
+  app.get('/metrics', (_req, res) => {
+    const metrics = session.metrics?.snapshot() ?? {
+      cyclesTotal: {},
+      updatesTotal: 0,
+      discoverErrors: 0,
+      lastSuccessAt: null,
+    };
+    res
+      .status(200)
+      .type('text/plain; version=0.0.4; charset=utf-8')
+      .send(renderPrometheus(metrics));
+  });
+
   app.use(requireBearer(mcpConfig.authToken));
+
+  app.get('/events', (req, res) => {
+    res.status(200).set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    res.write(': ok\n\n');
+    sseClients.add(res);
+    const listener = (event: import('../schemas/cycle.js').CycleEvent): void => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+    session.eventListeners?.add(listener);
+    req.on('close', () => {
+      sseClients.delete(res);
+      session.eventListeners?.delete(listener);
+    });
+  });
 
   app.post('/mcp', async (req, res) => {
     try {
@@ -172,6 +210,10 @@ export async function startMcpHttpServer(options: {
     httpServer,
     url,
     async close() {
+      for (const client of sseClients) {
+        client.end();
+      }
+      sseClients.clear();
       for (const transport of transports.values()) {
         await transport.close();
       }

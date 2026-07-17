@@ -13,6 +13,15 @@ describe('side server', () => {
       durationMs: 1,
       cycle: 1,
     });
+    metrics.record({
+      at: new Date().toISOString(),
+      status: 'partial',
+      ip: { v4: '203.0.113.10', v6: null },
+      discoveryErrors: { v4: false, v6: true },
+      message: 'IPv6 discovery failed',
+      durationMs: 1,
+      cycle: 2,
+    });
 
     const listeners: Array<(event: import('../lib/schemas/cycle.js').CycleEvent) => void> = [];
     const server = await startSideServer({
@@ -26,7 +35,7 @@ describe('side server', () => {
         inFlight: false,
         hosts: {},
         lastCycle: null,
-        lastSuccessAt: null,
+        lastSuccessAt: new Date().toISOString(),
         lastError: null,
         nextRetryAt: null,
         accountId: null,
@@ -49,7 +58,12 @@ describe('side server', () => {
       expect(await health.json()).toEqual({ ok: true });
 
       const metricsRes = await fetch(`${server.url}/metrics`);
-      expect(await metricsRes.text()).toContain('uddns_updates_total 1');
+      const metricsText = await metricsRes.text();
+      expect(metricsText).toContain('uddns_updates_total 1');
+      expect(metricsText).toContain('uddns_discover_errors_total 1');
+
+      const ready = await fetch(`${server.url}/readyz`);
+      expect(ready.status).toBe(200);
 
       const eventsRes = await fetch(`${server.url}/events`);
       expect(eventsRes.headers.get('content-type')).toContain('text/event-stream');
@@ -92,7 +106,8 @@ describe('side server', () => {
       const metricsRes = await fetch(`${server.url}/metrics`);
       expect(metricsRes.status).toBe(404);
       const ready = await fetch(`${server.url}/readyz`);
-      expect(ready.status).toBe(200);
+      expect(ready.status).toBe(503);
+      expect(await ready.json()).toMatchObject({ ok: false });
     } finally {
       await server.close();
     }

@@ -2,7 +2,10 @@
 
 Build first, then use a supervisor so fatal errors restart the core updater.
 The process handles `SIGINT`/`SIGTERM` (and `SIGHUP` for config reload), stops
-scheduling work, waits for active work, and exits.
+scheduling work, waits for active work, and exits. A successful `SIGHUP`
+reload also applies health host, port, and metrics settings. Existing SSE
+connections remain open when those settings are unchanged; when the side
+server bind changes, clients must reconnect.
 
 ## systemd
 
@@ -81,6 +84,11 @@ Set `UDDNS_HEALTH=1` to bind the side server (`UDDNS_HEALTH_HOST` /
 `UDDNS_HEALTH_PORT`, defaults `127.0.0.1:3924`):
 
 - `GET /healthz` — liveness
-- `GET /readyz` — readiness + status
+- `GET /readyz` — readiness + status; returns 503 until every updater is
+  running, has completed a successful cycle, and has no current error
 - `GET /metrics` — Prometheus text when `UDDNS_METRICS=1`
 - `GET /events` — SSE cycle events
+
+Notification webhooks and ntfy requests run asynchronously after a cycle so a
+slow notification endpoint cannot delay DNS checks. Delivery failures are
+logged and do not change cycle status.

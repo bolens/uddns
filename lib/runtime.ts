@@ -84,7 +84,7 @@ export function createRuntimeBundle(options: {
           log.warn('Could not append history', formatError(error));
         }
       }
-      await dispatchNotifications(
+      void dispatchNotifications(
         {
           webhookUrl: options.config.notifyWebhookUrl,
           ntfyUrl: options.config.notifyNtfyUrl,
@@ -92,7 +92,9 @@ export function createRuntimeBundle(options: {
         },
         event,
         { log },
-      );
+      ).catch((error: unknown) => {
+        log.warn('Notification dispatch failed', formatError(error));
+      });
       for (const listener of eventListeners) {
         listener(event);
       }

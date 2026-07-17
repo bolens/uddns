@@ -192,6 +192,7 @@ describe('createUpdater', () => {
   it('debug-logs partial discovery errors but proceeds with the available family', async () => {
     const update = vi.fn(async (_config: AppConfig) => ({ ok: true, message: 'ok' }));
     const log = silentLog();
+    const onCycleComplete = vi.fn();
     const updater = createUpdater({
       config: makeConfig({ hosts: ['home.example.com'] }),
       provider: mockProvider(update),
@@ -200,6 +201,7 @@ describe('createUpdater', () => {
         errors: { v4: null, v6: { message: 'no ipv6 route' } },
       }),
       log,
+      onCycleComplete,
     });
 
     const result = await updater.checkOnce();
@@ -209,6 +211,9 @@ describe('createUpdater', () => {
     expect(log.debug).toHaveBeenCalledWith(
       'Partial public IP discovery',
       expect.objectContaining({ ipv6Error: expect.objectContaining({ message: 'no ipv6 route' }) }),
+    );
+    expect(onCycleComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ discoveryErrors: { v4: false, v6: true } }),
     );
   });
 

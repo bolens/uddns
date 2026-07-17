@@ -75,7 +75,17 @@ UDDNS_MCP_HOST=127.0.0.1
 UDDNS_MCP_PORT=3923
 ```
 
-`GET /healthz` is available without bearer auth for probes.
+Operational endpoints:
+
+- `GET /healthz` — liveness, without bearer auth
+- `GET /readyz` — updater readiness and status, without bearer auth; returns
+  503 until the updater has completed a successful cycle
+- `GET /metrics` — Prometheus cycle/update/discovery metrics, without bearer
+  auth
+- `GET /events` — authenticated SSE cycle events
+
+The `/mcp` and `/events` endpoints require bearer authentication when
+`UDDNS_MCP_AUTH_TOKEN` is configured.
 
 ### Bearer authentication
 

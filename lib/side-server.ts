@@ -22,10 +22,14 @@ export type MetricsSnapshot = {
 
 export type SideServerOptions = {
   config: SideServerConfig;
-  getStatus: () => UpdaterStatus | { accounts: Array<{ id: string; status: UpdaterStatus }> };
+  getStatus: () => StatusPayload;
   getMetrics?: () => MetricsSnapshot;
   onEventSubscribe?: (listener: (event: CycleEvent) => void) => () => void;
 };
+
+export type StatusPayload =
+  | UpdaterStatus
+  | { accounts: Array<{ id: string; status: UpdaterStatus }> };
 
 export type SideServer = {
   server: Server;
@@ -42,7 +46,7 @@ function writeJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(text);
 }
 
-function renderPrometheus(metrics: MetricsSnapshot): string {
+export function renderPrometheus(metrics: MetricsSnapshot): string {
   const lines: string[] = [];
   lines.push('# HELP uddns_cycles_total Total updater cycles by status');
   lines.push('# TYPE uddns_cycles_total counter');
@@ -83,7 +87,7 @@ export function createMetricsTracker(): {
       if (event.status === 'unchanged' || event.status === 'dry_run') {
         lastSuccessAt = event.at;
       }
-      if (event.status === 'skipped_no_ip') {
+      if (event.discoveryErrors?.v4 || event.discoveryErrors?.v6) {
         discoverErrors += 1;
       }
     },
@@ -96,6 +100,24 @@ export function createMetricsTracker(): {
       };
     },
   };
+}
+
+export function readiness(status: StatusPayload): {
+  ok: boolean;
+  status: StatusPayload;
+} {
+  const statuses =
+    'accounts' in status ? status.accounts.map((account) => account.status) : [status];
+  const ok =
+    statuses.length > 0 &&
+    statuses.every(
+      (account) =>
+        account.running &&
+        !account.stopping &&
+        account.lastSuccessAt !== null &&
+        account.lastError === null,
+    );
+  return { ok, status };
 }
 
 export async function startSideServer(options: SideServerOptions): Promise<SideServer> {
@@ -116,8 +138,8 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
       return;
     }
     if (req.method === 'GET' && url === '/readyz') {
-      const status = getStatus();
-      writeJson(res, 200, { ok: true, status });
+      const result = readiness(getStatus());
+      writeJson(res, result.ok ? 200 : 503, result);
       return;
     }
     if (req.method === 'GET' && url === '/metrics') {

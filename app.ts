@@ -5,7 +5,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { resolveAccounts, type LoadedAccount } from './lib/config-file.js';
-import { loadHealthConfig } from './lib/health-config.js';
+import { loadHealthConfig, type HealthConfig } from './lib/health-config.js';
 import { createLogger, formatError, type Logger } from './lib/log.js';
 import { getProvider } from './lib/providers/index.js';
 import { createRuntimeBundle, type RuntimeBundle } from './lib/runtime.js';
@@ -22,7 +22,7 @@ export type AppOptions = {
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
   ) => LoadedAccount[] | Promise<LoadedAccount[]>;
   getProviderFn?: (id: string) => Provider;
-  createUpdaterFn?: (options: { config: AppConfig; provider: Provider; log: Logger }) => Updater;
+  createUpdaterFn?: (options: UpdaterOptions) => Updater;
   on?: (event: string, listener: (value?: unknown) => void) => void;
   exit?: (code: number) => void;
 };
@@ -49,8 +49,10 @@ export async function main(options: AppOptions = {}): Promise<void> {
 
   let bundles: RuntimeBundle[] = [];
   let sideServer: SideServer | null = null;
+  let activeHealthConfig: HealthConfig | null = null;
   let shuttingDown = false;
   let reloading = false;
+  const eventListeners = new Set<(event: import('./lib/schemas/cycle.js').CycleEvent) => void>();
 
   async function shutdown(signal: string, code: number): Promise<void> {
     if (shuttingDown) {
@@ -73,39 +75,98 @@ export async function main(options: AppOptions = {}): Promise<void> {
 
   function buildBundles(accounts: LoadedAccount[]): RuntimeBundle[] {
     return accounts.map((account) => {
-      if (options.createUpdaterFn) {
-        const provider = getProviderFn(account.config.provider);
-        const updater = options.createUpdaterFn({ config: account.config, provider, log });
-        return {
-          config: account.config,
-          provider,
-          updater,
-          history: null,
-          metrics: {
-            record() {},
-            snapshot: () => ({
-              cyclesTotal: {},
-              updatesTotal: 0,
-              discoverErrors: 0,
-              lastSuccessAt: null,
-            }),
-          },
-          eventListeners: new Set(),
-        } satisfies RuntimeBundle;
-      }
-      return createRuntimeBundle({
+      const bundle = createRuntimeBundle({
         config: account.config,
         log,
         accountId: account.id,
         getProviderFn,
-        createUpdaterFn: (updaterOptions: UpdaterOptions) => createUpdater(updaterOptions),
+        createUpdaterFn: options.createUpdaterFn ?? createUpdater,
       });
+      bundle.eventListeners.add((event) => {
+        for (const listener of eventListeners) {
+          listener(event);
+        }
+      });
+      return bundle;
     });
   }
 
   async function startAccounts(accounts: LoadedAccount[]): Promise<void> {
     bundles = buildBundles(accounts);
     await Promise.all(bundles.map((bundle) => bundle.updater.start()));
+  }
+
+  function healthConfigMatches(left: HealthConfig | null, right: HealthConfig): boolean {
+    return (
+      left !== null &&
+      left.enabled === right.enabled &&
+      left.host === right.host &&
+      left.port === right.port &&
+      left.metricsEnabled === right.metricsEnabled
+    );
+  }
+
+  async function reconcileSideServer(): Promise<void> {
+    const health = loadHealthConfig(env);
+    if (healthConfigMatches(activeHealthConfig, health)) {
+      return;
+    }
+    if (sideServer) {
+      await sideServer.close();
+      sideServer = null;
+    }
+    activeHealthConfig = health;
+    if (!health.enabled) {
+      return;
+    }
+    sideServer = await startSideServer({
+      config: {
+        host: health.host,
+        port: health.port,
+        metricsEnabled: health.metricsEnabled,
+      },
+      getStatus: () => {
+        if (bundles.length === 1) {
+          return bundles[0]!.updater.getStatus();
+        }
+        return {
+          accounts: bundles.map((bundle) => ({
+            id: bundle.updater.getStatus().accountId ?? 'unknown',
+            status: bundle.updater.getStatus(),
+          })),
+        };
+      },
+      getMetrics: () => {
+        const merged = {
+          cyclesTotal: {} as Record<string, number>,
+          updatesTotal: 0,
+          discoverErrors: 0,
+          lastSuccessAt: null as string | null,
+        };
+        for (const bundle of bundles) {
+          const snap = bundle.metrics.snapshot();
+          for (const [status, count] of Object.entries(snap.cyclesTotal)) {
+            merged.cyclesTotal[status] = (merged.cyclesTotal[status] ?? 0) + count;
+          }
+          merged.updatesTotal += snap.updatesTotal;
+          merged.discoverErrors += snap.discoverErrors;
+          if (
+            snap.lastSuccessAt &&
+            (!merged.lastSuccessAt || snap.lastSuccessAt > merged.lastSuccessAt)
+          ) {
+            merged.lastSuccessAt = snap.lastSuccessAt;
+          }
+        }
+        return merged;
+      },
+      onEventSubscribe: (listener) => {
+        eventListeners.add(listener);
+        return () => {
+          eventListeners.delete(listener);
+        };
+      },
+    });
+    log.info(`Health server listening on ${sideServer.url}`);
   }
 
   async function reload(): Promise<void> {
@@ -119,6 +180,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
       await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
       const accounts = await resolveAccountsFn(env);
       await startAccounts(accounts);
+      await reconcileSideServer();
       if (!wasRunning) {
         await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
       }
@@ -144,62 +206,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
     }
 
     await startAccounts(accounts);
-
-    const health = loadHealthConfig(env);
-    if (health.enabled) {
-      sideServer = await startSideServer({
-        config: {
-          host: health.host,
-          port: health.port,
-          metricsEnabled: health.metricsEnabled,
-        },
-        getStatus: () => {
-          if (bundles.length === 1) {
-            return bundles[0]!.updater.getStatus();
-          }
-          return {
-            accounts: bundles.map((bundle) => ({
-              id: bundle.updater.getStatus().accountId ?? 'unknown',
-              status: bundle.updater.getStatus(),
-            })),
-          };
-        },
-        getMetrics: () => {
-          const merged = {
-            cyclesTotal: {} as Record<string, number>,
-            updatesTotal: 0,
-            discoverErrors: 0,
-            lastSuccessAt: null as string | null,
-          };
-          for (const bundle of bundles) {
-            const snap = bundle.metrics.snapshot();
-            for (const [status, count] of Object.entries(snap.cyclesTotal)) {
-              merged.cyclesTotal[status] = (merged.cyclesTotal[status] ?? 0) + count;
-            }
-            merged.updatesTotal += snap.updatesTotal;
-            merged.discoverErrors += snap.discoverErrors;
-            if (
-              snap.lastSuccessAt &&
-              (!merged.lastSuccessAt || snap.lastSuccessAt > merged.lastSuccessAt)
-            ) {
-              merged.lastSuccessAt = snap.lastSuccessAt;
-            }
-          }
-          return merged;
-        },
-        onEventSubscribe: (listener) => {
-          for (const bundle of bundles) {
-            bundle.eventListeners.add(listener);
-          }
-          return () => {
-            for (const bundle of bundles) {
-              bundle.eventListeners.delete(listener);
-            }
-          };
-        },
-      });
-      log.info(`Health server listening on ${sideServer.url}`);
-    }
+    await reconcileSideServer();
 
     on('SIGINT', () => {
       void shutdown('SIGINT', 0);

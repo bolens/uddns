@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { main } from '../app.js';
+import type { UpdaterOptions } from '../lib/updater.js';
 import { deferred } from './helpers/async.js';
 import { afterEachRestoreMocks } from './helpers/cleanup.js';
 import { makeConfig } from './helpers/config.js';
@@ -232,7 +233,7 @@ describe('application entrypoint', () => {
       .find((line) => line.includes('Health server listening'));
     const url = String(healthLine).replace('Health server listening on ', '');
     const ready = await (await fetch(`${url}/readyz`)).json();
-    expect(ready).toMatchObject({ ok: true, status: { accounts: expect.any(Array) } });
+    expect(ready).toMatchObject({ ok: false, status: { accounts: expect.any(Array) } });
     const events = fetch(`${url}/events`);
     await new Promise((resolve) => setTimeout(resolve, 20));
     // Closing via shutdown is enough; just ensure the SSE route was hit.
@@ -243,6 +244,7 @@ describe('application entrypoint', () => {
     const listeners = new Map<string, (value?: unknown) => void>();
     const log = silentLog();
     const updater = stubUpdater();
+    let emitCycle: UpdaterOptions['onCycleComplete'];
     const loadConfigFn = vi
       .fn()
       .mockReturnValueOnce(makeConfig({ interval: 900_000 }))
@@ -253,7 +255,10 @@ describe('application entrypoint', () => {
       log,
       loadConfigFn,
       getProviderFn: () => stubProvider,
-      createUpdaterFn: () => updater,
+      createUpdaterFn: (updaterOptions) => {
+        emitCycle = updaterOptions.onCycleComplete;
+        return updater;
+      },
       on: (name, listener) => {
         listeners.set(name, listener);
       },
@@ -267,15 +272,67 @@ describe('application entrypoint', () => {
     expect(healthLine).toBeTruthy();
     const url = String(healthLine).replace('Health server listening on ', '');
     expect((await fetch(`${url}/healthz`)).status).toBe(200);
-    expect((await fetch(`${url}/readyz`)).status).toBe(200);
+    expect((await fetch(`${url}/readyz`)).status).toBe(503);
     expect((await fetch(`${url}/metrics`)).status).toBe(200);
+
+    const eventsResponse = await fetch(`${url}/events`);
+    const reader = eventsResponse.body!.getReader();
+    await reader.read();
 
     listeners.get('SIGHUP')?.();
     await vi.waitFor(() => {
       expect(log.success).toHaveBeenCalledWith(expect.stringContaining('Reloaded'));
     });
+    await emitCycle?.({
+      at: new Date().toISOString(),
+      status: 'updated',
+      ip: { v4: '203.0.113.10', v6: null },
+      message: 'reloaded event',
+      durationMs: 1,
+      cycle: 1,
+    });
+    const eventChunk = await reader.read();
+    expect(new TextDecoder().decode(eventChunk.value)).toContain('reloaded event');
     expect(updater.stop).toHaveBeenCalled();
     expect(updater.start).toHaveBeenCalled();
+    listeners.get('SIGTERM')?.();
+  });
+
+  it('restarts the side server when health settings change on reload', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const env: Record<string, string | undefined> = {
+      UDDNS_HEALTH: '1',
+      UDDNS_HEALTH_PORT: '0',
+      UDDNS_METRICS: '1',
+    };
+    const log = silentLog();
+
+    await main({
+      env,
+      log,
+      loadConfigFn: () => makeConfig(),
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => stubUpdater(),
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    env['UDDNS_METRICS'] = '0';
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      const calls = (log.info as unknown as { mock: { calls: Array<[string]> } }).mock.calls;
+      expect(calls.filter(([line]) => line.includes('Health server listening'))).toHaveLength(2);
+    });
+    const calls = (log.info as unknown as { mock: { calls: Array<[string]> } }).mock.calls;
+    const latestUrl = calls
+      .map(([line]) => line)
+      .filter((line) => line.includes('Health server listening'))
+      .at(-1)!
+      .replace('Health server listening on ', '');
+    expect((await fetch(`${latestUrl}/metrics`)).status).toBe(404);
+    listeners.get('SIGTERM')?.();
   });
 
   it('reads argv and env from the process by default', async () => {

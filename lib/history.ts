@@ -66,6 +66,7 @@ export function createFileHistoryStore(
         message: event.message,
         durationMs: event.durationMs,
         cycle: event.cycle,
+        ...(event.discoveryErrors !== undefined ? { discoveryErrors: event.discoveryErrors } : {}),
         ...(event.forced !== undefined ? { forced: event.forced } : {}),
         ...(event.dryRun !== undefined ? { dryRun: event.dryRun } : {}),
         ...(event.accountId !== undefined ? { accountId: event.accountId } : {}),

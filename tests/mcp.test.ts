@@ -378,12 +378,14 @@ describe('MCP HTTP auth', () => {
       log: silentLog(),
       stateStore: memoryStateStore(),
     });
+    const eventListeners = new Set<(event: import('../lib/schemas/cycle.js').CycleEvent) => void>();
     const http = await startMcpHttpServer({
       session: {
         config: makeConfig(),
         provider: mockProvider(),
         updater,
         log: silentLog(),
+        eventListeners,
       },
       mcpConfig: {
         transport: 'http',
@@ -397,6 +399,28 @@ describe('MCP HTTP auth', () => {
     });
 
     try {
+      const origin = new URL(http.url).origin;
+      expect((await fetch(`${origin}/healthz`)).status).toBe(200);
+      expect((await fetch(`${origin}/readyz`)).status).toBe(503);
+      const metrics = await fetch(`${origin}/metrics`);
+      expect(await metrics.text()).toContain('uddns_cycles_total');
+      const events = await fetch(`${origin}/events`);
+      expect(events.headers.get('content-type')).toContain('text/event-stream');
+      const reader = events.body!.getReader();
+      await reader.read();
+      for (const listener of eventListeners) {
+        listener({
+          at: new Date().toISOString(),
+          status: 'updated',
+          ip: { v4: '1.2.3.4', v6: null },
+          message: 'MCP event',
+          durationMs: 1,
+          cycle: 1,
+        });
+      }
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('MCP event');
+      await reader.cancel();
+
       const get = await fetch(http.url, { method: 'GET' });
       expect(get.status).toBe(405);
 
@@ -468,6 +492,8 @@ describe('MCP HTTP auth', () => {
         body: initializeBody,
       });
       expect(unauthorized.status).toBe(401);
+      const unauthorizedEvents = await fetch(`${new URL(http.url).origin}/events`);
+      expect(unauthorizedEvents.status).toBe(401);
 
       const authorized = await fetch(http.url, {
         method: 'POST',

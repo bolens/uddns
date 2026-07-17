@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { createRuntimeBundle } from '../lib/runtime.js';
 import { createUpdater } from '../lib/updater.js';
+import { deferred } from './helpers/async.js';
 import { makeConfig } from './helpers/config.js';
 import { silentLog } from './helpers/log.js';
 import { mockProvider } from './helpers/provider.js';
@@ -125,5 +126,38 @@ describe('createRuntimeBundle', () => {
     const forced = await bundle.updater.checkOnce({ force: true });
     expect(forced.status).toBe('updated');
     expect(update).toHaveBeenCalledOnce();
+  });
+
+  it('does not block a completed cycle on slow notification delivery', async () => {
+    const response = deferred<Response>();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(response.promise);
+    const bundle = createRuntimeBundle({
+      log: silentLog(),
+      config: makeConfig({
+        hosts: ['home.example.com'],
+        historyFile: null,
+        notifyWebhookUrl: 'https://example.com/hook',
+        notifyOn: ['change'],
+      }),
+      getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
+      createUpdaterFn: (options) =>
+        createUpdater({
+          ...options,
+          discoverPublicIP: async () => ({
+            ip: { v4: '203.0.113.10', v6: null },
+            errors: { v4: null, v6: null },
+          }),
+        }),
+    });
+
+    const cycle = bundle.updater.checkOnce();
+    const outcome = await Promise.race([
+      cycle.then(() => 'completed'),
+      new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 50)),
+    ]);
+    expect(outcome).toBe('completed');
+    response.resolve(new Response('ok'));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    fetchMock.mockRestore();
   });
 });

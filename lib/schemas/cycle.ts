@@ -8,6 +8,10 @@ export type CycleEvent = {
   at: string;
   status: CheckResult['status'];
   ip: PublicIP;
+  discoveryErrors?: {
+    v4: boolean;
+    v6: boolean;
+  };
   message: string;
   hostResults?: HostUpdateResult[];
   forced?: boolean;
@@ -25,6 +29,10 @@ export function cycleEventFromResult(
     forced?: boolean;
     dryRun?: boolean;
     accountId?: string;
+    discoveryErrors?: {
+      v4: boolean;
+      v6: boolean;
+    };
     at?: string;
   },
 ): CycleEvent {
@@ -38,6 +46,9 @@ export function cycleEventFromResult(
   };
   if (result.hostResults) {
     event.hostResults = result.hostResults;
+  }
+  if (meta.discoveryErrors?.v4 || meta.discoveryErrors?.v6) {
+    event.discoveryErrors = meta.discoveryErrors;
   }
   if (meta.forced !== undefined) {
     event.forced = meta.forced;

@@ -7,6 +7,12 @@ export const historyEventSchema = z.object({
   at: z.string(),
   status: z.string(),
   ip: publicIpSchema,
+  discoveryErrors: z
+    .object({
+      v4: z.boolean(),
+      v6: z.boolean(),
+    })
+    .optional(),
   message: z.string(),
   forced: z.boolean().optional(),
   dryRun: z.boolean().optional(),

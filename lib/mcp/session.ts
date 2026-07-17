@@ -7,7 +7,9 @@ import type { HistoryStore } from '../history.js';
 import type { Logger } from '../log.js';
 import { getProvider } from '../providers/index.js';
 import { createRuntimeBundle } from '../runtime.js';
+import type { CycleEvent } from '../schemas/cycle.js';
 import type { AppConfig, Provider } from '../schemas/provider.js';
+import type { createMetricsTracker } from '../side-server.js';
 import { createUpdater, type Updater } from '../updater.js';
 
 export type McpSession = {
@@ -16,6 +18,8 @@ export type McpSession = {
   updater: Updater;
   log: Logger;
   history?: HistoryStore | null;
+  metrics?: ReturnType<typeof createMetricsTracker>;
+  eventListeners?: Set<(event: CycleEvent) => void>;
 };
 
 export type CreateMcpSessionOptions = {
@@ -52,5 +56,7 @@ export function createMcpSession(options: CreateMcpSessionOptions): McpSession {
     updater: bundle.updater,
     log: options.log,
     history: bundle.history,
+    metrics: bundle.metrics,
+    eventListeners: bundle.eventListeners,
   };
 }

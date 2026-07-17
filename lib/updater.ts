@@ -104,7 +104,11 @@ export function createUpdater(options: UpdaterOptions) {
     }, intervalMs);
   }
 
-  async function emitCycleComplete(result: CheckResult, durationMs: number): Promise<CheckResult> {
+  async function emitCycleComplete(
+    result: CheckResult,
+    durationMs: number,
+    discoveryErrors?: PublicIPDiscovery['errors'],
+  ): Promise<CheckResult> {
     const meta: Parameters<typeof cycleEventFromResult>[1] = {
       cycle,
       durationMs,
@@ -118,6 +122,12 @@ export function createUpdater(options: UpdaterOptions) {
     }
     if (accountId !== undefined) {
       meta.accountId = accountId;
+    }
+    if (discoveryErrors?.v4 || discoveryErrors?.v6) {
+      meta.discoveryErrors = {
+        v4: discoveryErrors.v4 !== null,
+        v6: discoveryErrors.v6 !== null,
+      };
     }
     const event = cycleEventFromResult(result, meta);
     lastCycle = event;
@@ -224,6 +234,7 @@ export function createUpdater(options: UpdaterOptions) {
       return await emitCycleComplete(
         { status: 'skipped_no_ip', ip, message, forced, dryRun },
         now() - started,
+        ipErrors,
       );
     }
 
@@ -252,6 +263,7 @@ export function createUpdater(options: UpdaterOptions) {
       return await emitCycleComplete(
         { status: 'unchanged', ip, message, forced, dryRun },
         now() - started,
+        ipErrors,
       );
     }
 
@@ -269,6 +281,7 @@ export function createUpdater(options: UpdaterOptions) {
       return await emitCycleComplete(
         { status: 'dry_run', ip, message, hostResults, forced, dryRun: true },
         now() - started,
+        ipErrors,
       );
     }
 
@@ -368,7 +381,7 @@ export function createUpdater(options: UpdaterOptions) {
       committedIP: summary.status === 'updated' ? ip : currentIP,
     });
 
-    return await emitCycleComplete(summary, now() - started);
+    return await emitCycleComplete(summary, now() - started, ipErrors);
   }
 
   async function start() {
