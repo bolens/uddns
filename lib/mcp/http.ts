@@ -84,6 +84,10 @@ export async function startMcpHttpServer(options: {
     );
   }
 
+  app.get('/healthz', (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
   app.use(requireBearer(mcpConfig.authToken));
 
   app.post('/mcp', async (req, res) => {

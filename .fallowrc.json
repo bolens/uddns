@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
-  "entry": ["app.ts", "mcp.ts"],
+  "entry": ["app.ts", "mcp.ts", "cli.ts", "scripts/scaffold-provider.mjs"],
   "ignoreExports": [
     {
       "file": "lib/schemas/**/*.ts",

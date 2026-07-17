@@ -11,18 +11,17 @@
 import dns from 'node:dns/promises';
 import { isIPv4, isIPv6 } from 'node:net';
 
+import { DEFAULT_IP_TIMEOUT_MS } from './defaults.js';
 import { errorMessage } from './errors.js';
 import { formatError, type ErrorInfo } from './log.js';
 import type { PublicIP } from './schemas/provider.js';
-
-const DISCOVERY_TIMEOUT_MS = 5_000;
 
 const OPENDNS_V4 = ['208.67.222.222', '208.67.220.220'];
 const OPENDNS_V6 = ['2620:119:35::35', '2620:119:53::53'];
 const GOOGLE_DNS_V4 = ['8.8.8.8', '8.8.4.4'];
 const GOOGLE_DNS_V6 = ['2001:4860:4860::8888', '2001:4860:4860::8844'];
 
-const HTTPS_ENDPOINTS = {
+const DEFAULT_HTTPS_ENDPOINTS = {
   v4: ['https://ipv4.icanhazip.com', 'https://api.ipify.org', 'https://ifconfig.co/ip'],
   v6: ['https://ipv6.icanhazip.com', 'https://api64.ipify.org', 'https://ifconfig.co/ip'],
 } as const;
@@ -43,6 +42,9 @@ export type DiscoverDeps = {
   fetch: typeof globalThis.fetch;
   createResolver: () => DnsResolver;
   timeoutMs?: number;
+  httpsV4?: readonly string[];
+  httpsV6?: readonly string[];
+  dnsFallback?: boolean;
 };
 
 const defaultDeps: DiscoverDeps = {
@@ -141,8 +143,12 @@ async function lookupViaHttps(
   signal: AbortSignal,
 ): Promise<string> {
   const errors: string[] = [];
+  const endpoints =
+    family === 'v4'
+      ? (deps.httpsV4 ?? DEFAULT_HTTPS_ENDPOINTS.v4)
+      : (deps.httpsV6 ?? DEFAULT_HTTPS_ENDPOINTS.v6);
 
-  for (const endpoint of HTTPS_ENDPOINTS[family]) {
+  for (const endpoint of endpoints) {
     try {
       const response = await deps.fetch(endpoint, { signal, redirect: 'follow' });
       if (!response.ok) {
@@ -180,6 +186,10 @@ async function discoverFamily(
     // fall through
   }
 
+  if (deps.dnsFallback === false) {
+    throw new Error(`HTTPS ${family} lookup failed and DNS fallback is disabled`);
+  }
+
   try {
     return await lookupViaOpenDns(family, deps, signal);
   } catch {
@@ -204,7 +214,7 @@ export async function discoverPublicIP(
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
-  }, deps.timeoutMs ?? DISCOVERY_TIMEOUT_MS);
+  }, deps.timeoutMs ?? DEFAULT_IP_TIMEOUT_MS);
 
   try {
     const [v4Result, v6Result] = await Promise.allSettled([

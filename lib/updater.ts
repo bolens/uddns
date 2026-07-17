@@ -8,6 +8,7 @@ import { discoverPublicIP, formatPublicIP, ipChanged, type PublicIPDiscovery } f
 import { createLogger, formatError, type Logger } from './log.js';
 import { HttpError } from './providers/http.js';
 import { formatResultSummary } from './result.js';
+import { cycleEventFromResult, type CycleEvent } from './schemas/cycle.js';
 import type {
   AppConfig,
   CheckResult,
@@ -17,6 +18,11 @@ import type {
   UpdateResult,
 } from './schemas/provider.js';
 import { createFileStateStore, type HostState, type StateStore } from './state.js';
+
+type CheckOnceOptions = {
+  force?: boolean;
+  dryRun?: boolean;
+};
 
 export type UpdaterOptions = {
   config: AppConfig;
@@ -32,6 +38,11 @@ export type UpdaterOptions = {
   retryAttempts?: number;
   retryBaseDelayMs?: number;
   retryMaxDelayMs?: number;
+  onCycleComplete?: (event: CycleEvent) => void | Promise<void>;
+  accountId?: string;
+  /** Apply IP family / missing-family policy after discovery. */
+  applyIpPolicy?: (discovered: PublicIP, previous: PublicIP) => PublicIP;
+  now?: () => number;
 };
 
 export function createUpdater(options: UpdaterOptions) {
@@ -46,6 +57,10 @@ export function createUpdater(options: UpdaterOptions) {
     retryAttempts = 3,
     retryBaseDelayMs = 1_000,
     retryMaxDelayMs = 30_000,
+    onCycleComplete,
+    accountId,
+    applyIpPolicy,
+    now = Date.now,
   } = options;
   const stateStore =
     options.stateStore ??
@@ -69,6 +84,10 @@ export function createUpdater(options: UpdaterOptions) {
   let inFlight = false;
   let inFlightPromise: Promise<CheckResult | null> | null = null;
   let stopping = false;
+  let lastCycle: CycleEvent | null = null;
+  let lastSuccessAt: string | null = null;
+  let lastError: string | null = null;
+  let nextRetryAt: string | null = null;
 
   function scheduleTimer(): void {
     if (timer != null) {
@@ -83,6 +102,49 @@ export function createUpdater(options: UpdaterOptions) {
         log.error('Check cycle failed', formatError(error));
       });
     }, intervalMs);
+  }
+
+  async function emitCycleComplete(result: CheckResult, durationMs: number): Promise<CheckResult> {
+    const meta: Parameters<typeof cycleEventFromResult>[1] = {
+      cycle,
+      durationMs,
+      at: new Date(now()).toISOString(),
+    };
+    if (result.forced !== undefined) {
+      meta.forced = result.forced;
+    }
+    if (result.dryRun !== undefined) {
+      meta.dryRun = result.dryRun;
+    }
+    if (accountId !== undefined) {
+      meta.accountId = accountId;
+    }
+    const event = cycleEventFromResult(result, meta);
+    lastCycle = event;
+    if (
+      result.status === 'updated' ||
+      result.status === 'unchanged' ||
+      result.status === 'dry_run'
+    ) {
+      lastSuccessAt = event.at;
+      lastError = null;
+    }
+    if (
+      result.status === 'error' ||
+      result.status === 'partial' ||
+      result.status === 'skipped_no_ip'
+    ) {
+      lastError = result.message;
+    }
+    nextRetryAt = null;
+    if (onCycleComplete) {
+      try {
+        await onCycleComplete(event);
+      } catch (error) {
+        log.warn('onCycleComplete handler failed', formatError(error));
+      }
+    }
+    return result;
   }
 
   async function loadState(): Promise<void> {
@@ -112,14 +174,16 @@ export function createUpdater(options: UpdaterOptions) {
    * APIs must never let cycles overlap: overlapping cycles race on
    * `currentIP` and can issue duplicate or out-of-order provider updates.
    */
-  async function checkOnceGuarded(): Promise<CheckResult | null> {
+  async function checkOnceGuarded(
+    checkOptions: CheckOnceOptions = {},
+  ): Promise<CheckResult | null> {
     if (inFlight) {
       log.warn('Skipping check cycle: previous cycle still in progress', { cycle });
       return null;
     }
 
     inFlight = true;
-    const run = checkOnce();
+    const run = checkOnce(checkOptions);
     inFlightPromise = run;
     return await run.finally(() => {
       inFlight = false;
@@ -127,17 +191,27 @@ export function createUpdater(options: UpdaterOptions) {
     });
   }
 
-  async function checkOnce(): Promise<CheckResult> {
+  async function checkOnce(checkOptions: CheckOnceOptions = {}): Promise<CheckResult> {
+    const forced = Boolean(checkOptions.force);
+    const dryRun = Boolean(checkOptions.dryRun);
     await loadState();
     cycle += 1;
-    const started = Date.now();
+    const started = now();
     log.debug(`Starting check cycle #${cycle}`, {
       provider: provider.id,
       hosts: config.hosts,
       previousIP: currentIP,
+      forced,
+      dryRun,
     });
 
-    const { ip, errors: ipErrors } = await resolveDiscovery();
+    const discovery = await resolveDiscovery();
+    let ip = discovery.ip;
+    const ipErrors = discovery.errors;
+
+    if (applyIpPolicy) {
+      ip = applyIpPolicy(ip, currentIP);
+    }
 
     if (!ip.v4 && !ip.v6) {
       const message = 'No public IP available; skipping update.';
@@ -147,7 +221,10 @@ export function createUpdater(options: UpdaterOptions) {
         ipv6Error: ipErrors.v6,
         hint: 'Check outbound network/DNS access to public-IP lookup services',
       });
-      return { status: 'skipped_no_ip', ip, message };
+      return await emitCycleComplete(
+        { status: 'skipped_no_ip', ip, message, forced, dryRun },
+        now() - started,
+      );
     }
 
     if (ipErrors.v4 || ipErrors.v6) {
@@ -158,9 +235,9 @@ export function createUpdater(options: UpdaterOptions) {
       });
     }
 
-    const pendingHosts = config.hosts.filter((host) =>
-      ipChanged(ip, hostState[host] ?? { v4: null, v6: null }),
-    );
+    const pendingHosts = forced
+      ? [...config.hosts]
+      : config.hosts.filter((host) => ipChanged(ip, hostState[host] ?? { v4: null, v6: null }));
 
     if (pendingHosts.length === 0) {
       const previousIP = currentIP;
@@ -170,9 +247,29 @@ export function createUpdater(options: UpdaterOptions) {
         cycle,
         ip,
         previousIP,
-        durationMs: Date.now() - started,
+        durationMs: now() - started,
       });
-      return { status: 'unchanged', ip, message };
+      return await emitCycleComplete(
+        { status: 'unchanged', ip, message, forced, dryRun },
+        now() - started,
+      );
+    }
+
+    if (dryRun) {
+      const hostResults: HostUpdateResult[] = pendingHosts.map((host) => ({
+        host,
+        result: {
+          ok: true,
+          skipped: true,
+          message: `would update ${host} -> ${formatPublicIP(ip)}`,
+        },
+      }));
+      const message = `Dry run: would update ${pendingHosts.length} host(s) -> ${formatPublicIP(ip)}`;
+      log.info(message, { cycle, hosts: pendingHosts, nextIP: ip, forced });
+      return await emitCycleComplete(
+        { status: 'dry_run', ip, message, hostResults, forced, dryRun: true },
+        now() - started,
+      );
     }
 
     log.info(`Updating DNS -> ${formatPublicIP(ip)} for ${pendingHosts.length} host(s)`, {
@@ -181,6 +278,7 @@ export function createUpdater(options: UpdaterOptions) {
       hosts: pendingHosts,
       previousIP: currentIP,
       nextIP: ip,
+      forced,
     });
 
     const hostResults: HostUpdateResult[] = config.hosts
@@ -196,7 +294,7 @@ export function createUpdater(options: UpdaterOptions) {
     let stateChanged = false;
 
     for (const host of pendingHosts) {
-      const hostStarted = Date.now();
+      const hostStarted = now();
       const hostConfig = configForHost(config, host);
 
       try {
@@ -212,7 +310,7 @@ export function createUpdater(options: UpdaterOptions) {
         });
 
         const result = await updateWithRetry(hostConfig, ip, host);
-        const durationMs = Date.now() - hostStarted;
+        const durationMs = now() - hostStarted;
         hostResults.push({ host, result, durationMs });
         if (result.ok) {
           hostState[host] = { ...ip };
@@ -230,7 +328,7 @@ export function createUpdater(options: UpdaterOptions) {
           log.error(`[${host}] ${summary}`, result.details);
         }
       } catch (error) {
-        const durationMs = Date.now() - hostStarted;
+        const durationMs = now() - hostStarted;
         const message = errorMessage(error);
         const result: UpdateResult = {
           ok: false,
@@ -256,10 +354,12 @@ export function createUpdater(options: UpdaterOptions) {
     const summary = summarizeHostResults(ip, hostResults, (nextIP) => {
       currentIP = nextIP;
     });
+    summary.forced = forced;
+    summary.dryRun = false;
     refreshCurrentIP();
 
     log.info(`Cycle #${cycle} finished: ${summary.status}`, {
-      durationMs: Date.now() - started,
+      durationMs: now() - started,
       ok: hostResults.filter(({ result }) => result.ok && !result.skipped).length,
       skipped: hostResults.filter(({ result }) => result.skipped).length,
       failed: hostResults.filter(({ result }) => !result.ok).length,
@@ -268,7 +368,7 @@ export function createUpdater(options: UpdaterOptions) {
       committedIP: summary.status === 'updated' ? ip : currentIP,
     });
 
-    return summary;
+    return await emitCycleComplete(summary, now() - started);
   }
 
   async function start() {
@@ -341,6 +441,11 @@ export function createUpdater(options: UpdaterOptions) {
       cycle,
       inFlight,
       hosts: Object.fromEntries(Object.entries(hostState).map(([host, ip]) => [host, { ...ip }])),
+      lastCycle,
+      lastSuccessAt,
+      lastError,
+      nextRetryAt,
+      accountId: accountId ?? null,
     };
   }
 
@@ -382,6 +487,7 @@ export function createUpdater(options: UpdaterOptions) {
   async function waitBeforeRetry(host: string, attempt: number, reason: string): Promise<void> {
     const exponential = Math.min(retryMaxDelayMs, retryBaseDelayMs * 2 ** (attempt - 1));
     const delayMs = Math.max(0, Math.round(exponential * (0.8 + random() * 0.4)));
+    nextRetryAt = new Date(now() + delayMs).toISOString();
     log.warn(`Transient update failure for ${host}; retrying`, {
       attempt,
       nextAttempt: attempt + 1,

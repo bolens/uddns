@@ -7,6 +7,6 @@
     "declaration": false,
     "sourceMap": true
   },
-  "include": ["app.ts", "mcp.ts", "lib/**/*.ts"],
+  "include": ["app.ts", "mcp.ts", "cli.ts", "lib/**/*.ts"],
   "exclude": ["tests/**", "vite.config.ts", "dist/**"]
 }

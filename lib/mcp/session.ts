@@ -3,8 +3,10 @@
  */
 
 import { loadConfig } from '../config.js';
+import type { HistoryStore } from '../history.js';
 import type { Logger } from '../log.js';
 import { getProvider } from '../providers/index.js';
+import { createRuntimeBundle } from '../runtime.js';
 import type { AppConfig, Provider } from '../schemas/provider.js';
 import { createUpdater, type Updater } from '../updater.js';
 
@@ -13,6 +15,7 @@ export type McpSession = {
   provider: Provider;
   updater: Updater;
   log: Logger;
+  history?: HistoryStore | null;
 };
 
 export type CreateMcpSessionOptions = {
@@ -27,11 +30,27 @@ export function createMcpSession(options: CreateMcpSessionOptions): McpSession {
   const env = options.env ?? process.env;
   const loadConfigFn = options.loadConfigFn ?? loadConfig;
   const getProviderFn = options.getProviderFn ?? getProvider;
-  const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
+
+  if (options.createUpdaterFn) {
+    const config = loadConfigFn(env);
+    const provider = getProviderFn(config.provider);
+    const updater = options.createUpdaterFn({ config, provider, log: options.log });
+    return { config, provider, updater, log: options.log, history: null };
+  }
 
   const config = loadConfigFn(env);
-  const provider = getProviderFn(config.provider);
-  const updater = createUpdaterFn({ config, provider, log: options.log });
+  const bundle = createRuntimeBundle({
+    config,
+    log: options.log,
+    getProviderFn,
+    createUpdaterFn: (updaterOptions) => createUpdater(updaterOptions),
+  });
 
-  return { config, provider, updater, log: options.log };
+  return {
+    config: bundle.config,
+    provider: bundle.provider,
+    updater: bundle.updater,
+    log: options.log,
+    history: bundle.history,
+  };
 }

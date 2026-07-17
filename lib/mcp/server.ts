@@ -17,6 +17,8 @@ export const MCP_TOOL_NAMES = [
   'get_public_ip',
   'get_config',
   'check_once',
+  'force_update',
+  'dry_run',
   'get_status',
   'set_interval',
   'start_loop',
@@ -77,6 +79,24 @@ export function createUddnsMcpServer(session: McpSession): McpServer {
   server.registerTool(
     MCP_TOOL_NAMES[4],
     {
+      description: 'Force a DNS update for all hosts regardless of checkpoint state',
+      annotations: { destructiveHint: true, openWorldHint: true },
+    },
+    async () => textResult(await handlers.forceUpdate()),
+  );
+
+  server.registerTool(
+    MCP_TOOL_NAMES[5],
+    {
+      description: 'Dry-run one cycle: show which hosts would update without calling the provider',
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async () => textResult(await handlers.dryRun()),
+  );
+
+  server.registerTool(
+    MCP_TOOL_NAMES[6],
+    {
       description: 'Return updater session status (running, interval, IP, cycle)',
       annotations: { readOnlyHint: true },
     },
@@ -84,7 +104,7 @@ export function createUddnsMcpServer(session: McpSession): McpServer {
   );
 
   server.registerTool(
-    MCP_TOOL_NAMES[5],
+    MCP_TOOL_NAMES[7],
     {
       description: 'Set the updater check interval in milliseconds (>= 1000)',
       inputSchema: {
@@ -95,7 +115,7 @@ export function createUddnsMcpServer(session: McpSession): McpServer {
   );
 
   server.registerTool(
-    MCP_TOOL_NAMES[6],
+    MCP_TOOL_NAMES[8],
     {
       description:
         'Start the updater interval loop (runs one immediate check, then schedules ticks)',
@@ -104,7 +124,7 @@ export function createUddnsMcpServer(session: McpSession): McpServer {
   );
 
   server.registerTool(
-    MCP_TOOL_NAMES[7],
+    MCP_TOOL_NAMES[9],
     {
       description: 'Stop the updater interval loop and wait for any in-flight cycle',
     },
@@ -142,6 +162,19 @@ export function createUddnsMcpServer(session: McpSession): McpServer {
     MCP_RESOURCE_URIS.status,
     {
       description: 'Updater session status',
+      mimeType: 'application/json',
+    },
+    async (uri) => {
+      const body = await readMcpResource(session, uri.href);
+      return { contents: [{ uri: uri.href, mimeType: body.mimeType, text: body.text }] };
+    },
+  );
+
+  server.registerResource(
+    'history',
+    MCP_RESOURCE_URIS.history,
+    {
+      description: 'Recent cycle history (IP changes, errors, dry runs)',
       mimeType: 'application/json',
     },
     async (uri) => {

@@ -2,9 +2,12 @@
   "name": "uddns",
   "version": "2.0.0",
   "private": true,
-  "description": "uDDNS — micro multi-provider Dynamic DNS updater (Cloudflare, DuckDNS, No-IP, Dynu, Namecheap, DynDNS)",
+  "description": "uDDNS — micro multi-provider Dynamic DNS updater (Cloudflare, DuckDNS, No-IP, Dynu, Namecheap, DynDNS, Route53, Porkbun, Hetzner, DigitalOcean)",
   "license": "MIT",
   "author": "Michael Bolens",
+  "bin": {
+    "uddns": "./dist/cli.js"
+  },
   "type": "module",
   "main": "dist/app.js",
   "scripts": {
@@ -19,6 +22,7 @@
     "test:live": "RUN_LIVE_TESTS=1 vp test tests/live -- --testTimeout=35000",
     "test:parallel": "node scripts/test-parallel.mjs",
     "config:check": "node --env-file-if-exists=.env dist/app.js --check-config",
+    "scaffold:provider": "node scripts/scaffold-provider.mjs",
     "docs:check": "vp test tests/docs.test.ts",
     "lean:check": "fallow dead-code --fail-on-issues",
     "audit": "fallow audit",
@@ -31,6 +35,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express": "^5.2.1",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

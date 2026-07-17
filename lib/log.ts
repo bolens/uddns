@@ -1,3 +1,4 @@
+import { DEFAULT_LOG_FORMAT } from './defaults.js';
 import type { JsonObject, JsonValue } from './schemas/json.js';
 import { isSensitiveKey } from './sensitive.js';
 
@@ -47,8 +48,11 @@ export type Logger = {
   level: LogLevel;
 };
 
+type LogFormat = 'text' | 'json';
+
 export type LoggerOptions = {
   level?: string;
+  format?: string;
   now?: () => Date;
   info?: (...args: unknown[]) => void;
   error?: (...args: unknown[]) => void;
@@ -56,9 +60,17 @@ export type LoggerOptions = {
   debug?: (...args: unknown[]) => void;
 };
 
+function normalizeLogFormat(value: string | undefined): LogFormat {
+  const format = (value ?? 'text').toLowerCase();
+  return format === 'json' ? 'json' : 'text';
+}
+
 export function createLogger(options: LoggerOptions = {}): Logger {
   const now = options.now ?? (() => new Date());
   const levelName = normalizeLevel(options.level ?? process.env['UDDNS_LOG_LEVEL'] ?? 'info');
+  const format = normalizeLogFormat(
+    options.format ?? process.env['UDDNS_LOG_FORMAT'] ?? DEFAULT_LOG_FORMAT,
+  );
   const threshold = LEVELS[levelName];
 
   const writeInfo = options.info ?? ((...args: unknown[]) => console.info(...args));
@@ -74,6 +86,19 @@ export function createLogger(options: LoggerOptions = {}): Logger {
     context?: unknown,
   ): void {
     if (LEVELS[level] > threshold) {
+      return;
+    }
+
+    if (format === 'json') {
+      const entry: Record<string, unknown> = {
+        level,
+        msg: message,
+        time: now().toISOString(),
+      };
+      if (context !== undefined) {
+        entry['context'] = context instanceof Error ? formatError(context) : redact(context);
+      }
+      writer(JSON.stringify(entry));
       return;
     }
 

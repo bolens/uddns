@@ -14,7 +14,10 @@ export type McpToolHandlers = {
   getPublicIp: () => Promise<PublicIPDiscovery>;
   getConfig: () => unknown;
   checkOnce: () => Promise<CheckResult | null>;
+  forceUpdate: () => Promise<CheckResult | null>;
+  dryRun: () => Promise<CheckResult | null>;
   getStatus: () => UpdaterStatus;
+  getHistory: () => Promise<unknown>;
   setInterval: (intervalMs: number) => UpdaterStatus;
   startLoop: () => Promise<UpdaterStatus>;
   stopLoop: () => Promise<UpdaterStatus>;
@@ -45,8 +48,24 @@ export function createToolHandlers(
       return await session.updater.checkOnceGuarded();
     },
 
+    async forceUpdate() {
+      return await session.updater.checkOnceGuarded({ force: true });
+    },
+
+    async dryRun() {
+      return await session.updater.checkOnceGuarded({ dryRun: true });
+    },
+
     getStatus() {
       return session.updater.getStatus();
+    },
+
+    async getHistory() {
+      const store = session.history ?? null;
+      if (!store) {
+        return { events: [] };
+      }
+      return { events: await store.load() };
     },
 
     setInterval(intervalMs: number) {

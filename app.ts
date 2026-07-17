@@ -4,19 +4,23 @@
 
 import { pathToFileURL } from 'node:url';
 
-import { loadConfig } from './lib/config.js';
+import { resolveAccounts, type LoadedAccount } from './lib/config-file.js';
+import { loadHealthConfig } from './lib/health-config.js';
 import { createLogger, formatError, type Logger } from './lib/log.js';
 import { getProvider } from './lib/providers/index.js';
+import { createRuntimeBundle, type RuntimeBundle } from './lib/runtime.js';
 import type { AppConfig, Provider } from './lib/schemas/provider.js';
-import { createUpdater } from './lib/updater.js';
-
-type Updater = ReturnType<typeof createUpdater>;
+import { startSideServer, type SideServer } from './lib/side-server.js';
+import { createUpdater, type Updater, type UpdaterOptions } from './lib/updater.js';
 
 export type AppOptions = {
   argv?: string[];
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   log?: Logger;
   loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
+  resolveAccountsFn?: (
+    env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  ) => LoadedAccount[] | Promise<LoadedAccount[]>;
   getProviderFn?: (id: string) => Provider;
   createUpdaterFn?: (options: { config: AppConfig; provider: Provider; log: Logger }) => Updater;
   on?: (event: string, listener: (value?: unknown) => void) => void;
@@ -27,9 +31,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
   const log = options.log ?? createLogger();
   const argv = options.argv ?? process.argv.slice(2);
   const env = options.env ?? process.env;
-  const loadConfigFn = options.loadConfigFn ?? loadConfig;
   const getProviderFn = options.getProviderFn ?? getProvider;
-  const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
   const on =
     options.on ??
     ((event: string, listener: (value?: unknown) => void) => {
@@ -37,31 +39,166 @@ export async function main(options: AppOptions = {}): Promise<void> {
     });
   const exit = options.exit ?? ((code: number) => process.exit(code));
 
-  try {
-    const config = loadConfigFn(env);
-    const provider = getProviderFn(config.provider);
+  const resolveAccountsFn =
+    options.resolveAccountsFn ??
+    (options.loadConfigFn
+      ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>) => [
+          { id: 'default', config: options.loadConfigFn!(resolveEnv) },
+        ]
+      : resolveAccounts);
 
+  let bundles: RuntimeBundle[] = [];
+  let sideServer: SideServer | null = null;
+  let shuttingDown = false;
+  let reloading = false;
+
+  async function shutdown(signal: string, code: number): Promise<void> {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    log.info(`Received ${signal}; shutting down.`);
+    try {
+      await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
+      if (sideServer) {
+        await sideServer.close();
+        sideServer = null;
+      }
+    } catch (error) {
+      log.error('Graceful shutdown failed', formatError(error));
+      code = 1;
+    }
+    exit(code);
+  }
+
+  function buildBundles(accounts: LoadedAccount[]): RuntimeBundle[] {
+    return accounts.map((account) => {
+      if (options.createUpdaterFn) {
+        const provider = getProviderFn(account.config.provider);
+        const updater = options.createUpdaterFn({ config: account.config, provider, log });
+        return {
+          config: account.config,
+          provider,
+          updater,
+          history: null,
+          metrics: {
+            record() {},
+            snapshot: () => ({
+              cyclesTotal: {},
+              updatesTotal: 0,
+              discoverErrors: 0,
+              lastSuccessAt: null,
+            }),
+          },
+          eventListeners: new Set(),
+        } satisfies RuntimeBundle;
+      }
+      return createRuntimeBundle({
+        config: account.config,
+        log,
+        accountId: account.id,
+        getProviderFn,
+        createUpdaterFn: (updaterOptions: UpdaterOptions) => createUpdater(updaterOptions),
+      });
+    });
+  }
+
+  async function startAccounts(accounts: LoadedAccount[]): Promise<void> {
+    bundles = buildBundles(accounts);
+    await Promise.all(bundles.map((bundle) => bundle.updater.start()));
+  }
+
+  async function reload(): Promise<void> {
+    if (reloading || shuttingDown) {
+      return;
+    }
+    reloading = true;
+    log.info('Received SIGHUP; reloading configuration');
+    try {
+      const wasRunning = bundles.some((bundle) => bundle.updater.getStatus().running);
+      await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
+      const accounts = await resolveAccountsFn(env);
+      await startAccounts(accounts);
+      if (!wasRunning) {
+        await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
+      }
+      log.success(`Reloaded ${accounts.length} account(s)`);
+    } catch (error) {
+      log.error('Configuration reload failed', formatError(error));
+    } finally {
+      reloading = false;
+    }
+  }
+
+  try {
+    const accounts = await resolveAccountsFn(env);
     if (argv.includes('--check-config')) {
-      log.success(`Configuration is valid for ${provider.label} (${provider.id})`);
+      for (const account of accounts) {
+        const provider = getProviderFn(account.config.provider);
+        log.success(
+          `Configuration is valid for ${provider.label} (${provider.id})` +
+            (account.id !== 'default' ? ` [${account.id}]` : ''),
+        );
+      }
       return;
     }
 
-    const updater = createUpdaterFn({ config, provider, log });
-    let shuttingDown = false;
+    await startAccounts(accounts);
 
-    async function shutdown(signal: string, code: number): Promise<void> {
-      if (shuttingDown) {
-        return;
-      }
-      shuttingDown = true;
-      log.info(`Received ${signal}; shutting down.`);
-      try {
-        await updater.stop();
-      } catch (error) {
-        log.error('Graceful shutdown failed', formatError(error));
-        code = 1;
-      }
-      exit(code);
+    const health = loadHealthConfig(env);
+    if (health.enabled) {
+      sideServer = await startSideServer({
+        config: {
+          host: health.host,
+          port: health.port,
+          metricsEnabled: health.metricsEnabled,
+        },
+        getStatus: () => {
+          if (bundles.length === 1) {
+            return bundles[0]!.updater.getStatus();
+          }
+          return {
+            accounts: bundles.map((bundle) => ({
+              id: bundle.updater.getStatus().accountId ?? 'unknown',
+              status: bundle.updater.getStatus(),
+            })),
+          };
+        },
+        getMetrics: () => {
+          const merged = {
+            cyclesTotal: {} as Record<string, number>,
+            updatesTotal: 0,
+            discoverErrors: 0,
+            lastSuccessAt: null as string | null,
+          };
+          for (const bundle of bundles) {
+            const snap = bundle.metrics.snapshot();
+            for (const [status, count] of Object.entries(snap.cyclesTotal)) {
+              merged.cyclesTotal[status] = (merged.cyclesTotal[status] ?? 0) + count;
+            }
+            merged.updatesTotal += snap.updatesTotal;
+            merged.discoverErrors += snap.discoverErrors;
+            if (
+              snap.lastSuccessAt &&
+              (!merged.lastSuccessAt || snap.lastSuccessAt > merged.lastSuccessAt)
+            ) {
+              merged.lastSuccessAt = snap.lastSuccessAt;
+            }
+          }
+          return merged;
+        },
+        onEventSubscribe: (listener) => {
+          for (const bundle of bundles) {
+            bundle.eventListeners.add(listener);
+          }
+          return () => {
+            for (const bundle of bundles) {
+              bundle.eventListeners.delete(listener);
+            }
+          };
+        },
+      });
+      log.info(`Health server listening on ${sideServer.url}`);
     }
 
     on('SIGINT', () => {
@@ -70,9 +207,10 @@ export async function main(options: AppOptions = {}): Promise<void> {
     on('SIGTERM', () => {
       void shutdown('SIGTERM', 0);
     });
+    on('SIGHUP', () => {
+      void reload();
+    });
 
-    // Process state is undefined after an uncaught error; stop cleanly and exit
-    // non-zero so a supervisor restarts us with a fresh process.
     on('uncaughtException', (error) => {
       log.error('Uncaught exception; exiting', formatError(error));
       void shutdown('uncaughtException', 1);
@@ -81,8 +219,6 @@ export async function main(options: AppOptions = {}): Promise<void> {
       log.error('Unhandled promise rejection; exiting', formatError(reason));
       void shutdown('unhandledRejection', 1);
     });
-
-    await updater.start();
   } catch (error) {
     log.error('Failed to start updater', formatError(error));
     exit(1);

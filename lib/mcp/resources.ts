@@ -9,6 +9,7 @@ export const MCP_RESOURCE_URIS = {
   config: 'uddns://config',
   publicIp: 'uddns://public-ip',
   status: 'uddns://status',
+  history: 'uddns://history',
 } as const;
 
 export async function readMcpResource(
@@ -27,6 +28,8 @@ export async function readMcpResource(
       return { mimeType: 'application/json', text: jsonText(await handlers.getPublicIp()) };
     case MCP_RESOURCE_URIS.status:
       return { mimeType: 'application/json', text: jsonText(handlers.getStatus()) };
+    case MCP_RESOURCE_URIS.history:
+      return { mimeType: 'application/json', text: jsonText(await handlers.getHistory()) };
     default:
       throw new Error(`Unknown resource URI: ${uri}`);
   }
