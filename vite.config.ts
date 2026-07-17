@@ -13,7 +13,7 @@ export default defineConfig({
     sortPackageJson: true,
   },
   staged: {
-    '*.{ts,js,mjs,cjs,json,md}': 'vp check --fix',
+    '*.{ts,js,mjs,cjs,json,md,yml,yaml}': 'vp check --fix',
   },
   test: {
     include: ['tests/**/*.test.ts'],
