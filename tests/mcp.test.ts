@@ -224,6 +224,15 @@ describe('MCP tool handlers', () => {
     expect(updaterA.getStatus().running).toBe(false);
     expect(updaterB.getStatus().running).toBe(false);
 
+    expect(handlers.setInterval(45_000)).toMatchObject({
+      accounts: [
+        { id: 'a', status: expect.objectContaining({ intervalMs: 45_000 }) },
+        { id: 'b', status: expect.objectContaining({ intervalMs: 45_000 }) },
+      ],
+    });
+    expect(updaterA.getStatus().intervalMs).toBe(45_000);
+    expect(updaterB.getStatus().intervalMs).toBe(45_000);
+
     await handlers.startLoop('b');
     expect(updaterA.getStatus().running).toBe(false);
     expect(updaterB.getStatus().running).toBe(true);

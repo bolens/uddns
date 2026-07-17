@@ -61,7 +61,10 @@ export type McpToolHandlers = {
     issues: ReturnType<typeof getProviderConfigIssues>;
   };
   explainLastCycle: (accountId?: string) => Promise<unknown>;
-  setInterval: (intervalMs: number, accountId?: string) => UpdaterStatus;
+  setInterval: (
+    intervalMs: number,
+    accountId?: string,
+  ) => UpdaterStatus | { accounts: Array<{ id: string; status: UpdaterStatus }> };
   startLoop: (
     accountId?: string,
   ) => Promise<UpdaterStatus | { accounts: Array<{ id: string; status: UpdaterStatus }> }>;
@@ -219,6 +222,14 @@ export function createToolHandlers(
     },
 
     setInterval(intervalMs, accountId) {
+      if (!accountId && normalized.accounts.length > 1) {
+        return {
+          accounts: normalized.accounts.map((account) => {
+            account.updater.setIntervalMs(intervalMs);
+            return { id: account.id, status: account.updater.getStatus() };
+          }),
+        };
+      }
       const account = getMcpAccount(normalized, accountId);
       account.updater.setIntervalMs(intervalMs);
       return account.updater.getStatus();
