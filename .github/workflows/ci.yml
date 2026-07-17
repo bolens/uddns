@@ -92,7 +92,7 @@ jobs:
           - name: config
             paths: tests/config.test.ts tests/hosts.test.ts
           - name: core
-            paths: tests/updater.test.ts tests/http.test.ts tests/ip.test.ts tests/log.test.ts tests/result.test.ts
+            paths: tests/updater.test.ts tests/http.test.ts tests/ip.test.ts tests/log.test.ts tests/result.test.ts tests/app.test.ts tests/state.test.ts
           - name: docs
             paths: tests/docs.test.ts
     steps:
@@ -112,7 +112,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test (${{ matrix.group.name }})
-        run: pnpm run test -- ${{ matrix.group.paths }} --reporter=blob --coverage
+        run: >-
+          pnpm run test -- ${{ matrix.group.paths }} --reporter=blob
+          --outputFile=.vitest-reports/blob-${{ matrix.group.name }}.json --coverage
         env:
           VITEST_PARTIAL_COVERAGE: '1'
 
