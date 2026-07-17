@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "vp run build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "verify",
+      "type": "shell",
+      "command": "vp run verify",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
