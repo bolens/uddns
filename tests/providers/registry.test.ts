@@ -9,7 +9,18 @@ describe('provider registry', () => {
     const ids = listProviderIds();
 
     expect(ids.sort()).toEqual(
-      ['cloudflare', 'duckdns', 'dynu', 'dyndns', 'namecheap', 'noip'].sort(),
+      [
+        'cloudflare',
+        'duckdns',
+        'dynu',
+        'dyndns',
+        'namecheap',
+        'noip',
+        'route53',
+        'porkbun',
+        'hetzner',
+        'digitalocean',
+      ].sort(),
     );
     expect(providers).toHaveLength(ids.length);
 
@@ -34,6 +45,13 @@ describe('provider registry', () => {
         DUCKDNS_TOKEN: 'token',
         NAMECHEAP_DOMAIN: 'example.com',
         NAMECHEAP_PASSWORD: 'ddns',
+        ROUTE53_ACCESS_KEY_ID: 'AKIAEXAMPLE',
+        ROUTE53_SECRET_ACCESS_KEY: 'secret',
+        ROUTE53_HOSTED_ZONE_ID: 'Z123',
+        PORKBUN_API_KEY: 'pk',
+        PORKBUN_SECRET_KEY: 'sk',
+        HETZNER_API_TOKEN: 'token',
+        DIGITALOCEAN_API_TOKEN: 'token',
       });
       expect(config.provider).toBe(id);
       expect(getProvider(config.provider).id).toBe(id);

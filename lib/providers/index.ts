@@ -5,11 +5,15 @@
 import type { Provider, ProviderId } from '../schemas/provider.js';
 import { PROVIDER_IDS, providerIdSchema } from '../schemas/provider.js';
 import { cloudflareProvider } from './cloudflare.js';
+import { digitaloceanProvider } from './digitalocean.js';
 import { duckdnsProvider } from './duckdns.js';
 import { dyndnsProvider } from './dyndns.js';
 import { dynuProvider } from './dynu.js';
+import { hetznerProvider } from './hetzner.js';
 import { namecheapProvider } from './namecheap.js';
 import { noipProvider } from './noip.js';
+import { porkbunProvider } from './porkbun.js';
+import { route53Provider } from './route53.js';
 
 const providers = {
   cloudflare: cloudflareProvider,
@@ -18,6 +22,10 @@ const providers = {
   dynu: dynuProvider,
   namecheap: namecheapProvider,
   dyndns: dyndnsProvider,
+  route53: route53Provider,
+  porkbun: porkbunProvider,
+  hetzner: hetznerProvider,
+  digitalocean: digitaloceanProvider,
 } satisfies Record<ProviderId, Provider>;
 
 export function getProvider(id: string): Provider {

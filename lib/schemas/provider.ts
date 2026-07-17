@@ -10,6 +10,10 @@ export const PROVIDER_IDS = [
   'dynu',
   'namecheap',
   'dyndns',
+  'route53',
+  'porkbun',
+  'hetzner',
+  'digitalocean',
 ] as const;
 
 export const providerIdSchema = z.enum(PROVIDER_IDS);
@@ -80,19 +84,70 @@ const dynDnsConfigSchema = z.object({
 });
 export type DynDnsConfig = z.infer<typeof dynDnsConfigSchema>;
 
+const route53ConfigSchema = z.object({
+  accessKeyId: z.string().nullable(),
+  secretAccessKey: z.string().nullable(),
+  region: z.string().min(1),
+  hostedZoneId: z.string().nullable(),
+  ttl: z
+    .number()
+    .int()
+    .refine((value) => value >= 0 && value <= 2_147_483_647, {
+      message: 'Route53 TTL must be an integer from 0 to 2147483647',
+    }),
+  createIfMissing: z.boolean(),
+});
+export type Route53Config = z.infer<typeof route53ConfigSchema>;
+
+const porkbunConfigSchema = z.object({
+  apiKey: z.string().nullable(),
+  secretKey: z.string().nullable(),
+  domain: z.string().nullable(),
+});
+export type PorkbunConfig = z.infer<typeof porkbunConfigSchema>;
+
+const hetznerConfigSchema = z.object({
+  apiToken: z.string().nullable(),
+  zoneId: z.string().nullable(),
+  zoneName: z.string().nullable(),
+});
+export type HetznerConfig = z.infer<typeof hetznerConfigSchema>;
+
+const digitalOceanConfigSchema = z.object({
+  apiToken: z.string().nullable(),
+  domain: z.string().nullable(),
+});
+export type DigitalOceanConfig = z.infer<typeof digitalOceanConfigSchema>;
+
+const notifyOnSchema = z.enum(['change', 'error']);
+
 export const appConfigSchema = z.object({
   provider: providerIdSchema,
   interval: z.number().int().min(1_000),
   stateFile: z.string().min(1).nullable(),
+  historyFile: z.string().min(1).nullable(),
   hosts: z.array(z.string()).min(1),
   hostname: z.string().nullable(),
   user: z.string().nullable(),
   password: z.string().nullable(),
   token: z.string().nullable(),
+  ipFamily: z.enum(['dual', 'v4', 'v6']),
+  ipMissing: z.enum(['keep', 'clear']),
+  ipHttpsV4: z.array(z.string().url()).nullable(),
+  ipHttpsV6: z.array(z.string().url()).nullable(),
+  ipDnsFallback: z.boolean(),
+  ipTimeoutMs: z.number().int().min(100).max(120_000),
+  notifyWebhookUrl: z.string().nullable(),
+  notifyNtfyUrl: z.string().nullable(),
+  notifyOn: z.array(notifyOnSchema).min(1),
   cloudflare: cloudflareConfigSchema,
   duckdns: duckDnsConfigSchema,
   namecheap: namecheapConfigSchema,
   dyndns: dynDnsConfigSchema,
+  route53: route53ConfigSchema,
+  porkbun: porkbunConfigSchema,
+  hetzner: hetznerConfigSchema,
+  digitalocean: digitalOceanConfigSchema,
 });
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
@@ -108,9 +163,19 @@ export type HostUpdateResult = {
   durationMs?: number;
 };
 
+export type CheckResultStatus =
+  | 'updated'
+  | 'unchanged'
+  | 'skipped_no_ip'
+  | 'error'
+  | 'partial'
+  | 'dry_run';
+
 export type CheckResult = {
-  status: 'updated' | 'unchanged' | 'skipped_no_ip' | 'error' | 'partial';
+  status: CheckResultStatus;
   ip: PublicIP;
   message: string;
   hostResults?: HostUpdateResult[];
+  forced?: boolean;
+  dryRun?: boolean;
 };

@@ -26,6 +26,24 @@ const PROVIDER_HINTS: Record<ProviderId, string[]> = {
     'UDDNS_HOSTS',
     'Optional DYNDNS_UPDATE_URL (must be https://)',
   ],
+  route53: [
+    'ROUTE53_ACCESS_KEY_ID',
+    'ROUTE53_SECRET_ACCESS_KEY',
+    'ROUTE53_HOSTED_ZONE_ID',
+    'UDDNS_HOSTS (FQDNs to update)',
+  ],
+  porkbun: [
+    'PORKBUN_API_KEY',
+    'PORKBUN_SECRET_KEY',
+    'PORKBUN_DOMAIN (unless hosts are FQDNs)',
+    'UDDNS_HOSTS',
+  ],
+  hetzner: ['HETZNER_API_TOKEN', 'HETZNER_ZONE_ID or HETZNER_ZONE_NAME', 'UDDNS_HOSTS'],
+  digitalocean: [
+    'DIGITALOCEAN_API_TOKEN',
+    'DIGITALOCEAN_DOMAIN (unless hosts are FQDNs)',
+    'UDDNS_HOSTS',
+  ],
 };
 
 export function buildSetupProviderPrompt(providerId: string): {

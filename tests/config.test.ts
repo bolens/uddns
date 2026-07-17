@@ -106,6 +106,100 @@ describe('loadConfig', () => {
     });
   });
 
+  it('maps provider-specific env vars for route53, porkbun, hetzner, and digitalocean', () => {
+    const route53 = loadConfig({
+      UDDNS_PROVIDER: 'route53',
+      UDDNS_HOST: 'home.example.com',
+      ROUTE53_ACCESS_KEY_ID: 'AKIAEXAMPLE',
+      ROUTE53_SECRET_ACCESS_KEY: 'secret',
+      ROUTE53_REGION: 'eu-west-1',
+      ROUTE53_HOSTED_ZONE_ID: 'Z123',
+      ROUTE53_TTL: '60',
+      ROUTE53_CREATE_IF_MISSING: 'false',
+    });
+    expect(route53.route53).toEqual({
+      accessKeyId: 'AKIAEXAMPLE',
+      secretAccessKey: 'secret',
+      region: 'eu-west-1',
+      hostedZoneId: 'Z123',
+      ttl: 60,
+      createIfMissing: false,
+    });
+
+    const route53Defaults = loadConfig({
+      UDDNS_PROVIDER: 'route53',
+      UDDNS_HOST: 'home.example.com',
+      ROUTE53_ACCESS_KEY_ID: 'AKIAEXAMPLE',
+      ROUTE53_SECRET_ACCESS_KEY: 'secret',
+      ROUTE53_HOSTED_ZONE_ID: 'Z123',
+    });
+    expect(route53Defaults.route53).toMatchObject({
+      region: 'us-east-1',
+      ttl: 300,
+      createIfMissing: true,
+    });
+
+    const porkbun = loadConfig({
+      UDDNS_PROVIDER: 'porkbun',
+      UDDNS_HOSTS: 'home,vpn',
+      PORKBUN_API_KEY: 'pk',
+      PORKBUN_SECRET_KEY: 'sk',
+      PORKBUN_DOMAIN: 'example.com',
+    });
+    expect(porkbun.porkbun).toEqual({ apiKey: 'pk', secretKey: 'sk', domain: 'example.com' });
+
+    const hetzner = loadConfig({
+      UDDNS_PROVIDER: 'hetzner',
+      UDDNS_HOST: 'home.example.com',
+      HETZNER_API_TOKEN: 'token',
+      HETZNER_ZONE_ID: 'zone1',
+      HETZNER_ZONE_NAME: 'example.com',
+    });
+    expect(hetzner.hetzner).toEqual({
+      apiToken: 'token',
+      zoneId: 'zone1',
+      zoneName: 'example.com',
+    });
+
+    const digitalocean = loadConfig({
+      UDDNS_PROVIDER: 'digitalocean',
+      UDDNS_HOST: 'home.example.com',
+      DIGITALOCEAN_API_TOKEN: 'token',
+      DIGITALOCEAN_DOMAIN: 'example.com',
+    });
+    expect(digitalocean.digitalocean).toEqual({ apiToken: 'token', domain: 'example.com' });
+  });
+
+  it('fails fast on missing credentials for route53, porkbun, hetzner, and digitalocean', () => {
+    expect(() => loadConfig({ UDDNS_PROVIDER: 'route53', UDDNS_HOST: 'home.example.com' })).toThrow(
+      /ROUTE53_ACCESS_KEY_ID.*ROUTE53_SECRET_ACCESS_KEY.*ROUTE53_HOSTED_ZONE_ID/,
+    );
+    expect(() => loadConfig({ UDDNS_PROVIDER: 'porkbun', UDDNS_HOST: 'home.example.com' })).toThrow(
+      /PORKBUN_API_KEY.*PORKBUN_SECRET_KEY/,
+    );
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'porkbun',
+        UDDNS_HOSTS: 'home',
+        PORKBUN_API_KEY: 'pk',
+        PORKBUN_SECRET_KEY: 'sk',
+      }),
+    ).toThrow(/PORKBUN_DOMAIN \(required when hosts are not FQDNs\)/);
+    expect(() => loadConfig({ UDDNS_PROVIDER: 'hetzner', UDDNS_HOST: 'home.example.com' })).toThrow(
+      /HETZNER_API_TOKEN/,
+    );
+    expect(() =>
+      loadConfig({ UDDNS_PROVIDER: 'digitalocean', UDDNS_HOST: 'home.example.com' }),
+    ).toThrow(/DIGITALOCEAN_API_TOKEN/);
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'digitalocean',
+        UDDNS_HOSTS: 'home',
+        DIGITALOCEAN_API_TOKEN: 'token',
+      }),
+    ).toThrow(/DIGITALOCEAN_DOMAIN \(required when hosts are not FQDNs\)/);
+  });
+
   it('rejects non-https DYNDNS_UPDATE_URL values', () => {
     const base = {
       UDDNS_PROVIDER: 'dyndns',

@@ -31,6 +31,27 @@ export function fetchInputUrl(input: FetchInput): string {
   return input instanceof URL ? input.href : input.url;
 }
 
+export type FetchRoute = {
+  match: (url: string, method: string) => boolean;
+  response: Response | ((url: string, init?: RequestInit) => Response);
+};
+
+/** Route fetch calls by URL/method; unexpected calls get a loud 500 body. */
+export function stubRoutedFetch(routes: FetchRoute[]) {
+  return stubFetch((input: FetchInput, init?: RequestInit) => {
+    const url = fetchInputUrl(input);
+    const method = (init?.method ?? 'GET').toUpperCase();
+    for (const route of routes) {
+      if (route.match(url, method)) {
+        return typeof route.response === 'function'
+          ? route.response(url, init)
+          : route.response.clone();
+      }
+    }
+    return textResponse(`unexpected ${method} ${url}`, 500);
+  });
+}
+
 function asUrl(input: unknown): URL {
   return new URL(String(input));
 }

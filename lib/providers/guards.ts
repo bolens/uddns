@@ -2,7 +2,7 @@
  * Shared provider update guards (required credentials / public IP).
  */
 
-import { fail } from '../result.js';
+import { fail, ok, skipped } from '../result.js';
 import type { JsonObject } from '../schemas/json.js';
 import type { PublicIP, UpdateResult } from '../schemas/provider.js';
 
@@ -27,4 +27,32 @@ export function requireIPv4(ip: PublicIP, details: JsonObject = {}): UpdateResul
     return null;
   }
   return fail('No public IPv4 available', { ...details, ip });
+}
+
+/**
+ * Merge per-record-type results (A/AAAA) into one provider result:
+ * any failure fails, all-skipped skips, otherwise ok.
+ */
+export function combineRecordResults(
+  results: UpdateResult[],
+  details: JsonObject = {},
+): UpdateResult {
+  const message = results.map((result) => result.message).join('; ');
+  const merged: JsonObject = {
+    ...details,
+    results: results.map((result) => ({
+      ok: result.ok,
+      skipped: result.skipped ?? false,
+      message: result.message,
+      details: result.details ?? null,
+    })),
+  };
+
+  if (results.some((result) => !result.ok)) {
+    return fail(message, merged);
+  }
+  if (results.every((result) => result.skipped)) {
+    return skipped(message, merged);
+  }
+  return ok(message, merged);
 }
