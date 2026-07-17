@@ -2,6 +2,9 @@
  * Low-level HTTP helpers shared by providers.
  */
 
+import { errorMessage, networkErrorFields } from '../errors.js';
+import { isSensitiveKey } from '../sensitive.js';
+
 export const userAgent = 'uDDNS/2.0.0';
 
 /** Default cap on any single provider/API request so a hung endpoint cannot stall a cycle. */
@@ -100,23 +103,12 @@ export async function request(
     };
   } catch (error) {
     const durationMs = Date.now() - started;
-    const reason = error instanceof Error ? error.message : String(error);
-    const network =
-      error && typeof error === 'object'
-        ? (error as {
-            code?: string | number;
-            errno?: string | number;
-            syscall?: string;
-            hostname?: string;
-          })
-        : {};
+    const reason = errorMessage(error);
+    const network = networkErrorFields(error);
 
     throw new HttpError(`HTTP ${method} ${safeUrl} failed after ${durationMs}ms: ${reason}`, {
       cause: error,
-      ...(network.code !== undefined ? { code: network.code } : {}),
-      ...(network.errno !== undefined ? { errno: network.errno } : {}),
-      ...(network.syscall !== undefined ? { syscall: network.syscall } : {}),
-      ...(network.hostname !== undefined ? { hostname: network.hostname } : {}),
+      ...network,
     });
   }
 }
@@ -134,7 +126,7 @@ export function sanitizeUrl(value: string | URL): string {
 
     const sensitiveKeys: string[] = [];
     for (const key of url.searchParams.keys()) {
-      if (/pass(word)?|token|secret|auth|key/i.test(key)) {
+      if (isSensitiveKey(key)) {
         sensitiveKeys.push(key);
       }
     }

@@ -1,4 +1,5 @@
 import type { JsonObject, JsonValue } from './schemas/json.js';
+import { isSensitiveKey } from './sensitive.js';
 
 const TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric',
@@ -16,8 +17,6 @@ const LEVELS = {
   info: 2,
   debug: 3,
 } as const;
-
-const REDACT_KEYS = /pass(word)?|token|secret|authorization|api[-_]?key|credential|private/i;
 
 const SYMBOLS = {
   error: '✖',
@@ -218,7 +217,7 @@ export function redact(value: unknown): unknown {
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value)) {
-      out[key] = REDACT_KEYS.test(key) ? '[redacted]' : redact(entry);
+      out[key] = isSensitiveKey(key) ? '[redacted]' : redact(entry);
     }
     return out;
   }

@@ -6,6 +6,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { hasErrorCode } from './errors.js';
 import { publicIpSchema, type ProviderId, type PublicIP } from './schemas/provider.js';
 
 export type HostState = Record<string, PublicIP>;
@@ -73,8 +74,4 @@ function isStateFile(value: unknown): value is StateFile {
   return Object.entries(candidate.hosts).every(
     ([host, ip]) => host.length > 0 && publicIpSchema.safeParse(ip).success,
   );
-}
-
-function hasErrorCode(error: unknown, code: string): boolean {
-  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === code);
 }

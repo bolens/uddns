@@ -11,6 +11,7 @@
 import dns from 'node:dns/promises';
 import { isIPv4, isIPv6 } from 'node:net';
 
+import { errorMessage } from './errors.js';
 import { formatError, type ErrorInfo } from './log.js';
 import type { PublicIP } from './schemas/provider.js';
 
@@ -158,8 +159,7 @@ async function lookupViaHttps(
       if (signal.aborted) {
         throw timeoutError();
       }
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${endpoint}: ${message}`);
+      errors.push(`${endpoint}: ${errorMessage(error)}`);
     }
   }
 

@@ -2,12 +2,12 @@
  * Orchestrates one IP check + DNS updates for one or more hosts.
  */
 
+import { errorMessage, getErrorProp } from './errors.js';
 import { configForHost } from './hosts.js';
 import { discoverPublicIP, formatPublicIP, ipChanged, type PublicIPDiscovery } from './ip.js';
 import { createLogger, formatError, type Logger } from './log.js';
-import { formatResultSummary } from './result.js';
 import { HttpError } from './providers/http.js';
-import { createFileStateStore, type HostState, type StateStore } from './state.js';
+import { formatResultSummary } from './result.js';
 import type {
   AppConfig,
   CheckResult,
@@ -16,6 +16,7 @@ import type {
   PublicIP,
   UpdateResult,
 } from './schemas/provider.js';
+import { createFileStateStore, type HostState, type StateStore } from './state.js';
 
 export type UpdaterOptions = {
   config: AppConfig;
@@ -214,7 +215,7 @@ export function createUpdater(options: UpdaterOptions) {
         }
       } catch (error) {
         const durationMs = Date.now() - hostStarted;
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         const result: UpdateResult = {
           ok: false,
           message,
@@ -331,11 +332,7 @@ export function createUpdater(options: UpdaterOptions) {
         if (!isRetryableError(error) || attempt >= attempts || stopping) {
           throw error;
         }
-        await waitBeforeRetry(
-          host,
-          attempt,
-          error instanceof Error ? error.message : String(error),
-        );
+        await waitBeforeRetry(host, attempt, errorMessage(error));
       }
     }
   }
@@ -362,16 +359,24 @@ export function createUpdater(options: UpdaterOptions) {
   };
 }
 
+export function isRetryableHttpStatus(status: unknown): boolean {
+  return typeof status === 'number' && (status === 429 || status >= 500);
+}
+
 function isRetryableError(error: unknown): boolean {
   if (error instanceof HttpError) {
     return true;
   }
-  const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
-  if (typeof status === 'number' && (status === 429 || status >= 500)) {
+  if (isRetryableHttpStatus(getErrorProp(error, 'status'))) {
     return true;
   }
-  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
-  return ['ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN', 'ENETUNREACH', 'ETIMEDOUT'].includes(code);
+  const code = getErrorProp<string | number>(error, 'code');
+  if (typeof code !== 'string' && typeof code !== 'number') {
+    return false;
+  }
+  return ['ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN', 'ENETUNREACH', 'ETIMEDOUT'].includes(
+    String(code),
+  );
 }
 
 function isRetryableResult(result: UpdateResult): boolean {
@@ -386,11 +391,7 @@ function containsRetryableStatus(value: unknown): boolean {
     return false;
   }
   for (const [key, nested] of Object.entries(value)) {
-    if (
-      (key === 'status' || key === 'httpStatus') &&
-      typeof nested === 'number' &&
-      (nested === 429 || nested >= 500)
-    ) {
+    if ((key === 'status' || key === 'httpStatus') && isRetryableHttpStatus(nested)) {
       return true;
     }
     if (containsRetryableStatus(nested)) {
