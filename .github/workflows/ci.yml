@@ -43,6 +43,9 @@ jobs:
               - 'vite.config.ts'
               - '.fallowrc.json'
               - '.npmrc'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'compose.yml'
             tests:
               - 'tests/**'
             docs:
@@ -85,7 +88,7 @@ jobs:
       matrix:
         group:
           - name: providers
-            paths: tests/providers tests/live
+            paths: tests/providers
           - name: config
             paths: tests/config.test.ts tests/hosts.test.ts
           - name: core
@@ -110,6 +113,8 @@ jobs:
 
       - name: Test (${{ matrix.group.name }})
         run: pnpm run test -- ${{ matrix.group.paths }} --reporter=blob --coverage
+        env:
+          VITEST_PARTIAL_COVERAGE: '1'
 
       - name: Upload blob report
         if: ${{ !cancelled() }}

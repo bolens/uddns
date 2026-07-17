@@ -17,7 +17,11 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      ...(process.env['RUN_LIVE_TESTS'] === '1' ? [] : ['tests/live/**']),
+    ],
     fileParallelism: true,
     coverage: {
       provider: 'v8',
@@ -25,6 +29,16 @@ export default defineConfig({
       exclude: ['**/*.test.ts', 'tests/**'],
       reporter: ['text', 'html', 'clover', 'json'],
       reportsDirectory: './coverage',
+      ...(process.env['VITEST_PARTIAL_COVERAGE'] === '1'
+        ? {}
+        : {
+            thresholds: {
+              statements: 95,
+              branches: 90,
+              functions: 95,
+              lines: 95,
+            },
+          }),
     },
   },
 });

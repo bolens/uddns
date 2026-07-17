@@ -16,12 +16,12 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shardTotal = Math.max(1, Number(process.env.TEST_SHARD_TOTAL) || Math.min(4, cpus().length));
 
-function run(args) {
+function run(args, env = process.env) {
   return new Promise((resolve, reject) => {
     const child = spawn('pnpm', ['run', 'test', '--', ...args], {
       cwd: root,
       stdio: 'inherit',
-      env: process.env,
+      env,
     });
     child.on('error', reject);
     child.on('exit', (code, signal) => {
@@ -40,14 +40,17 @@ const shardRuns = Array.from({ length: shardTotal }, (_, i) => {
   const shard = i + 1;
   // Unique reportsDirectory + clean=false avoids races when shards write coverage
   // concurrently; coverage data for the merge still lives in the blob reports.
-  return run([
-    `--shard=${shard}/${shardTotal}`,
-    '--reporter=blob',
-    '--coverage',
-    '--coverage.clean=false',
-    '--coverage.reporter=json',
-    `--coverage.reportsDirectory=./coverage/.shard-${shard}`,
-  ]).catch((err) => {
+  return run(
+    [
+      `--shard=${shard}/${shardTotal}`,
+      '--reporter=blob',
+      '--coverage',
+      '--coverage.clean=false',
+      '--coverage.reporter=json',
+      `--coverage.reportsDirectory=./coverage/.shard-${shard}`,
+    ],
+    { ...process.env, VITEST_PARTIAL_COVERAGE: '1' },
+  ).catch((err) => {
     err.message = `shard ${shard}/${shardTotal}: ${err.message}`;
     throw err;
   });
