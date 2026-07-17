@@ -4,6 +4,9 @@ Micro multi-provider Dynamic DNS updater. Defaults to **Cloudflare**, and also s
 
 Checks your public IP on an interval and updates DNS only when it changes. Recommended interval: `900000` (15 minutes).
 
+One process manages one provider/account. Run separate processes (with separate `.env` and
+state files) when you need to update multiple providers.
+
 ## Requirements
 
 - [Vite+](https://viteplus.dev/) (`vp`)
@@ -17,6 +20,10 @@ corepack enable
 vp install
 ```
 
+Or open the repo in a [Dev Container](https://containers.dev/) (VS Code "Reopen in
+Container" or `devcontainer up`): `.devcontainer/` provisions Node 24, pnpm, the Vite+
+toolchain, and Docker, then installs dependencies automatically.
+
 ## Run
 
 ```bash
@@ -25,6 +32,12 @@ vp run start
 ```
 
 `start` loads `.env` via Node's `--env-file-if-exists=.env` (no dotenv package).
+
+Configuration is validated before any network request. After building, validate and exit:
+
+```bash
+vp run config:check
+```
 
 ### Logging
 
@@ -37,7 +50,7 @@ Set `UDDNS_LOG_LEVEL` to `error`, `warn`, `info` (default), or `debug`.
 
 ### Public IP discovery
 
-Public addresses are discovered without a third-party IP package: HTTPS echo services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer, so it cannot be spoofed by an on-path attacker), with DNS fallbacks (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) for networks where the HTTPS services are unreachable.
+Public addresses are discovered without a third-party IP package: HTTPS echo services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer), with DNS fallbacks (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) for networks where the HTTPS services are unreachable. The plain-DNS fallback can be spoofed by an on-path attacker; restrict outbound DNS or disable it in a hardened deployment.
 
 ## Providers
 
@@ -51,7 +64,11 @@ Update several names on the same provider/account with one process:
 UDDNS_HOSTS=home.example.com,vpn.example.com,api.example.com
 ```
 
-`UDDNS_HOST` still works for a single name. Each host is updated independently; the remembered public IP only advances when **all** hosts succeed (so partial failures retry next cycle).
+`UDDNS_HOST` still works for a single name. Each host is checkpointed independently, so a
+partial failure retries only failed hosts rather than repeatedly updating successful ones.
+Checkpoints default to `.uddns-state.json`; set `UDDNS_STATE_FILE=` to keep state in memory only.
+Transient transport, HTTP 429, and HTTP 5xx failures retry three times with exponential,
+jittered backoff.
 
 ### Cloudflare (default)
 
@@ -134,12 +151,14 @@ UDDNS_HOSTS=myhost.example.com,other.example.com
 vp check              # format + type-aware lint + types
 vp fmt --write        # format in place
 vp lint               # oxlint
-vp test               # unit + live provider checks (Dyn test account) + docs contracts
+vp test               # deterministic unit + docs contract tests
+vp run test:live      # opt-in real HTTP check against Dyn's test account
 vp staged             # run checks on staged files
 vp config             # install Vite+ git hooks (skip with VITE_GIT_HOOKS=0)
 vp run docs:check     # focused documentation-drift check
 vp run lean:check     # Fallow dead-code/dependency check
 vp run build          # emit dist/
+vp run config:check   # validate .env after building, then exit
 vp run verify         # check + test + build + lean
 ```
 
@@ -175,7 +194,51 @@ tests/
   live/                # real HTTP against provider test endpoints (Dyn only today)
 ```
 
-Provider HTTP suites mock `fetch` by default. Dyn is the only bundled provider that publishes a public client-development test account ([test account docs](https://help.dyn.com/test-account.html)); `tests/live/dyndns.test.ts` hits that endpoint. Other providers have no DDNS sandbox, so they stay mocked.
+Provider HTTP suites mock `fetch` by default, so `vp test` and CI are deterministic. Dyn is the only bundled provider that publishes a public client-development test account ([test account docs](https://help.dyn.com/test-account.html)); run `vp run test:live` explicitly to execute `tests/live/dyndns.test.ts`. Other providers have no DDNS sandbox, so they stay mocked.
+
+## Run as a service
+
+Build first, then use a supervisor so fatal errors restart the daemon. The process handles
+`SIGINT`/`SIGTERM`, stops scheduling work, waits for the active update cycle, and exits.
+
+Example systemd unit:
+
+```ini
+[Unit]
+Description=uDDNS updater
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/uddns
+EnvironmentFile=/opt/uddns/.env
+ExecStart=/usr/bin/node /opt/uddns/dist/app.js
+Restart=on-failure
+User=uddns
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The included multi-stage `Dockerfile` builds the app and runs it as an unprivileged user:
+
+```bash
+docker build -t uddns .
+docker run -d --name uddns --restart unless-stopped \
+  --env-file .env \
+  -v uddns-state:/data \
+  uddns
+```
+
+### Compose (Docker / Podman)
+
+`compose.yml` builds the image, loads `.env`, and persists checkpoints in a named volume.
+Works with `docker compose` and `podman-compose`:
+
+```bash
+cp .env.example .env   # then edit .env
+docker compose up -d   # or: podman-compose up -d
+docker compose logs -f
+```
 
 ### Adding a provider
 

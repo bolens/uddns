@@ -1,0 +1,34 @@
+# uDDNS — Docker Compose / Podman Compose
+#
+#   docker compose up -d        (or: podman-compose up -d)
+#
+# Configuration comes from a local .env file (copy .env.example and fill it in).
+# Per-host checkpoints persist in the named volume so restarts don't re-push
+# unchanged records.
+services:
+  uddns:
+    build: .
+    image: uddns:latest
+    container_name: uddns
+    restart: unless-stopped
+    env_file:
+      - .env
+    # State lives on the volume; override the in-image default path to match.
+    environment:
+      UDDNS_STATE_FILE: /data/state.json
+    volumes:
+      - uddns-state:/data
+    # No inbound ports: uDDNS only makes outbound HTTPS/DNS requests.
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  uddns-state:

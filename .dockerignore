@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.git
+.github
+.devcontainer
+.env
+.uddns-state.json
+.vitest-reports
+compose.yml
+compose.override.yml
