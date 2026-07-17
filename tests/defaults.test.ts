@@ -4,6 +4,9 @@ import {
   DEFAULT_CLOUDFLARE_TTL,
   DEFAULT_DYNDNS_UPDATE_URL,
   DEFAULT_INTERVAL_MS,
+  DEFAULT_MCP_HOST,
+  DEFAULT_MCP_PORT,
+  DEFAULT_MCP_TRANSPORT,
   DEFAULT_NAMECHEAP_HOST,
   DEFAULT_PROVIDER,
   DEFAULT_STATE_FILE,
@@ -19,5 +22,8 @@ describe('runtime defaults', () => {
     expect(DEFAULT_DYNDNS_UPDATE_URL).toBe('https://members.dyndns.org/nic/update');
     expect(DEFAULT_CLOUDFLARE_TTL).toBe(1);
     expect(DEFAULT_NAMECHEAP_HOST).toBe('@');
+    expect(DEFAULT_MCP_TRANSPORT).toBe('stdio');
+    expect(DEFAULT_MCP_HOST).toBe('127.0.0.1');
+    expect(DEFAULT_MCP_PORT).toBe(3923);
   });
 });

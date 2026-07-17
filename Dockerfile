@@ -4,7 +4,7 @@ RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN VITE_GIT_HOOKS=0 pnpm install --frozen-lockfile
-COPY app.ts tsconfig.json tsconfig.build.json ./
+COPY app.ts mcp.ts package.json tsconfig.json tsconfig.build.json ./
 COPY lib ./lib
 RUN pnpm run build
 

@@ -5,13 +5,26 @@
       "name": "Debug DDNS updater",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/dist/app.js",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
       "preLaunchTask": "build",
       "sourceMaps": true,
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/dist/app.js"
+    },
+    {
+      "name": "Debug optional MCP HTTP server",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "build",
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/dist/mcp.js",
+      "args": ["--transport=http"]
     }
   ]
 }

@@ -23,5 +23,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["app.ts", "lib/**/*.ts", "tests/**/*.ts", "vite.config.ts"]
+  "include": ["app.ts", "mcp.ts", "lib/**/*.ts", "tests/**/*.ts", "vite.config.ts"]
 }

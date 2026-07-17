@@ -64,10 +64,26 @@ export function createUpdater(options: UpdaterOptions) {
   let hostState: HostState = {};
   let stateLoaded = false;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let intervalMs = config.interval;
   let cycle = 0;
   let inFlight = false;
   let inFlightPromise: Promise<CheckResult | null> | null = null;
   let stopping = false;
+
+  function scheduleTimer(): void {
+    if (timer != null) {
+      clearIntervalFn(timer);
+      timer = null;
+    }
+    if (stopping) {
+      return;
+    }
+    timer = setIntervalFn(() => {
+      checkOnceGuarded().catch((error: unknown) => {
+        log.error('Check cycle failed', formatError(error));
+      });
+    }, intervalMs);
+  }
 
   async function loadState(): Promise<void> {
     if (stateLoaded) {
@@ -256,10 +272,19 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   async function start() {
+    stopping = false;
+    if (timer != null) {
+      return {
+        async stop() {
+          await stop();
+        },
+      };
+    }
+
     await loadState();
     log.info(`Using provider: ${provider.label} (${provider.id})`, {
       logLevel: log.level,
-      intervalMs: config.interval,
+      intervalMs,
       hosts: config.hosts,
       cloudflare: {
         zoneId: config.cloudflare.zoneId,
@@ -271,16 +296,10 @@ export function createUpdater(options: UpdaterOptions) {
       },
     });
     log.info(`Hosts (${config.hosts.length}): ${config.hosts.join(', ')}`);
-    log.info(`Check interval: ${config.interval}ms (${formatInterval(config.interval)})`);
+    log.info(`Check interval: ${intervalMs}ms (${formatInterval(intervalMs)})`);
 
     await checkOnceGuarded();
-    if (!stopping) {
-      timer = setIntervalFn(() => {
-        checkOnceGuarded().catch((error: unknown) => {
-          log.error('Check cycle failed', formatError(error));
-        });
-      }, config.interval);
-    }
+    scheduleTimer();
 
     return {
       async stop() {
@@ -300,6 +319,29 @@ export function createUpdater(options: UpdaterOptions) {
       await inFlightPromise;
     }
     log.info('Updater stopped');
+  }
+
+  function setIntervalMs(ms: number): void {
+    if (!Number.isFinite(ms) || ms < 1_000) {
+      throw new Error('intervalMs must be a number of milliseconds >= 1000');
+    }
+    intervalMs = ms;
+    if (timer != null) {
+      scheduleTimer();
+      log.info(`Check interval updated: ${intervalMs}ms (${formatInterval(intervalMs)})`);
+    }
+  }
+
+  function getStatus() {
+    return {
+      running: timer != null,
+      stopping,
+      intervalMs,
+      currentIP: { ...currentIP },
+      cycle,
+      inFlight,
+      hosts: Object.fromEntries(Object.entries(hostState).map(([host, ip]) => [host, { ...ip }])),
+    };
   }
 
   function refreshCurrentIP(): void {
@@ -351,13 +393,19 @@ export function createUpdater(options: UpdaterOptions) {
 
   return {
     checkOnce,
+    checkOnceGuarded,
     start,
     stop,
+    setIntervalMs,
+    getStatus,
     getCurrentIP(): PublicIP {
       return { ...currentIP };
     },
   };
 }
+
+export type Updater = ReturnType<typeof createUpdater>;
+export type UpdaterStatus = ReturnType<Updater['getStatus']>;
 
 export function isRetryableHttpStatus(status: unknown): boolean {
   return typeof status === 'number' && (status === 429 || status >= 500);

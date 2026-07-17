@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/app.js",
+    "mcp": "node --env-file-if-exists=.env dist/mcp.js",
+    "mcp:http": "node --env-file-if-exists=.env dist/mcp.js --transport=http",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check": "vp check",
     "test": "vp test",
@@ -27,9 +29,12 @@
     "prepare": "vp config"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^5.2.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^24.13.3",
     "@vitest/coverage-v8": "^4.1.10",
     "fallow": "^3.6.0",

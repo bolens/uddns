@@ -10,3 +10,6 @@ export const DEFAULT_STATE_FILE = '.uddns-state.json';
 export const DEFAULT_DYNDNS_UPDATE_URL = 'https://members.dyndns.org/nic/update';
 export const DEFAULT_CLOUDFLARE_TTL = 1;
 export const DEFAULT_NAMECHEAP_HOST = '@';
+export const DEFAULT_MCP_TRANSPORT = 'stdio' as const;
+export const DEFAULT_MCP_HOST = '127.0.0.1';
+export const DEFAULT_MCP_PORT = 3923;
