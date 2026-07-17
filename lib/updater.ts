@@ -484,11 +484,11 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   function refreshCurrentIP(): void {
-    const committed = config.hosts
-      .filter((host) => !config.disabledHosts.includes(host))
-      .map((host) => hostState[host]);
+    const enabledHosts = config.hosts.filter((host) => !config.disabledHosts.includes(host));
+    const committed = enabledHosts.map((host) => hostState[host]);
     if (
-      committed.length === config.hosts.length &&
+      enabledHosts.length > 0 &&
+      committed.length === enabledHosts.length &&
       committed.every(
         (value) =>
           value !== undefined && value.v4 === committed[0]?.v4 && value.v6 === committed[0]?.v6,
@@ -531,7 +531,13 @@ export function createUpdater(options: UpdaterOptions) {
         if (!isRetryableError(error) || attempt >= attempts || stopping) {
           throw error;
         }
-        await waitBeforeRetry(host, attempt, errorMessage(error));
+        await waitBeforeRetry(
+          host,
+          attempt,
+          errorMessage(error),
+          findNumericField(error, 'retryAfterMs') ??
+            findNumericField(getErrorProp(error, 'details'), 'retryAfterMs'),
+        );
       }
     }
   }
@@ -546,7 +552,7 @@ export function createUpdater(options: UpdaterOptions) {
     const delayMs =
       retryAfterMs === null
         ? Math.max(0, Math.round(exponential * (0.8 + random() * 0.4)))
-        : Math.min(retryMaxDelayMs, Math.max(0, Math.round(retryAfterMs)));
+        : Math.max(0, Math.round(retryAfterMs));
     nextRetryAt = new Date(now() + delayMs).toISOString();
     log.warn(`Transient update failure for ${host}; retrying`, {
       attempt,

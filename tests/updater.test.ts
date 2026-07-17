@@ -436,6 +436,55 @@ describe('createUpdater', () => {
     expect(delays).toEqual([2500]);
   });
 
+  it('does not clamp server Retry-After to retryMaxDelayMs', async () => {
+    const delays: number[] = [];
+    const update = vi
+      .fn<Provider['update']>()
+      .mockResolvedValueOnce({
+        ok: false,
+        message: 'rate limited',
+        details: { httpStatus: 429, retryAfterMs: 60_000 },
+      })
+      .mockResolvedValue({ ok: true, message: 'ok' });
+
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async (delay) => {
+        delays.push(delay);
+      },
+      random: () => 0.5,
+      retryMaxDelayMs: 30_000,
+    });
+
+    await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
+    expect(delays).toEqual([60_000]);
+  });
+
+  it('refreshes currentIP from enabled-host checkpoints when some hosts are disabled', async () => {
+    const store = {
+      load: async () => ({
+        'home.example.com': { v4: '9.9.9.9' as string | null, v6: null as string | null },
+      }),
+      save: async () => {},
+    };
+    const updater = createUpdater({
+      config: makeConfig({
+        hosts: ['home.example.com', 'vpn.example.com'],
+        disabledHosts: ['vpn.example.com'],
+      }),
+      provider: mockProvider(async () => ({ ok: true, message: 'ok', skipped: true })),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      stateStore: store,
+    });
+
+    await updater.checkOnce();
+    expect(updater.getCurrentIP()).toEqual({ v4: '9.9.9.9', v6: null });
+  });
+
   it('does not retry non-retryable failed results or errors', async () => {
     const sleep = vi.fn(async () => {});
 

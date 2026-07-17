@@ -94,4 +94,66 @@ describe('once', () => {
     });
     expect(exit).toHaveBeenCalledWith(1);
   });
+
+  it('runs every account from resolveAccountsFn', async () => {
+    const checkOnce = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 'updated' as const,
+        ip: { v4: '1.1.1.1', v6: null },
+        message: 'a ok',
+      })
+      .mockResolvedValueOnce({
+        status: 'partial' as const,
+        ip: { v4: '1.1.1.1', v6: null },
+        message: 'b partial',
+      });
+    const exit = vi.fn();
+    const log = silentLog();
+    await runOnce({
+      log,
+      resolveAccountsFn: () => [
+        { id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) },
+        { id: 'b', config: makeConfig({ hosts: ['b.example.com'] }) },
+      ],
+      getProviderFn: () => mockProvider(),
+      createUpdaterFn: () => updaterWith(checkOnce),
+      exit,
+    });
+    expect(checkOnce).toHaveBeenCalledTimes(2);
+    expect(log.warn).toHaveBeenCalledWith('[b] b partial', expect.any(Object));
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('rejects empty account lists', async () => {
+    const exit = vi.fn();
+    await runOnce({
+      log: silentLog(),
+      resolveAccountsFn: () => [],
+      exit,
+    });
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('uses injected createUpdaterFn through the runtime bundle', async () => {
+    const createUpdaterFn = vi.fn(() =>
+      updaterWith(
+        vi.fn(async () => ({
+          status: 'unchanged' as const,
+          ip: { v4: '1.1.1.1', v6: null },
+          message: 'ok',
+        })),
+      ),
+    );
+    const exit = vi.fn();
+    await runOnce({
+      log: silentLog(),
+      loadConfigFn: () => makeConfig(),
+      getProviderFn: () => mockProvider(),
+      createUpdaterFn,
+      exit,
+    });
+    expect(createUpdaterFn).toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(0);
+  });
 });
