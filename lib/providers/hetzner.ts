@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
 import { combineRecordResults, requireFields } from './guards.js';
-import { request, type RequestMeta } from './http.js';
+import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 import { normalizeDnsName } from './domain-host.js';
 
 const API = 'https://dns.hetzner.com/api/v1';
@@ -316,8 +316,9 @@ async function hetznerJson(
     try {
       data = JSON.parse(body);
     } catch {
-      throw new Error(
+      throwWithHttpMeta(
         `Hetzner returned non-JSON (${response.status} ${response.statusText}) from ${meta.url}: ${meta.bodyPreview}`,
+        meta,
       );
     }
   }

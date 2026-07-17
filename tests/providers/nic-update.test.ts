@@ -33,6 +33,15 @@ describe('interpretNicUpdateBody', () => {
         details: expect.objectContaining({ hint: expect.stringMatching(hint) }),
       });
     }
+
+    expect(interpretNicUpdateBody('911', 200)).toMatchObject({
+      ok: false,
+      details: expect.objectContaining({ retryable: true, httpStatus: 503 }),
+    });
+    expect(interpretNicUpdateBody('dnserr', 200)).toMatchObject({
+      ok: false,
+      details: expect.objectContaining({ retryable: true, httpStatus: 503 }),
+    });
   });
 
   it('falls back to the HTTP status for empty bodies and fails without a hint', () => {

@@ -37,7 +37,7 @@ describe('duckdns provider', () => {
     expect(call.url.searchParams.get('verbose')).toBe('true');
   });
 
-  it('fails without contacting DuckDNS when no IPv4 is available', async () => {
+  it('updates with IPv6 only when no IPv4 is available', async () => {
     const fetchMock = stubFetch(async () => textResponse('OK'));
 
     await expect(
@@ -45,9 +45,24 @@ describe('duckdns provider', () => {
         v4: null,
         v6: '2001:db8::1',
       }),
+    ).resolves.toMatchObject({ ok: true });
+
+    const call = getCall(fetchMock);
+    expect(call.url.searchParams.get('ip')).toBeNull();
+    expect(call.url.searchParams.get('ipv6')).toBe('2001:db8::1');
+  });
+
+  it('fails without contacting DuckDNS when no public IP is available', async () => {
+    const fetchMock = stubFetch(async () => textResponse('OK'));
+
+    await expect(
+      duckdnsProvider.update(makeConfig({ duckdns: { domains: 'home', token: 'duck-token' } }), {
+        v4: null,
+        v6: null,
+      }),
     ).resolves.toMatchObject({
       ok: false,
-      message: 'No public IPv4 available',
+      message: 'No public IP available',
     });
 
     expect(fetchMock).not.toHaveBeenCalled();

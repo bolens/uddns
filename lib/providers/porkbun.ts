@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
 import { combineRecordResults, requireFields } from './guards.js';
-import { request, type RequestMeta } from './http.js';
+import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 
 const API = 'https://api.porkbun.com/api/json/v3';
 
@@ -239,8 +239,9 @@ async function porkbunJson(url: string, payload: Record<string, string>): Promis
   try {
     rawPayload = JSON.parse(body);
   } catch {
-    throw new Error(
+    throwWithHttpMeta(
       `Porkbun returned non-JSON (${response.status} ${response.statusText}) from ${meta.url}: ${meta.bodyPreview}`,
+      meta,
     );
   }
 

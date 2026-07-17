@@ -70,11 +70,13 @@ export function interpretNicUpdateBody(
   const code = text.split(/\s+/)[0]?.toLowerCase() ?? '';
   const hint = NIC_HINTS[code];
   const message = text || `HTTP ${status}`;
+  const providerOutage = code === '911' || code === 'dnserr';
   const enriched: JsonObject = {
     ...details,
-    httpStatus: status,
+    httpStatus: providerOutage && status < 500 ? 503 : status,
     response: text,
     ...(hint ? { hint } : {}),
+    ...(providerOutage ? { retryable: true } : {}),
   };
 
   if (/^nochg/i.test(text)) {

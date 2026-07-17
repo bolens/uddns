@@ -1,7 +1,7 @@
 import { stripDuckDnsSuffix } from '../hosts.js';
 import { fail, ok } from '../result.js';
 import type { Provider } from '../schemas/provider.js';
-import { requireFields, requireIPv4 } from './guards.js';
+import { requireFields } from './guards.js';
 import { getQuery, ipDetails } from './query.js';
 
 export const duckdnsProvider: Provider = {
@@ -23,15 +23,14 @@ export const duckdnsProvider: Provider = {
       return missing;
     }
 
-    const noIp = requireIPv4(ip, { domains });
-    if (noIp) {
-      return noIp;
+    if (!ip.v4 && !ip.v6) {
+      return fail('No public IP available', { domains, ip });
     }
 
     const { response, text, meta } = await getQuery('https://www.duckdns.org/update', {
       domains: stripDuckDnsSuffix(domains!),
       token: token!,
-      ip: ip.v4!,
+      ...(ip.v4 ? { ip: ip.v4 } : {}),
       ...(ip.v6 ? { ipv6: ip.v6 } : {}),
       verbose: 'true',
     });

@@ -8,7 +8,7 @@ import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
 import { normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
-import { request, type RequestMeta } from './http.js';
+import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 
 const API = 'https://api.digitalocean.com/v2';
 
@@ -240,8 +240,9 @@ async function digitaloceanJson(
     try {
       data = JSON.parse(body);
     } catch {
-      throw new Error(
+      throwWithHttpMeta(
         `DigitalOcean returned non-JSON (${response.status} ${response.statusText}) from ${meta.url}: ${meta.bodyPreview}`,
+        meta,
       );
     }
   }

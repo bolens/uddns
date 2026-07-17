@@ -15,7 +15,7 @@ import {
   type CloudflareError,
 } from '../schemas/cloudflare.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
-import { request, type RequestMeta } from './http.js';
+import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 
 const API = 'https://api.cloudflare.com/client/v4';
 
@@ -183,7 +183,12 @@ async function upsertRecord(options: UpsertOptions): Promise<UpdateResult> {
     options;
 
   const record = recordId
-    ? await getRecord(apiToken, zoneId, recordId)
+    ? await getRecord(apiToken, zoneId, recordId).then(async (pinned) => {
+        if (pinned && pinned.type && pinned.type !== type) {
+          return await findRecord(apiToken, zoneId, name, type);
+        }
+        return pinned;
+      })
     : await findRecord(apiToken, zoneId, name, type);
 
   const desiredTtl = Number.isFinite(ttl) && ttl > 0 ? ttl : 1;
@@ -332,8 +337,9 @@ async function cloudflareJson(
   try {
     rawPayload = JSON.parse(body);
   } catch {
-    throw new Error(
+    throwWithHttpMeta(
       `Cloudflare returned non-JSON (${response.status} ${response.statusText}) from ${meta.url}: ${meta.bodyPreview}`,
+      meta,
     );
   }
 

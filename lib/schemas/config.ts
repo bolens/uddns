@@ -361,11 +361,13 @@ export function loadConfig(
       ttl: Number(parsedEnv['LINODE_TTL'] ?? DEFAULT_DNS_TTL),
     },
     ovh: {
-      endpoint: (['eu', 'ca', 'us'] as const).includes(
-        (parsedEnv['OVH_ENDPOINT'] ?? 'eu').toLowerCase() as 'eu' | 'ca' | 'us',
-      )
-        ? ((parsedEnv['OVH_ENDPOINT'] ?? 'eu').toLowerCase() as 'eu' | 'ca' | 'us')
-        : 'eu',
+      endpoint: (() => {
+        const raw = (parsedEnv['OVH_ENDPOINT'] ?? 'eu').toLowerCase();
+        if (raw === 'eu' || raw === 'ca' || raw === 'us') {
+          return raw;
+        }
+        throw new Error('OVH_ENDPOINT must be one of: eu, ca, us');
+      })(),
       applicationKey: parsedEnv['OVH_APPLICATION_KEY'] ?? null,
       applicationSecret: parsedEnv['OVH_APPLICATION_SECRET'] ?? null,
       consumerKey: parsedEnv['OVH_CONSUMER_KEY'] ?? null,

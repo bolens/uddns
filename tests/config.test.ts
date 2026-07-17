@@ -368,9 +368,16 @@ describe('loadConfig', () => {
         BUNNY_API_KEY: 'key',
         BUNNY_ZONE_ID: '7',
         BUNNY_DOMAIN: 'example.com',
-        OVH_ENDPOINT: 'not-a-region',
       }).bunny,
     ).toMatchObject({ apiKey: 'key', zoneId: 7, domain: 'example.com' });
+
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'ovh',
+        UDDNS_HOST: 'home.example.com',
+        OVH_ENDPOINT: 'not-a-region',
+      }),
+    ).toThrow(/OVH_ENDPOINT/);
 
     expect(
       loadConfig({

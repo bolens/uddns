@@ -42,13 +42,13 @@ export const namecheapProvider: Provider = {
     const details = ipDetails(ip, meta, {
       host,
       domain,
-      fqdn: `${host}.${domain}`,
+      fqdn: host === '@' ? domain! : `${host}.${domain}`,
       errCount,
       errorText,
     });
 
     if (response.ok && errCount === '0') {
-      return ok(`Updated ${host}.${domain} -> ${ip.v4}`, details);
+      return ok(`Updated ${host === '@' ? domain : `${host}.${domain}`} -> ${ip.v4}`, details);
     }
 
     return fail(

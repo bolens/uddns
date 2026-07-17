@@ -129,6 +129,17 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
   return Number.isFinite(at) ? Math.max(0, at - now) : null;
 }
 
+/** Throw an Error that carries HTTP status / Retry-After for updater retries. */
+export function throwWithHttpMeta(message: string, meta: RequestMeta): never {
+  const error = new Error(message);
+  Object.assign(error, {
+    status: meta.status,
+    details: { http: meta },
+    ...(meta.retryAfterMs !== undefined ? { retryAfterMs: meta.retryAfterMs } : {}),
+  });
+  throw error;
+}
+
 /**
  * Strip credentials and sensitive query params before logging a URL.
  */
