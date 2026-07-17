@@ -35,6 +35,7 @@ jobs:
           filters: |
             code:
               - 'app.ts'
+              - 'mcp.ts'
               - 'lib/**'
               - 'tsconfig*.json'
               - 'package.json'
@@ -50,6 +51,7 @@ jobs:
               - 'tests/**'
             docs:
               - 'README.md'
+              - 'docs/**'
               - '.env.example'
             ci:
               - '.github/workflows/**'
@@ -90,9 +92,11 @@ jobs:
           - name: providers
             paths: tests/providers
           - name: config
-            paths: tests/config.test.ts tests/hosts.test.ts
+            paths: tests/config.test.ts tests/defaults.test.ts tests/hosts.test.ts
           - name: core
-            paths: tests/updater.test.ts tests/http.test.ts tests/ip.test.ts tests/log.test.ts tests/result.test.ts tests/app.test.ts tests/state.test.ts
+            paths: tests/app.test.ts tests/errors.test.ts tests/http.test.ts tests/ip.test.ts tests/log.test.ts tests/result.test.ts tests/sensitive.test.ts tests/state.test.ts tests/updater.test.ts
+          - name: mcp
+            paths: tests/mcp-entry.test.ts tests/mcp.test.ts
           - name: docs
             paths: tests/docs.test.ts
     steps:
