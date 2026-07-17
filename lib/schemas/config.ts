@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   DEFAULT_CLOUDFLARE_TTL,
+  DEFAULT_DNS_TTL,
   DEFAULT_DYNDNS_UPDATE_URL,
   DEFAULT_HISTORY_FILE,
   DEFAULT_INTERVAL_MS,
@@ -16,7 +17,7 @@ import {
   DEFAULT_ROUTE53_TTL,
   DEFAULT_STATE_FILE,
 } from '../defaults.js';
-import { resolveHosts } from '../hosts.js';
+import { parseHostList, resolveHosts } from '../hosts.js';
 import { parseIpFamily, parseIpMissing } from '../ip-policy.js';
 import { appConfigSchema, PROVIDER_IDS, providerIdSchema, type AppConfig } from './provider.js';
 
@@ -32,6 +33,7 @@ const envSchema = z
     UDDNS_HOST: optionalEnv,
     UDDNS_HOSTNAME: optionalEnv,
     UDDNS_HOSTS: optionalEnv,
+    UDDNS_DISABLED_HOSTS: optionalEnv,
     UDDNS_USER: optionalEnv,
     UDDNS_PASS: optionalEnv,
     UDDNS_TOKEN: optionalEnv,
@@ -41,8 +43,11 @@ const envSchema = z
     UDDNS_IP_HTTPS_V6: optionalEnv,
     UDDNS_IP_DNS_FALLBACK: optionalEnv,
     UDDNS_IP_TIMEOUT_MS: optionalEnv,
+    UDDNS_OTEL: optionalEnv,
     UDDNS_NOTIFY_WEBHOOK_URL: optionalEnv,
     UDDNS_NOTIFY_NTFY_URL: optionalEnv,
+    UDDNS_NOTIFY_SLACK_URL: optionalEnv,
+    UDDNS_NOTIFY_DISCORD_URL: optionalEnv,
     UDDNS_NOTIFY_ON: optionalEnv,
     UDDNS_HEALTH: optionalEnv,
     UDDNS_HEALTH_HOST: optionalEnv,
@@ -83,6 +88,29 @@ const envSchema = z
     HETZNER_ZONE_NAME: optionalEnv,
     DIGITALOCEAN_API_TOKEN: optionalEnv,
     DIGITALOCEAN_DOMAIN: optionalEnv,
+    GANDI_API_TOKEN: optionalEnv,
+    GANDI_DOMAIN: optionalEnv,
+    GANDI_TTL: optionalEnv,
+    LINODE_API_TOKEN: optionalEnv,
+    LINODE_DOMAIN_ID: optionalEnv,
+    LINODE_DOMAIN: optionalEnv,
+    LINODE_TTL: optionalEnv,
+    OVH_ENDPOINT: optionalEnv,
+    OVH_APPLICATION_KEY: optionalEnv,
+    OVH_APPLICATION_SECRET: optionalEnv,
+    OVH_CONSUMER_KEY: optionalEnv,
+    OVH_ZONE: optionalEnv,
+    OVH_TTL: optionalEnv,
+    BUNNY_API_KEY: optionalEnv,
+    BUNNY_ZONE_ID: optionalEnv,
+    BUNNY_DOMAIN: optionalEnv,
+    BUNNY_TTL: optionalEnv,
+    CONTABO_CLIENT_ID: optionalEnv,
+    CONTABO_CLIENT_SECRET: optionalEnv,
+    CONTABO_API_USER: optionalEnv,
+    CONTABO_API_PASSWORD: optionalEnv,
+    CONTABO_ZONE: optionalEnv,
+    CONTABO_TTL: optionalEnv,
   })
   .passthrough();
 
@@ -96,6 +124,11 @@ const MANAGED_ENV_PREFIXES = [
   'PORKBUN_',
   'HETZNER_',
   'DIGITALOCEAN_',
+  'GANDI_',
+  'LINODE_',
+  'OVH_',
+  'BUNNY_',
+  'CONTABO_',
 ];
 const KNOWN_ENV_KEYS = new Set(Object.keys(envSchema.shape));
 
@@ -175,6 +208,16 @@ export function loadConfig(
   }
 
   const firstHost = hosts[0] ?? null;
+  const disabledHosts = parseHostList(parsedEnv['UDDNS_DISABLED_HOSTS']);
+  const unknownDisabledHosts = disabledHosts.filter((host) => !hosts.includes(host));
+  if (unknownDisabledHosts.length > 0) {
+    throw new Error(
+      `UDDNS_DISABLED_HOSTS contains unknown configured host(s): ${unknownDisabledHosts.join(', ')}`,
+    );
+  }
+  if (disabledHosts.length === hosts.length) {
+    throw new Error('UDDNS_DISABLED_HOSTS cannot disable every configured host');
+  }
 
   const dyndnsUpdateUrl = parsedEnv['DYNDNS_UPDATE_URL'] ?? DEFAULT_DYNDNS_UPDATE_URL;
   if (!isHttpsUrl(dyndnsUpdateUrl)) {
@@ -205,6 +248,14 @@ export function loadConfig(
   if (ntfyUrl && !isHttpsUrl(ntfyUrl)) {
     throw new Error('UDDNS_NOTIFY_NTFY_URL must be a valid https:// URL');
   }
+  const slackUrl = parsedEnv['UDDNS_NOTIFY_SLACK_URL']?.trim() || null;
+  if (slackUrl && !isHttpsUrl(slackUrl)) {
+    throw new Error('UDDNS_NOTIFY_SLACK_URL must be a valid https:// URL');
+  }
+  const discordUrl = parsedEnv['UDDNS_NOTIFY_DISCORD_URL']?.trim() || null;
+  if (discordUrl && !isHttpsUrl(discordUrl)) {
+    throw new Error('UDDNS_NOTIFY_DISCORD_URL must be a valid https:// URL');
+  }
 
   const config = {
     provider: providerResult.data,
@@ -218,6 +269,7 @@ export function loadConfig(
         ? null
         : (parsedEnv['UDDNS_HISTORY_FILE'] ?? DEFAULT_HISTORY_FILE),
     hosts,
+    disabledHosts,
     hostname: firstHost,
     user: parsedEnv['UDDNS_USER'] ?? null,
     password: parsedEnv['UDDNS_PASS'] ?? null,
@@ -236,8 +288,11 @@ export function loadConfig(
       DEFAULT_IP_DNS_FALLBACK,
     ),
     ipTimeoutMs,
+    telemetryEnabled: parseBoolean('UDDNS_OTEL', parsedEnv['UDDNS_OTEL'], false),
     notifyWebhookUrl: webhookUrl,
     notifyNtfyUrl: ntfyUrl,
+    notifySlackUrl: slackUrl,
+    notifyDiscordUrl: discordUrl,
     notifyOn: notifyOn as Array<'change' | 'error'>,
     cloudflare: {
       apiToken: parsedEnv['CLOUDFLARE_API_TOKEN'] ?? parsedEnv['UDDNS_TOKEN'] ?? null,
@@ -294,6 +349,43 @@ export function loadConfig(
       apiToken: parsedEnv['DIGITALOCEAN_API_TOKEN'] ?? null,
       domain: parsedEnv['DIGITALOCEAN_DOMAIN'] ?? null,
     },
+    gandi: {
+      apiToken: parsedEnv['GANDI_API_TOKEN'] ?? null,
+      domain: parsedEnv['GANDI_DOMAIN'] ?? null,
+      ttl: Number(parsedEnv['GANDI_TTL'] ?? DEFAULT_DNS_TTL),
+    },
+    linode: {
+      apiToken: parsedEnv['LINODE_API_TOKEN'] ?? null,
+      domainId: parsedEnv['LINODE_DOMAIN_ID'] ? Number(parsedEnv['LINODE_DOMAIN_ID']) : null,
+      domain: parsedEnv['LINODE_DOMAIN'] ?? null,
+      ttl: Number(parsedEnv['LINODE_TTL'] ?? DEFAULT_DNS_TTL),
+    },
+    ovh: {
+      endpoint: (['eu', 'ca', 'us'] as const).includes(
+        (parsedEnv['OVH_ENDPOINT'] ?? 'eu').toLowerCase() as 'eu' | 'ca' | 'us',
+      )
+        ? ((parsedEnv['OVH_ENDPOINT'] ?? 'eu').toLowerCase() as 'eu' | 'ca' | 'us')
+        : 'eu',
+      applicationKey: parsedEnv['OVH_APPLICATION_KEY'] ?? null,
+      applicationSecret: parsedEnv['OVH_APPLICATION_SECRET'] ?? null,
+      consumerKey: parsedEnv['OVH_CONSUMER_KEY'] ?? null,
+      zone: parsedEnv['OVH_ZONE'] ?? null,
+      ttl: Number(parsedEnv['OVH_TTL'] ?? DEFAULT_DNS_TTL),
+    },
+    bunny: {
+      apiKey: parsedEnv['BUNNY_API_KEY'] ?? null,
+      zoneId: parsedEnv['BUNNY_ZONE_ID'] ? Number(parsedEnv['BUNNY_ZONE_ID']) : null,
+      domain: parsedEnv['BUNNY_DOMAIN'] ?? null,
+      ttl: Number(parsedEnv['BUNNY_TTL'] ?? DEFAULT_DNS_TTL),
+    },
+    contabo: {
+      clientId: parsedEnv['CONTABO_CLIENT_ID'] ?? null,
+      clientSecret: parsedEnv['CONTABO_CLIENT_SECRET'] ?? null,
+      apiUser: parsedEnv['CONTABO_API_USER'] ?? null,
+      apiPassword: parsedEnv['CONTABO_API_PASSWORD'] ?? null,
+      zone: parsedEnv['CONTABO_ZONE'] ?? null,
+      ttl: Number(parsedEnv['CONTABO_TTL'] ?? DEFAULT_DNS_TTL),
+    },
   };
 
   const parsedConfig = appConfigSchema.parse(config);
@@ -329,7 +421,13 @@ function isValidHostname(value: string): boolean {
     );
 }
 
-export function validateProviderConfig(config: AppConfig): void {
+export type ConfigIssue = {
+  field: string;
+  message: string;
+  suggestion: string;
+};
+
+export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
   const missing: string[] = [];
 
   switch (config.provider) {
@@ -375,10 +473,50 @@ export function validateProviderConfig(config: AppConfig): void {
         missing.push('DIGITALOCEAN_DOMAIN (required when hosts are not FQDNs)');
       }
       break;
+    case 'gandi':
+      if (!config.gandi.apiToken) missing.push('GANDI_API_TOKEN');
+      if (!config.gandi.domain) missing.push('GANDI_DOMAIN');
+      break;
+    case 'linode':
+      if (!config.linode.apiToken) missing.push('LINODE_API_TOKEN');
+      if (!config.linode.domainId) missing.push('LINODE_DOMAIN_ID');
+      if (!config.linode.domain) missing.push('LINODE_DOMAIN');
+      break;
+    case 'ovh':
+      if (!config.ovh.applicationKey) missing.push('OVH_APPLICATION_KEY');
+      if (!config.ovh.applicationSecret) missing.push('OVH_APPLICATION_SECRET');
+      if (!config.ovh.consumerKey) missing.push('OVH_CONSUMER_KEY');
+      if (!config.ovh.zone) missing.push('OVH_ZONE');
+      break;
+    case 'bunny':
+      if (!config.bunny.apiKey) missing.push('BUNNY_API_KEY');
+      if (!config.bunny.zoneId) missing.push('BUNNY_ZONE_ID');
+      if (!config.bunny.domain) missing.push('BUNNY_DOMAIN');
+      break;
+    case 'contabo':
+      if (!config.contabo.clientId) missing.push('CONTABO_CLIENT_ID');
+      if (!config.contabo.clientSecret) missing.push('CONTABO_CLIENT_SECRET');
+      if (!config.contabo.apiUser) missing.push('CONTABO_API_USER');
+      if (!config.contabo.apiPassword) missing.push('CONTABO_API_PASSWORD');
+      if (!config.contabo.zone) missing.push('CONTABO_ZONE');
+      break;
   }
 
-  if (missing.length > 0) {
-    throw new Error(`Invalid ${config.provider} configuration; missing: ${missing.join(', ')}`);
+  return missing.map((field) => ({
+    field,
+    message: `Missing required configuration: ${field}`,
+    suggestion: `Set ${field} for the ${config.provider} provider`,
+  }));
+}
+
+export function validateProviderConfig(config: AppConfig): void {
+  const issues = getProviderConfigIssues(config);
+  if (issues.length > 0) {
+    throw new Error(
+      `Invalid ${config.provider} configuration; missing: ${issues
+        .map((issue) => issue.field)
+        .join(', ')}`,
+    );
   }
 }
 

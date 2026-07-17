@@ -5,7 +5,7 @@ describes host behavior and the provider-specific values needed to get started.
 
 Set `UDDNS_PROVIDER` to one of: `cloudflare` (default), `duckdns`, `noip`,
 `dynu`, `namecheap`, `dyndns`, `route53`, `porkbun`, `hetzner`,
-`digitalocean`.
+`digitalocean`, `gandi`, `linode`, `ovh`, `bunny`, `contabo`.
 
 ## Multiple hosts and checkpoints
 
@@ -13,14 +13,18 @@ Update several names on one provider/account:
 
 ```env
 UDDNS_HOSTS=home.example.com,vpn.example.com,api.example.com
+# Pause a host without removing it:
+# UDDNS_DISABLED_HOSTS=vpn.example.com
 ```
 
 `UDDNS_HOST` remains available for one host. Each host is checkpointed
 independently, so a partial failure retries only failed hosts. Checkpoints
 default to `.uddns-state.json`; set `UDDNS_STATE_FILE=` to keep state in memory.
+Disabled hosts are skipped and cannot be force-updated.
 
 Transient transport errors, HTTP 429, and HTTP 5xx responses retry three times
-with exponential, jittered backoff.
+with exponential, jittered backoff. When a provider response includes
+`Retry-After`, that delay is honored (capped by the max retry delay).
 
 ## Cloudflare
 
@@ -164,3 +168,72 @@ UDDNS_HOSTS=home.example.com,vpn.example.com
 
 Without `DIGITALOCEAN_DOMAIN` the registered domain is assumed to be the last
 two labels of each host.
+
+## Gandi LiveDNS
+
+Use a Personal Access Token with domain technical-configuration rights.
+
+```env
+UDDNS_PROVIDER=gandi
+GANDI_API_TOKEN=your_pat
+GANDI_DOMAIN=example.com
+UDDNS_HOSTS=home.example.com,vpn.example.com
+# Optional: GANDI_TTL=300
+```
+
+## Akamai Connected Cloud (Linode DNS)
+
+Create a personal access token with Domains read/write scope.
+
+```env
+UDDNS_PROVIDER=linode
+LINODE_API_TOKEN=your_token
+LINODE_DOMAIN_ID=12345
+LINODE_DOMAIN=example.com
+UDDNS_HOSTS=home.example.com,vpn.example.com
+# Optional: LINODE_TTL=300
+```
+
+## OVHcloud
+
+Create an application key, secret, and consumer key with DNS zone record
+CRUD plus refresh rights. Endpoint is one of `eu`, `ca`, or `us`.
+
+```env
+UDDNS_PROVIDER=ovh
+OVH_ENDPOINT=eu
+OVH_APPLICATION_KEY=...
+OVH_APPLICATION_SECRET=...
+OVH_CONSUMER_KEY=...
+OVH_ZONE=example.com
+UDDNS_HOSTS=home.example.com,vpn.example.com
+# Optional: OVH_TTL=300
+```
+
+## bunny.net DNS
+
+Use the account API key from the bunny.net dashboard.
+
+```env
+UDDNS_PROVIDER=bunny
+BUNNY_API_KEY=your_access_key
+BUNNY_ZONE_ID=12345
+BUNNY_DOMAIN=example.com
+UDDNS_HOSTS=home.example.com,vpn.example.com
+# Optional: BUNNY_TTL=300
+```
+
+## Contabo DNS
+
+Create OAuth client credentials and an API user in the Contabo control panel.
+
+```env
+UDDNS_PROVIDER=contabo
+CONTABO_CLIENT_ID=...
+CONTABO_CLIENT_SECRET=...
+CONTABO_API_USER=you@example.com
+CONTABO_API_PASSWORD=...
+CONTABO_ZONE=example.com
+UDDNS_HOSTS=home.example.com,vpn.example.com
+# Optional: CONTABO_TTL=300
+```

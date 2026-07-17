@@ -50,12 +50,28 @@ function accountToEnv(
     'UDDNS_HOSTS',
     Array.isArray(account['hosts']) ? account['hosts'].join(',') : account['hosts'],
   );
+  const disabledHosts = account['disabledHosts'] ?? account['disabled_hosts'];
+  set(
+    'UDDNS_DISABLED_HOSTS',
+    Array.isArray(disabledHosts) ? disabledHosts.join(',') : disabledHosts,
+  );
   set('UDDNS_HOST', account['host'] ?? account['hostname']);
   set('UDDNS_USER', account['user']);
   set('UDDNS_PASS', account['password'] ?? account['pass']);
   set('UDDNS_TOKEN', account['token']);
   set('UDDNS_IP_FAMILY', account['ipFamily'] ?? account['ip_family']);
   set('UDDNS_IP_MISSING', account['ipMissing'] ?? account['ip_missing']);
+  set('UDDNS_OTEL', account['telemetryEnabled'] ?? account['telemetry_enabled']);
+
+  const notify = account['notify'];
+  if (notify && typeof notify === 'object') {
+    const value = notify as Record<string, unknown>;
+    set('UDDNS_NOTIFY_WEBHOOK_URL', value['webhookUrl'] ?? value['webhook_url']);
+    set('UDDNS_NOTIFY_NTFY_URL', value['ntfyUrl'] ?? value['ntfy_url']);
+    set('UDDNS_NOTIFY_SLACK_URL', value['slackUrl'] ?? value['slack_url']);
+    set('UDDNS_NOTIFY_DISCORD_URL', value['discordUrl'] ?? value['discord_url']);
+    set('UDDNS_NOTIFY_ON', Array.isArray(value['on']) ? value['on'].join(',') : value['on']);
+  }
 
   const cloudflare = account['cloudflare'];
   if (cloudflare && typeof cloudflare === 'object') {
@@ -123,6 +139,50 @@ function accountToEnv(
     const dig = digitalocean as Record<string, unknown>;
     set('DIGITALOCEAN_API_TOKEN', dig['apiToken'] ?? dig['api_token']);
     set('DIGITALOCEAN_DOMAIN', dig['domain']);
+  }
+
+  for (const [name, mappings] of Object.entries({
+    gandi: {
+      GANDI_API_TOKEN: 'apiToken',
+      GANDI_DOMAIN: 'domain',
+      GANDI_TTL: 'ttl',
+    },
+    linode: {
+      LINODE_API_TOKEN: 'apiToken',
+      LINODE_DOMAIN_ID: 'domainId',
+      LINODE_DOMAIN: 'domain',
+      LINODE_TTL: 'ttl',
+    },
+    ovh: {
+      OVH_ENDPOINT: 'endpoint',
+      OVH_APPLICATION_KEY: 'applicationKey',
+      OVH_APPLICATION_SECRET: 'applicationSecret',
+      OVH_CONSUMER_KEY: 'consumerKey',
+      OVH_ZONE: 'zone',
+      OVH_TTL: 'ttl',
+    },
+    bunny: {
+      BUNNY_API_KEY: 'apiKey',
+      BUNNY_ZONE_ID: 'zoneId',
+      BUNNY_DOMAIN: 'domain',
+      BUNNY_TTL: 'ttl',
+    },
+    contabo: {
+      CONTABO_CLIENT_ID: 'clientId',
+      CONTABO_CLIENT_SECRET: 'clientSecret',
+      CONTABO_API_USER: 'apiUser',
+      CONTABO_API_PASSWORD: 'apiPassword',
+      CONTABO_ZONE: 'zone',
+      CONTABO_TTL: 'ttl',
+    },
+  })) {
+    const section = account[name];
+    if (!section || typeof section !== 'object') continue;
+    const values = section as Record<string, unknown>;
+    for (const [envKey, property] of Object.entries(mappings)) {
+      const snake = property.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+      set(envKey, values[property] ?? values[snake]);
+    }
   }
 
   // Per-account state/history defaults derived from id when unset.

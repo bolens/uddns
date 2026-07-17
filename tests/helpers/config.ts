@@ -1,5 +1,6 @@
 import {
   DEFAULT_CLOUDFLARE_TTL,
+  DEFAULT_DNS_TTL,
   DEFAULT_DYNDNS_UPDATE_URL,
   DEFAULT_INTERVAL_MS,
   DEFAULT_IP_DNS_FALLBACK,
@@ -16,11 +17,16 @@ import type {
   AppConfig,
   CloudflareConfig,
   DigitalOceanConfig,
+  BunnyConfig,
+  ContaboConfig,
   DuckDnsConfig,
   DynDnsConfig,
   HetznerConfig,
+  GandiConfig,
+  LinodeConfig,
   NamecheapConfig,
   PorkbunConfig,
+  OvhConfig,
   Route53Config,
 } from '../../lib/schemas/provider.js';
 
@@ -35,6 +41,11 @@ export type MakeConfigOverrides = Partial<
     | 'porkbun'
     | 'hetzner'
     | 'digitalocean'
+    | 'gandi'
+    | 'linode'
+    | 'ovh'
+    | 'bunny'
+    | 'contabo'
   >
 > & {
   cloudflare?: Partial<CloudflareConfig>;
@@ -45,6 +56,11 @@ export type MakeConfigOverrides = Partial<
   porkbun?: Partial<PorkbunConfig>;
   hetzner?: Partial<HetznerConfig>;
   digitalocean?: Partial<DigitalOceanConfig>;
+  gandi?: Partial<GandiConfig>;
+  linode?: Partial<LinodeConfig>;
+  ovh?: Partial<OvhConfig>;
+  bunny?: Partial<BunnyConfig>;
+  contabo?: Partial<ContaboConfig>;
 };
 
 /**
@@ -60,6 +76,11 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
     porkbun: porkbunOverrides,
     hetzner: hetznerOverrides,
     digitalocean: digitaloceanOverrides,
+    gandi: gandiOverrides,
+    linode: linodeOverrides,
+    ovh: ovhOverrides,
+    bunny: bunnyOverrides,
+    contabo: contaboOverrides,
     hosts: hostsOverride,
     hostname: hostnameOverride,
     ...rest
@@ -82,9 +103,13 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
     ipHttpsV6: null,
     ipDnsFallback: DEFAULT_IP_DNS_FALLBACK,
     ipTimeoutMs: DEFAULT_IP_TIMEOUT_MS,
+    telemetryEnabled: false,
     notifyWebhookUrl: null,
     notifyNtfyUrl: null,
+    notifySlackUrl: null,
+    notifyDiscordUrl: null,
     notifyOn: [...DEFAULT_NOTIFY_ON],
+    disabledHosts: [],
     ...rest,
     hosts,
     hostname,
@@ -142,6 +167,44 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
       apiToken: null,
       domain: null,
       ...digitaloceanOverrides,
+    },
+    gandi: {
+      apiToken: null,
+      domain: null,
+      ttl: DEFAULT_DNS_TTL,
+      ...gandiOverrides,
+    },
+    linode: {
+      apiToken: null,
+      domainId: null,
+      domain: null,
+      ttl: DEFAULT_DNS_TTL,
+      ...linodeOverrides,
+    },
+    ovh: {
+      endpoint: 'eu',
+      applicationKey: null,
+      applicationSecret: null,
+      consumerKey: null,
+      zone: null,
+      ttl: DEFAULT_DNS_TTL,
+      ...ovhOverrides,
+    },
+    bunny: {
+      apiKey: null,
+      zoneId: null,
+      domain: null,
+      ttl: DEFAULT_DNS_TTL,
+      ...bunnyOverrides,
+    },
+    contabo: {
+      clientId: null,
+      clientSecret: null,
+      apiUser: null,
+      apiPassword: null,
+      zone: null,
+      ttl: DEFAULT_DNS_TTL,
+      ...contaboOverrides,
     },
   };
 }

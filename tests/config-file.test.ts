@@ -58,6 +58,46 @@ accounts:
     digitalocean:
       api_token: token
       domain: example.com
+  - id: gandi
+    provider: gandi
+    hosts: [home.example.com, vpn.example.com]
+    disabled_hosts: [vpn.example.com]
+    gandi:
+      api_token: token
+      domain: example.com
+      ttl: 300
+  - id: linode
+    provider: linode
+    hosts: [home.example.com]
+    linode:
+      api_token: token
+      domain_id: 42
+      domain: example.com
+  - id: ovh
+    provider: ovh
+    hosts: [home.example.com]
+    ovh:
+      endpoint: eu
+      application_key: ak
+      application_secret: as
+      consumer_key: ck
+      zone: example.com
+  - id: bunny
+    provider: bunny
+    hosts: [home.example.com]
+    bunny:
+      api_key: key
+      zone_id: 7
+      domain: example.com
+  - id: contabo
+    provider: contabo
+    hosts: [home.example.com]
+    contabo:
+      client_id: cid
+      client_secret: csec
+      api_user: user
+      api_password: pass
+      zone: example.com
   - id: nc
     provider: namecheap
     hosts: [home]
@@ -76,7 +116,7 @@ accounts:
     );
 
     const accounts = await loadAccountsFromFile(file, {});
-    expect(accounts).toHaveLength(8);
+    expect(accounts).toHaveLength(13);
     expect(accounts.map((account) => account.config.provider)).toEqual([
       'cloudflare',
       'duckdns',
@@ -84,10 +124,18 @@ accounts:
       'porkbun',
       'hetzner',
       'digitalocean',
+      'gandi',
+      'linode',
+      'ovh',
+      'bunny',
+      'contabo',
       'namecheap',
       'dyndns',
     ]);
     expect(accounts[0]?.config.stateFile).toContain('uddns-state-cf');
+    expect(accounts.find((account) => account.id === 'gandi')?.config.disabledHosts).toEqual([
+      'vpn.example.com',
+    ]);
   });
 
   it('resolveAccounts falls back to single-env config', () => {

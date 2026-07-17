@@ -10,16 +10,21 @@ describe('provider registry', () => {
 
     expect(ids.sort()).toEqual(
       [
+        'bunny',
         'cloudflare',
+        'contabo',
+        'digitalocean',
         'duckdns',
-        'dynu',
         'dyndns',
+        'dynu',
+        'gandi',
+        'hetzner',
+        'linode',
         'namecheap',
         'noip',
-        'route53',
+        'ovh',
         'porkbun',
-        'hetzner',
-        'digitalocean',
+        'route53',
       ].sort(),
     );
     expect(providers).toHaveLength(ids.length);
@@ -52,6 +57,23 @@ describe('provider registry', () => {
         PORKBUN_SECRET_KEY: 'sk',
         HETZNER_API_TOKEN: 'token',
         DIGITALOCEAN_API_TOKEN: 'token',
+        GANDI_API_TOKEN: 'token',
+        GANDI_DOMAIN: 'example.com',
+        LINODE_API_TOKEN: 'token',
+        LINODE_DOMAIN_ID: '42',
+        LINODE_DOMAIN: 'example.com',
+        OVH_APPLICATION_KEY: 'ak',
+        OVH_APPLICATION_SECRET: 'as',
+        OVH_CONSUMER_KEY: 'ck',
+        OVH_ZONE: 'example.com',
+        BUNNY_API_KEY: 'key',
+        BUNNY_ZONE_ID: '7',
+        BUNNY_DOMAIN: 'example.com',
+        CONTABO_CLIENT_ID: 'cid',
+        CONTABO_CLIENT_SECRET: 'csecret',
+        CONTABO_API_USER: 'user',
+        CONTABO_API_PASSWORD: 'pass',
+        CONTABO_ZONE: 'example.com',
       });
       expect(config.provider).toBe(id);
       expect(getProvider(config.provider).id).toBe(id);

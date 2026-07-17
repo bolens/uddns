@@ -14,6 +14,11 @@ export const PROVIDER_IDS = [
   'porkbun',
   'hetzner',
   'digitalocean',
+  'gandi',
+  'linode',
+  'ovh',
+  'bunny',
+  'contabo',
 ] as const;
 
 export const providerIdSchema = z.enum(PROVIDER_IDS);
@@ -119,6 +124,46 @@ const digitalOceanConfigSchema = z.object({
 });
 export type DigitalOceanConfig = z.infer<typeof digitalOceanConfigSchema>;
 
+const simpleDomainConfigSchema = z.object({
+  apiToken: z.string().nullable(),
+  domain: z.string().nullable(),
+  ttl: z.number().int().min(0),
+});
+export type GandiConfig = z.infer<typeof simpleDomainConfigSchema>;
+
+const linodeConfigSchema = simpleDomainConfigSchema.extend({
+  domainId: z.number().int().positive().nullable(),
+});
+export type LinodeConfig = z.infer<typeof linodeConfigSchema>;
+
+const ovhConfigSchema = z.object({
+  endpoint: z.enum(['eu', 'ca', 'us']),
+  applicationKey: z.string().nullable(),
+  applicationSecret: z.string().nullable(),
+  consumerKey: z.string().nullable(),
+  zone: z.string().nullable(),
+  ttl: z.number().int().min(0),
+});
+export type OvhConfig = z.infer<typeof ovhConfigSchema>;
+
+const bunnyConfigSchema = z.object({
+  apiKey: z.string().nullable(),
+  zoneId: z.number().int().positive().nullable(),
+  domain: z.string().nullable(),
+  ttl: z.number().int().min(0),
+});
+export type BunnyConfig = z.infer<typeof bunnyConfigSchema>;
+
+const contaboConfigSchema = z.object({
+  clientId: z.string().nullable(),
+  clientSecret: z.string().nullable(),
+  apiUser: z.string().nullable(),
+  apiPassword: z.string().nullable(),
+  zone: z.string().nullable(),
+  ttl: z.number().int().min(0),
+});
+export type ContaboConfig = z.infer<typeof contaboConfigSchema>;
+
 const notifyOnSchema = z.enum(['change', 'error']);
 
 export const appConfigSchema = z.object({
@@ -127,6 +172,7 @@ export const appConfigSchema = z.object({
   stateFile: z.string().min(1).nullable(),
   historyFile: z.string().min(1).nullable(),
   hosts: z.array(z.string()).min(1),
+  disabledHosts: z.array(z.string()),
   hostname: z.string().nullable(),
   user: z.string().nullable(),
   password: z.string().nullable(),
@@ -137,8 +183,11 @@ export const appConfigSchema = z.object({
   ipHttpsV6: z.array(z.string().url()).nullable(),
   ipDnsFallback: z.boolean(),
   ipTimeoutMs: z.number().int().min(100).max(120_000),
+  telemetryEnabled: z.boolean(),
   notifyWebhookUrl: z.string().nullable(),
   notifyNtfyUrl: z.string().nullable(),
+  notifySlackUrl: z.string().nullable(),
+  notifyDiscordUrl: z.string().nullable(),
   notifyOn: z.array(notifyOnSchema).min(1),
   cloudflare: cloudflareConfigSchema,
   duckdns: duckDnsConfigSchema,
@@ -148,6 +197,11 @@ export const appConfigSchema = z.object({
   porkbun: porkbunConfigSchema,
   hetzner: hetznerConfigSchema,
   digitalocean: digitalOceanConfigSchema,
+  gandi: simpleDomainConfigSchema,
+  linode: linodeConfigSchema,
+  ovh: ovhConfigSchema,
+  bunny: bunnyConfigSchema,
+  contabo: contaboConfigSchema,
 });
 export type AppConfig = z.infer<typeof appConfigSchema>;
 

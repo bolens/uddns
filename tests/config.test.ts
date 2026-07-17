@@ -287,6 +287,126 @@ describe('loadConfig', () => {
         }),
       ),
     ).not.toThrow();
+
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({ provider: 'gandi', gandi: { apiToken: null, domain: 'example.com' } }),
+      ),
+    ).toThrow(/GANDI_API_TOKEN/);
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({
+          provider: 'linode',
+          linode: { apiToken: 't', domainId: null, domain: 'example.com' },
+        }),
+      ),
+    ).toThrow(/LINODE_DOMAIN_ID/);
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({
+          provider: 'ovh',
+          ovh: {
+            applicationKey: 'a',
+            applicationSecret: 's',
+            consumerKey: null,
+            zone: 'example.com',
+          },
+        }),
+      ),
+    ).toThrow(/OVH_CONSUMER_KEY/);
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({
+          provider: 'bunny',
+          bunny: { apiKey: 'k', zoneId: null, domain: 'example.com' },
+        }),
+      ),
+    ).toThrow(/BUNNY_ZONE_ID/);
+    expect(() =>
+      validateProviderConfig(
+        makeConfig({
+          provider: 'contabo',
+          contabo: {
+            clientId: 'c',
+            clientSecret: 's',
+            apiUser: 'u',
+            apiPassword: null,
+            zone: 'example.com',
+          },
+        }),
+      ),
+    ).toThrow(/CONTABO_API_PASSWORD/);
+  });
+
+  it('loads new provider credentials, disabled hosts, chat notify, and otel flags', () => {
+    const config = loadConfig({
+      UDDNS_PROVIDER: 'ovh',
+      UDDNS_HOSTS: 'home.example.com,vpn.example.com',
+      UDDNS_DISABLED_HOSTS: 'vpn.example.com',
+      UDDNS_NOTIFY_SLACK_URL: 'https://hooks.slack.com/services/T/B/X',
+      UDDNS_NOTIFY_DISCORD_URL: 'https://discord.com/api/webhooks/1/2',
+      UDDNS_OTEL: '1',
+      OVH_ENDPOINT: 'CA',
+      OVH_APPLICATION_KEY: 'ak',
+      OVH_APPLICATION_SECRET: 'as',
+      OVH_CONSUMER_KEY: 'ck',
+      OVH_ZONE: 'example.com',
+    });
+    expect(config).toMatchObject({
+      provider: 'ovh',
+      disabledHosts: ['vpn.example.com'],
+      notifySlackUrl: 'https://hooks.slack.com/services/T/B/X',
+      notifyDiscordUrl: 'https://discord.com/api/webhooks/1/2',
+      telemetryEnabled: true,
+      ovh: { endpoint: 'ca', applicationKey: 'ak', zone: 'example.com' },
+    });
+
+    expect(
+      loadConfig({
+        UDDNS_PROVIDER: 'bunny',
+        UDDNS_HOST: 'home.example.com',
+        BUNNY_API_KEY: 'key',
+        BUNNY_ZONE_ID: '7',
+        BUNNY_DOMAIN: 'example.com',
+        OVH_ENDPOINT: 'not-a-region',
+      }).bunny,
+    ).toMatchObject({ apiKey: 'key', zoneId: 7, domain: 'example.com' });
+
+    expect(
+      loadConfig({
+        UDDNS_PROVIDER: 'gandi',
+        UDDNS_HOST: 'home.example.com',
+        GANDI_API_TOKEN: 'pat',
+        GANDI_DOMAIN: 'example.com',
+        GANDI_TTL: '600',
+      }).gandi,
+    ).toMatchObject({ apiToken: 'pat', domain: 'example.com', ttl: 600 });
+
+    expect(
+      loadConfig({
+        UDDNS_PROVIDER: 'linode',
+        UDDNS_HOST: 'home.example.com',
+        LINODE_API_TOKEN: 'tok',
+        LINODE_DOMAIN_ID: '99',
+        LINODE_DOMAIN: 'example.com',
+      }).linode,
+    ).toMatchObject({ apiToken: 'tok', domainId: 99, domain: 'example.com' });
+
+    expect(
+      loadConfig({
+        UDDNS_PROVIDER: 'contabo',
+        UDDNS_HOST: 'home.example.com',
+        CONTABO_CLIENT_ID: 'cid',
+        CONTABO_CLIENT_SECRET: 'csec',
+        CONTABO_API_USER: 'user',
+        CONTABO_API_PASSWORD: 'pass',
+        CONTABO_ZONE: 'example.com',
+      }).contabo,
+    ).toMatchObject({
+      clientId: 'cid',
+      apiUser: 'user',
+      zone: 'example.com',
+    });
   });
 
   it('rejects malformed booleans, TTLs, hostnames, and managed env typos', () => {
@@ -294,6 +414,16 @@ describe('loadConfig', () => {
       UDDNS_HOST: 'home.example.com',
       CLOUDFLARE_API_TOKEN: 'token',
     };
+
+    expect(() =>
+      loadConfig({ ...base, UDDNS_NOTIFY_SLACK_URL: 'http://hooks.example/slack' }),
+    ).toThrow(/UDDNS_NOTIFY_SLACK_URL must be a valid https/);
+    expect(() =>
+      loadConfig({ ...base, UDDNS_NOTIFY_DISCORD_URL: 'http://discord.example/hook' }),
+    ).toThrow(/UDDNS_NOTIFY_DISCORD_URL must be a valid https/);
+    expect(() => loadConfig({ ...base, UDDNS_IP_HTTPS_V4: 'http://not-https.example' })).toThrow(
+      /IP discovery endpoint must be https/,
+    );
 
     expect(() => loadConfig({ ...base, CLOUDFLARE_PROXIED: 'treu' })).toThrow(
       /CLOUDFLARE_PROXIED must be one of/,
