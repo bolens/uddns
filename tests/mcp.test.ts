@@ -171,6 +171,68 @@ describe('MCP tool handlers', () => {
     expect(handlers.getStatus().running).toBe(true);
   });
 
+  it('starts and stops every account when accountId is omitted', async () => {
+    const updaterA = createUpdater({
+      config: makeConfig({ hosts: ['a.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const updaterB = createUpdater({
+      config: makeConfig({ hosts: ['b.example.com'] }),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const handlers = createToolHandlers({
+      accountId: 'a',
+      config: makeConfig({ hosts: ['a.example.com'] }),
+      provider: mockProvider(),
+      updater: updaterA,
+      log: silentLog(),
+      accounts: [
+        {
+          id: 'a',
+          config: makeConfig({ hosts: ['a.example.com'] }),
+          provider: mockProvider(),
+          updater: updaterA,
+        },
+        {
+          id: 'b',
+          config: makeConfig({ hosts: ['b.example.com'] }),
+          provider: mockProvider(),
+          updater: updaterB,
+        },
+      ],
+    });
+
+    expect(await handlers.startLoop()).toMatchObject({
+      accounts: [{ id: 'a' }, { id: 'b' }],
+    });
+    expect(updaterA.getStatus().running).toBe(true);
+    expect(updaterB.getStatus().running).toBe(true);
+    expect(handlers.getAccountsConfig().accounts).toHaveLength(2);
+    expect(await handlers.getAccountsHistory()).toMatchObject({
+      accounts: [{ accountId: 'a' }, { accountId: 'b' }],
+    });
+
+    expect(await handlers.stopLoop()).toMatchObject({
+      accounts: [{ id: 'a' }, { id: 'b' }],
+    });
+    expect(updaterA.getStatus().running).toBe(false);
+    expect(updaterB.getStatus().running).toBe(false);
+
+    await handlers.startLoop('b');
+    expect(updaterA.getStatus().running).toBe(false);
+    expect(updaterB.getStatus().running).toBe(true);
+    await handlers.stopLoop('b');
+
+    await updaterA.stop();
+    await updaterB.stop();
+  });
+
   it('validates config, explains cycles, lists accounts, and updates hosts', async () => {
     const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
     const config = makeConfig({

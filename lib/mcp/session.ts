@@ -20,6 +20,7 @@ export type McpAccount = {
   history?: HistoryStore | null | undefined;
   metrics?: ReturnType<typeof createMetricsTracker> | undefined;
   eventListeners?: Set<(event: CycleEvent) => void> | undefined;
+  flushNotifications?: (() => Promise<void>) | undefined;
 };
 
 export type McpSession = {
@@ -120,6 +121,7 @@ export async function createMcpSession(options: CreateMcpSessionOptions): Promis
       history: bundle.history,
       metrics: bundle.metrics,
       eventListeners: bundle.eventListeners,
+      flushNotifications: () => bundle.flushNotifications(),
     } satisfies McpAccount;
   });
 

@@ -27,9 +27,7 @@ export async function readMcpResource(
         mimeType: 'application/json',
         text: jsonText(
           session.accounts && session.accounts.length > 1
-            ? {
-                accounts: session.accounts.map((account) => handlers.getConfig(account.id)),
-              }
+            ? handlers.getAccountsConfig()
             : handlers.getConfig(),
         ),
       };
@@ -49,11 +47,7 @@ export async function readMcpResource(
         mimeType: 'application/json',
         text: jsonText(
           session.accounts && session.accounts.length > 1
-            ? {
-                accounts: await Promise.all(
-                  session.accounts.map((account) => handlers.getHistory(account.id)),
-                ),
-              }
+            ? await handlers.getAccountsHistory()
             : await handlers.getHistory(),
         ),
       };

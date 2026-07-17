@@ -14,10 +14,10 @@ account-scoped tools.
 
 ## Run modes
 
-| Command           | Mode                                                             |
-| ----------------- | ---------------------------------------------------------------- |
-| `vp run mcp:http` | HTTP MCP with the updater loop started automatically             |
-| `vp run mcp`      | stdio MCP; the loop remains stopped until `start_loop` is called |
+| Command           | Mode                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `vp run mcp:http` | HTTP MCP with the updater loop started automatically for every account                        |
+| `vp run mcp`      | stdio MCP; loops remain stopped until `start_loop` (all accounts when `accountId` is omitted) |
 
 Build before starting any mode:
 
@@ -85,8 +85,9 @@ provides a `progressToken`.
 - `uddns://status`
 - `uddns://history`
 
-Clients can subscribe to resource updates. Successful cycles notify
-`uddns://status` and `uddns://history`.
+Clients can subscribe to resource updates. After `resources/subscribe`,
+successful cycles notify subscribed `uddns://status` and/or `uddns://history`
+URIs only.
 
 ## Streamable HTTP
 
@@ -103,12 +104,12 @@ Operational endpoints:
 - `GET /healthz` — liveness, without bearer auth
 - `GET /readyz` — updater readiness and status, without bearer auth; returns
   503 until the updater has completed a successful cycle
-- `GET /metrics` — Prometheus cycle/update/discovery metrics, without bearer
-  auth
+- `GET /metrics` — Prometheus cycle/update/discovery metrics; requires bearer
+  auth when `UDDNS_MCP_AUTH_TOKEN` is set
 - `GET /events` — authenticated SSE cycle events
 
-The `/mcp` and `/events` endpoints require bearer authentication when
-`UDDNS_MCP_AUTH_TOKEN` is configured.
+The `/mcp`, `/events`, and `/metrics` endpoints require bearer authentication
+when `UDDNS_MCP_AUTH_TOKEN` is configured.
 
 ### Bearer authentication
 

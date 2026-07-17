@@ -42,6 +42,7 @@ export type McpToolHandlers = {
   listAccounts: () => Array<{ id: string; provider: string; hosts: string[] }>;
   getPublicIp: () => Promise<PublicIPDiscovery>;
   getConfig: (accountId?: string) => unknown;
+  getAccountsConfig: () => { accounts: Array<{ id: string; config: unknown }> };
   checkOnce: (accountId?: string) => Promise<CheckResult | null>;
   forceUpdate: (accountId?: string) => Promise<CheckResult | null>;
   dryRun: (accountId?: string) => Promise<CheckResult | null>;
@@ -52,6 +53,7 @@ export type McpToolHandlers = {
   getStatus: (accountId?: string) => UpdaterStatus;
   getAccountsStatus: () => { accounts: Array<{ id: string; status: UpdaterStatus }> };
   getHistory: (accountId?: string) => Promise<unknown>;
+  getAccountsHistory: () => Promise<{ accounts: unknown[] }>;
   validateConfig: (accountId?: string) => {
     valid: boolean;
     provider: string;
@@ -60,8 +62,12 @@ export type McpToolHandlers = {
   };
   explainLastCycle: (accountId?: string) => Promise<unknown>;
   setInterval: (intervalMs: number, accountId?: string) => UpdaterStatus;
-  startLoop: (accountId?: string) => Promise<UpdaterStatus>;
-  stopLoop: (accountId?: string) => Promise<UpdaterStatus>;
+  startLoop: (
+    accountId?: string,
+  ) => Promise<UpdaterStatus | { accounts: Array<{ id: string; status: UpdaterStatus }> }>;
+  stopLoop: (
+    accountId?: string,
+  ) => Promise<UpdaterStatus | { accounts: Array<{ id: string; status: UpdaterStatus }> }>;
 };
 
 export function createToolHandlers(
@@ -92,6 +98,15 @@ export function createToolHandlers(
 
     getConfig(accountId) {
       return redact(getMcpAccount(normalized, accountId).config);
+    },
+
+    getAccountsConfig() {
+      return {
+        accounts: normalized.accounts.map((account) => ({
+          id: account.id,
+          config: redact(account.config),
+        })),
+      };
     },
 
     async checkOnce(accountId) {
@@ -134,6 +149,20 @@ export function createToolHandlers(
         return { accountId: account.id, events: [] };
       }
       return { accountId: account.id, events: await store.load() };
+    },
+
+    async getAccountsHistory() {
+      return {
+        accounts: await Promise.all(
+          normalized.accounts.map(async (account) => {
+            const store = account.history ?? null;
+            return {
+              accountId: account.id,
+              events: store ? await store.load() : [],
+            };
+          }),
+        ),
+      };
     },
 
     validateConfig(accountId) {
@@ -196,12 +225,28 @@ export function createToolHandlers(
     },
 
     async startLoop(accountId) {
+      if (!accountId && normalized.accounts.length > 1) {
+        const accounts = [];
+        for (const account of normalized.accounts) {
+          await account.updater.start();
+          accounts.push({ id: account.id, status: account.updater.getStatus() });
+        }
+        return { accounts };
+      }
       const account = getMcpAccount(normalized, accountId);
       await account.updater.start();
       return account.updater.getStatus();
     },
 
     async stopLoop(accountId) {
+      if (!accountId && normalized.accounts.length > 1) {
+        const accounts = [];
+        for (const account of normalized.accounts) {
+          await account.updater.stop();
+          accounts.push({ id: account.id, status: account.updater.getStatus() });
+        }
+        return { accounts };
+      }
       const account = getMcpAccount(normalized, accountId);
       await account.updater.stop();
       return account.updater.getStatus();

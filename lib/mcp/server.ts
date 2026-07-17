@@ -193,7 +193,12 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       annotations: { readOnlyHint: true },
       outputSchema,
     },
-    async ({ accountId }) => toolResult(handlers.getConfig(accountId)),
+    async ({ accountId }) =>
+      toolResult(
+        accountId || (session.accounts?.length ?? 0) <= 1
+          ? handlers.getConfig(accountId)
+          : handlers.getAccountsConfig(),
+      ),
   );
 
   server.registerTool(
@@ -288,7 +293,12 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       annotations: { readOnlyHint: true },
       outputSchema,
     },
-    async ({ accountId }) => toolResult(await handlers.getHistory(accountId)),
+    async ({ accountId }) =>
+      toolResult(
+        accountId || (session.accounts?.length ?? 0) <= 1
+          ? await handlers.getHistory(accountId)
+          : await handlers.getAccountsHistory(),
+      ),
   );
 
   server.registerTool(
@@ -331,7 +341,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
     MCP_TOOL_NAMES[13],
     {
       description:
-        'Start the updater interval loop (runs one immediate check, then schedules ticks)',
+        'Start the updater interval loop (runs one immediate check, then schedules ticks). Without accountId, starts every loaded account.',
       inputSchema: { accountId: accountIdSchema },
       annotations: { idempotentHint: true, openWorldHint: true },
       outputSchema,
@@ -342,7 +352,8 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
   server.registerTool(
     MCP_TOOL_NAMES[14],
     {
-      description: 'Stop the updater interval loop and wait for any in-flight cycle',
+      description:
+        'Stop the updater interval loop and wait for any in-flight cycle. Without accountId, stops every loaded account.',
       inputSchema: { accountId: accountIdSchema },
       annotations: { idempotentHint: true },
       outputSchema,

@@ -109,16 +109,25 @@ export async function main(options: AppOptions = {}): Promise<void> {
   let stdioHandle: { close: () => Promise<void> } | null = null;
 
   async function cleanup(): Promise<void> {
-    const stopAccounts = (activeSession?.accounts ?? []).map((account) => account.updater.stop());
-    if (stopAccounts.length === 0 && activeSession) {
-      stopAccounts.push(activeSession.updater.stop());
-    }
-    const results = await Promise.allSettled([
-      ...stopAccounts,
+    const accounts =
+      activeSession?.accounts ??
+      (activeSession
+        ? [
+            {
+              updater: activeSession.updater,
+              flushNotifications: undefined as (() => Promise<void>) | undefined,
+            },
+          ]
+        : []);
+    const stopResults = await Promise.allSettled(accounts.map((account) => account.updater.stop()));
+    const flushResults = await Promise.allSettled(
+      accounts.map((account) => account.flushNotifications?.() ?? Promise.resolve()),
+    );
+    const closeResults = await Promise.allSettled([
       httpServer?.close() ?? Promise.resolve(),
       stdioHandle?.close() ?? Promise.resolve(),
     ]);
-    const failure = results.find(
+    const failure = [...stopResults, ...flushResults, ...closeResults].find(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
     if (failure) {
