@@ -1,0 +1,18 @@
+# Multi-account example — set UDDNS_CONFIG_FILE=examples/uddns.multi.yaml
+version: 1
+accounts:
+  - id: cloudflare-home
+    provider: cloudflare
+    hosts:
+      - home.example.com
+    cloudflare:
+      api_token: replace-me
+      zone_id: replace-me
+      create_if_missing: true
+  - id: duckdns-vpn
+    provider: duckdns
+    hosts:
+      - myhost
+    duckdns:
+      token: replace-me
+      domains: myhost

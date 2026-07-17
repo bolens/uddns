@@ -1,0 +1,70 @@
+# Two single-account services (alternative to UDDNS_CONFIG_FILE multi-account YAML).
+# Copy .env.example to .env.cloudflare and .env.duckdns, then:
+#   docker compose -f compose.multi.yml up -d
+services:
+  uddns-cloudflare:
+    build: .
+    image: uddns:latest
+    container_name: uddns-cloudflare
+    restart: unless-stopped
+    env_file:
+      - .env.cloudflare
+    environment:
+      UDDNS_STATE_FILE: /data/state.json
+      UDDNS_HISTORY_FILE: /data/history.json
+      UDDNS_HEALTH: '1'
+      UDDNS_HEALTH_HOST: 127.0.0.1
+      UDDNS_HEALTH_PORT: '3924'
+    volumes:
+      - uddns-cf-state:/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3924/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  uddns-duckdns:
+    build: .
+    image: uddns:latest
+    container_name: uddns-duckdns
+    restart: unless-stopped
+    env_file:
+      - .env.duckdns
+    environment:
+      UDDNS_STATE_FILE: /data/state.json
+      UDDNS_HISTORY_FILE: /data/history.json
+      UDDNS_HEALTH: '1'
+      UDDNS_HEALTH_HOST: 127.0.0.1
+      UDDNS_HEALTH_PORT: '3924'
+    volumes:
+      - uddns-duck-state:/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3924/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  uddns-cf-state:
+  uddns-duck-state:

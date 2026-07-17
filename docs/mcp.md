@@ -46,6 +46,8 @@ in this mode.
 - `get_public_ip` — discover the current public IPv4 and IPv6 addresses
 - `get_config` — return the active configuration with secrets redacted
 - `check_once` — run one overlap-safe update cycle
+- `force_update` — force updates for all hosts ignoring checkpoints
+- `dry_run` — show which hosts would update without calling the provider
 - `get_status` — inspect loop, interval, cycle, IP, and host checkpoint state
 - `set_interval` — change the live interval (minimum 1000 ms)
 - `start_loop` — run an immediate check and start interval scheduling
@@ -61,6 +63,7 @@ in this mode.
 - `uddns://config`
 - `uddns://public-ip`
 - `uddns://status`
+- `uddns://history`
 
 ## Streamable HTTP
 
@@ -72,6 +75,8 @@ UDDNS_MCP_HOST=127.0.0.1
 UDDNS_MCP_PORT=3923
 ```
 
+`GET /healthz` is available without bearer auth for probes.
+
 ### Bearer authentication
 
 Set `UDDNS_MCP_AUTH_TOKEN` to require this header on every request:
@@ -82,26 +87,10 @@ Authorization: Bearer replace-me
 
 ### TLS and remote binding
 
-Provide PEM file paths to serve HTTPS:
-
 ```env
-UDDNS_MCP_TLS_CERT=/etc/uddns/cert.pem
-UDDNS_MCP_TLS_KEY=/etc/uddns/key.pem
+UDDNS_MCP_TLS_CERT=/path/to/cert.pem
+UDDNS_MCP_TLS_KEY=/path/to/key.pem
 ```
 
 Non-loopback binds require both a bearer token and TLS. uDDNS refuses to start
-remote cleartext or unauthenticated HTTP. Loopback may use plain HTTP; an unset
-token emits a warning.
-
-Example remote configuration:
-
-```env
-UDDNS_MCP_TRANSPORT=http
-UDDNS_MCP_HOST=0.0.0.0
-UDDNS_MCP_PORT=3923
-UDDNS_MCP_AUTH_TOKEN=replace-me
-UDDNS_MCP_TLS_CERT=/etc/uddns/cert.pem
-UDDNS_MCP_TLS_KEY=/etc/uddns/key.pem
-```
-
-Certificate issuance and renewal are intentionally external to uDDNS.
+without them when `UDDNS_MCP_HOST` is not loopback.

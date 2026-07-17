@@ -20,6 +20,17 @@ vp run config:check   # validate .env after building
 vp run verify         # check + parallel tests + build + dead code
 ```
 
+CLI (after `vp run build`):
+
+```bash
+node dist/cli.js start
+node dist/cli.js once --force
+node dist/cli.js once --dry-run
+node dist/cli.js init --defaults
+node dist/cli.js check-config
+node dist/cli.js mcp --transport=http
+```
+
 Set `VITE_GIT_HOOKS=0` when hooks should not be installed.
 
 Provider HTTP suites mock `fetch`, so `vp test` and CI are deterministic. Dyn
@@ -31,12 +42,21 @@ Other providers remain mocked.
 ```text
 app.ts                 # core updater daemon entry
 mcp.ts                 # optional stdio/HTTP MCP entry
+cli.ts                 # unified uddns CLI (bin)
 lib/
   config.ts            # re-exports loadConfig
+  config-file.ts       # multi-account YAML loader
   defaults.ts          # scalar runtime defaults
   hosts.ts             # multi-host parse/bind helpers
+  history.ts           # cycle history ring buffer
   ip.ts                # DNS + HTTPS public IP discovery
-  log.ts               # timestamped, redacting logger
+  ip-policy.ts         # family / missing-family policy
+  init.ts              # uddns init wizard
+  log.ts               # timestamped/json redacting logger
+  notify.ts            # webhook + ntfy notifications
+  once.ts              # one-shot update
+  runtime.ts           # updater + history + notify wiring
+  side-server.ts       # health / metrics / SSE
   state.ts             # atomic per-host checkpoints
   updater.ts           # reusable check/update session
   mcp/                 # optional MCP server, tools, resources, HTTP auth/TLS
@@ -73,6 +93,12 @@ tests/
 4. Add `tests/providers/<id>.test.ts` and a live suite only when the provider
    publishes a real test endpoint.
 5. Update `docs/providers.md` and `.env.example`.
+
+Or scaffold stubs:
+
+```bash
+vp run scaffold:provider -- <id> "Provider Label"
+```
 
 Return `fail("...")` for provider validation errors instead of throwing, so the
 loop keeps running.
