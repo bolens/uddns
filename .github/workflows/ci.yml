@@ -13,9 +13,6 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
-env:
-  TEST_SHARD_TOTAL: 4
-
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -79,13 +76,22 @@ jobs:
         run: pnpm run check
 
   test:
+    name: Test (${{ matrix.group.name }})
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' || needs.changes.outputs.tests == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        group:
+          - name: providers
+            paths: tests/providers
+          - name: config
+            paths: tests/config.test.ts tests/hosts.test.ts
+          - name: core
+            paths: tests/updater.test.ts tests/http.test.ts tests/ip.test.ts tests/log.test.ts tests/result.test.ts
+          - name: docs
+            paths: tests/docs.test.ts
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,14 +108,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test (shard ${{ matrix.shard }}/${{ env.TEST_SHARD_TOTAL }})
-        run: pnpm run test -- --shard=${{ matrix.shard }}/${{ env.TEST_SHARD_TOTAL }} --reporter=blob --coverage
+      - name: Test (${{ matrix.group.name }})
+        run: pnpm run test -- ${{ matrix.group.paths }} --reporter=blob --coverage
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: blob-report-${{ matrix.shard }}
+          name: blob-report-${{ matrix.group.name }}
           path: .vitest-reports/*
           retention-days: 1
           include-hidden-files: true
