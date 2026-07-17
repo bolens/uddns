@@ -191,7 +191,7 @@ function accountToEnv(
       env['UDDNS_STATE_FILE'] = `.uddns-state-${accountId}.json`;
     }
   }
-  if (env['UDDNS_HISTORY_FILE'] == null) {
+  if (env['UDDNS_HISTORY_FILE'] == null || env['UDDNS_HISTORY_FILE'] === '') {
     if (account['historyFile'] == null && account['history_file'] == null) {
       env['UDDNS_HISTORY_FILE'] = `.uddns-history-${accountId}.json`;
     }
@@ -200,13 +200,41 @@ function accountToEnv(
   return env;
 }
 
+function assertUniqueAccountPaths(accounts: LoadedAccount[]): void {
+  if (accounts.length <= 1) {
+    return;
+  }
+  const stateOwners = new Map<string, string>();
+  const historyOwners = new Map<string, string>();
+  for (const account of accounts) {
+    const stateFile = account.config.stateFile;
+    if (stateFile) {
+      const owner = stateOwners.get(stateFile);
+      if (owner) {
+        throw new Error(`Accounts "${owner}" and "${account.id}" share stateFile "${stateFile}"`);
+      }
+      stateOwners.set(stateFile, account.id);
+    }
+    const historyFile = account.config.historyFile;
+    if (historyFile) {
+      const owner = historyOwners.get(historyFile);
+      if (owner) {
+        throw new Error(
+          `Accounts "${owner}" and "${account.id}" share historyFile "${historyFile}"`,
+        );
+      }
+      historyOwners.set(historyFile, account.id);
+    }
+  }
+}
+
 export async function loadAccountsFromFile(
   filePath: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
 ): Promise<LoadedAccount[]> {
   const raw = await readFile(filePath, 'utf8');
   const parsed = configFileSchema.parse(parseYaml(raw));
-  return parsed.accounts.map((account) => {
+  const accounts = parsed.accounts.map((account) => {
     const { id, ...rest } = account;
     const env = accountToEnv(
       id,
@@ -217,6 +245,8 @@ export async function loadAccountsFromFile(
     delete env['UDDNS_CONFIG_FILE'];
     return { id, config: loadConfig(env) };
   });
+  assertUniqueAccountPaths(accounts);
+  return accounts;
 }
 
 export function resolveAccounts(

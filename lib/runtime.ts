@@ -23,6 +23,8 @@ export type RuntimeBundle = {
   history: HistoryStore | null;
   metrics: ReturnType<typeof createMetricsTracker>;
   eventListeners: Set<(event: CycleEvent) => void>;
+  /** Await in-flight notification dispatches (once exit / graceful shutdown). */
+  flushNotifications: () => Promise<void>;
 };
 
 function createDefaultResolver() {
@@ -51,6 +53,7 @@ export function createRuntimeBundle(options: {
     : null;
   const metrics = createMetricsTracker();
   const eventListeners = new Set<(event: CycleEvent) => void>();
+  const pendingNotifications = new Set<Promise<void>>();
 
   const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
   const telemetry = createTelemetry(options.config.telemetryEnabled);
@@ -87,7 +90,7 @@ export function createRuntimeBundle(options: {
           log.warn('Could not append history', formatError(error));
         }
       }
-      void dispatchNotifications(
+      const notify = dispatchNotifications(
         {
           webhookUrl: options.config.notifyWebhookUrl,
           ntfyUrl: options.config.notifyNtfyUrl,
@@ -100,6 +103,10 @@ export function createRuntimeBundle(options: {
       ).catch((error: unknown) => {
         log.warn('Notification dispatch failed', formatError(error));
       });
+      pendingNotifications.add(notify);
+      void notify.finally(() => {
+        pendingNotifications.delete(notify);
+      });
       for (const listener of eventListeners) {
         listener(event);
       }
@@ -110,5 +117,15 @@ export function createRuntimeBundle(options: {
   }
   const updater = createUpdaterFn(updaterOptions);
 
-  return { config: options.config, provider, updater, history, metrics, eventListeners };
+  return {
+    config: options.config,
+    provider,
+    updater,
+    history,
+    metrics,
+    eventListeners,
+    async flushNotifications() {
+      await Promise.allSettled(pendingNotifications);
+    },
+  };
 }

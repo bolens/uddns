@@ -396,7 +396,11 @@ function assertCloudflareSuccess(payload: CloudflarePayload, operation: string):
   }
   const error = new Error(`Cloudflare ${operation} failed: ${formatCloudflareError(payload)}`);
   if (payload.meta) {
-    Object.assign(error, { status: payload.meta.status });
+    Object.assign(error, {
+      status: payload.meta.status,
+      details: { http: payload.meta },
+      ...(payload.meta.retryAfterMs != null ? { retryAfterMs: payload.meta.retryAfterMs } : {}),
+    });
   }
   throw error;
 }

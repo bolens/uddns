@@ -60,14 +60,13 @@ export async function runOnce(options: OnceOptions = {}): Promise<void> {
       if (result.status === 'error' || result.status === 'skipped_no_ip') {
         log.error(`${prefix}${result.message}`, result);
         exitCode = 1;
-        continue;
-      }
-      if (result.status === 'partial') {
+      } else if (result.status === 'partial') {
         log.warn(`${prefix}${result.message}`, result);
         exitCode = 1;
-        continue;
+      } else {
+        log.success(`${prefix}${result.message}`, { status: result.status, ip: result.ip });
       }
-      log.success(`${prefix}${result.message}`, { status: result.status, ip: result.ip });
+      await bundle.flushNotifications();
     }
     exit(exitCode);
   } catch (error) {

@@ -207,6 +207,18 @@ describe('application entrypoint', () => {
     expect(updater.start).toHaveBeenCalledOnce();
   });
 
+  it('rejects empty account lists before starting', async () => {
+    const exit = vi.fn();
+    await main({
+      log: silentLog(),
+      resolveAccountsFn: () => [],
+      getProviderFn: () => stubProvider,
+      on: vi.fn(),
+      exit,
+    });
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
   it('aggregates multi-account health status', async () => {
     const log = silentLog();
     const updaterA = stubUpdater();

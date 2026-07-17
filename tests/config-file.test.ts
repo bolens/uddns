@@ -172,4 +172,51 @@ accounts:
     expect(accounts).toHaveLength(1);
     expect(accounts[0]?.id).toBe('only');
   });
+
+  it('applies per-account history defaults when base history env is empty', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
+    const file = path.join(dir, 'uddns.yaml');
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: a
+    provider: duckdns
+    hosts: [myhost]
+    duckdns:
+      token: t
+      domains: myhost
+`,
+    );
+    const accounts = await loadAccountsFromFile(file, { UDDNS_HISTORY_FILE: '' });
+    expect(accounts[0]?.config.historyFile).toContain('uddns-history-a');
+  });
+
+  it('rejects accounts that share state or history files', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
+    const file = path.join(dir, 'uddns.yaml');
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: a
+    provider: duckdns
+    hosts: [a]
+    state_file: /tmp/shared-state.json
+    duckdns:
+      token: t
+      domains: a
+  - id: b
+    provider: duckdns
+    hosts: [b]
+    state_file: /tmp/shared-state.json
+    duckdns:
+      token: t
+      domains: b
+`,
+    );
+    await expect(loadAccountsFromFile(file)).rejects.toThrow(/share stateFile/);
+  });
 });

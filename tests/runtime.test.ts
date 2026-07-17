@@ -48,7 +48,38 @@ describe('createRuntimeBundle', () => {
     expect(result.ip).toEqual({ v4: '203.0.113.10', v6: null });
     expect(bundle.metrics.snapshot().updatesTotal).toBe(1);
     expect(events).toHaveLength(1);
+    await bundle.flushNotifications();
     expect(fetchMock).toHaveBeenCalled();
+    fetchMock.mockRestore();
+  });
+
+  it('does not notify on all-skipped unchanged cycles', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+    const bundle = createRuntimeBundle({
+      log: silentLog(),
+      config: makeConfig({
+        hosts: ['home.example.com'],
+        historyFile: null,
+        notifyWebhookUrl: 'https://example.com/hook',
+        notifyOn: ['change'],
+      }),
+      getProviderFn: () =>
+        mockProvider(async () => ({ ok: true, skipped: true, message: 'nochg' })),
+      createUpdaterFn: (options) =>
+        createUpdater({
+          ...options,
+          discoverPublicIP: async () => ({
+            ip: { v4: '203.0.113.10', v6: null },
+            errors: { v4: null, v6: null },
+          }),
+        }),
+    });
+
+    const result = await bundle.updater.checkOnce();
+    expect(result.status).toBe('unchanged');
+    await bundle.flushNotifications();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(bundle.metrics.snapshot().updatesTotal).toBe(0);
     fetchMock.mockRestore();
   });
 

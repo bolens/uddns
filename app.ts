@@ -62,6 +62,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
     log.info(`Received ${signal}; shutting down.`);
     try {
       await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
+      await Promise.all(bundles.map((bundle) => bundle.flushNotifications()));
       if (sideServer) {
         await sideServer.close();
         sideServer = null;
@@ -194,6 +195,9 @@ export async function main(options: AppOptions = {}): Promise<void> {
 
   try {
     const accounts = await resolveAccountsFn(env);
+    if (accounts.length === 0) {
+      throw new Error('No accounts configured');
+    }
     if (argv.includes('--check-config')) {
       for (const account of accounts) {
         const provider = getProviderFn(account.config.provider);

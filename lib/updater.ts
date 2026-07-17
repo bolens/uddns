@@ -660,10 +660,18 @@ export function summarizeHostResults(
 
   if (allOk) {
     commitIP(ip);
+    if (allSkipped) {
+      return {
+        status: 'unchanged',
+        ip,
+        message: `All hosts already up to date. ${message}`,
+        hostResults,
+      };
+    }
     return {
       status: 'updated',
       ip,
-      message: allSkipped ? `All hosts already up to date. ${message}` : message,
+      message,
       hostResults,
     };
   }

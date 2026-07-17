@@ -198,7 +198,7 @@ describe('createUpdater', () => {
 
     const result = await updater.checkOnce();
 
-    expect(result.status).toBe('updated');
+    expect(result.status).toBe('unchanged');
     expect(result.message).toContain('already up to date');
     expect(updater.getCurrentIP()).toEqual({ v4: '9.9.9.9', v6: null });
     expect(log.success).not.toHaveBeenCalled();
@@ -701,6 +701,18 @@ describe('summarizeHostResults', () => {
       commitIP,
     );
     expect(ok.status).toBe('updated');
+    expect(commitIP).toHaveBeenCalledWith(ip);
+
+    commitIP.mockClear();
+    const allSkipped = summarizeHostResults(
+      ip,
+      [
+        { host: 'a', result: { ok: true, skipped: true, message: 'nochg' } },
+        { host: 'b', result: { ok: true, skipped: true, message: 'nochg' } },
+      ],
+      commitIP,
+    );
+    expect(allSkipped.status).toBe('unchanged');
     expect(commitIP).toHaveBeenCalledWith(ip);
 
     commitIP.mockClear();
