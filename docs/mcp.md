@@ -133,6 +133,7 @@ without them when `UDDNS_MCP_HOST` is not loopback.
 HTTP MCP on loopback also requires `UDDNS_MCP_AUTH_TOKEN` by default (any local
 process can otherwise call destructive tools). Set
 `UDDNS_MCP_ALLOW_INSECURE_LOOPBACK=true` only for trusted single-user sidecars.
+See [Security](security.md) for the full control-plane auth model.
 
 The optional `compose.mcp.yml` overlay binds MCP to `127.0.0.1` inside the
 container (no published ports). For a published non-loopback MCP service, set

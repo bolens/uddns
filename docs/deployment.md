@@ -90,14 +90,20 @@ Set `UDDNS_HEALTH=1` to bind the side server (`UDDNS_HEALTH_HOST` /
 - `GET /metrics` — Prometheus text when `UDDNS_METRICS=1`
 - `GET /events` — SSE cycle events (payloads are redacted)
 
-Non-loopback binds require `UDDNS_HEALTH_AUTH_TOKEN` plus
-`UDDNS_HEALTH_TLS_CERT` / `UDDNS_HEALTH_TLS_KEY` (same rule as MCP HTTP).
-When auth is set, that bearer token is required for `/metrics` and `/events`
-(`/healthz` and `/readyz` stay open for probes).
+**Authentication:** `UDDNS_HEALTH_AUTH_TOKEN` is required even on loopback
+unless `UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK=true`. Non-loopback binds also
+require `UDDNS_HEALTH_TLS_CERT` / `UDDNS_HEALTH_TLS_KEY` (same rule as MCP
+HTTP). When auth is set, that bearer token is required for `/metrics` and
+`/events` (`/healthz` and `/readyz` stay open for probes).
 
-Notification webhooks, ntfy, Slack, and Discord requests run asynchronously
-after a cycle so a slow notification endpoint cannot delay DNS checks. Delivery
-failures are logged and do not change cycle status.
+## Notifications
+
+Webhook, ntfy, Slack, and Discord delivery runs asynchronously after a cycle so
+a slow endpoint cannot delay DNS checks. Failures are logged and do not change
+cycle status. URLs must be HTTPS; webhook/ntfy may target private LAN hosts,
+while Slack/Discord may not. See [Security](security.md).
+
+## Observability
 
 Optional OpenTelemetry spans are enabled with `UDDNS_OTEL=1`. The process uses
 the OpenTelemetry API only; register an SDK/exporter in the embedding runtime to

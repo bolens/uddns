@@ -22,6 +22,10 @@ independently, so a partial failure retries only failed hosts. Checkpoints
 default to `.uddns-state.json`; set `UDDNS_STATE_FILE=` to keep state in memory.
 Disabled hosts are skipped and cannot be force-updated.
 
+`UDDNS_INTERVAL` defaults to `900000` ms (15 minutes) and must be between
+`60000` and `86400000` ms (60 s–24 h). Absolute state/history paths can
+be jailed under `UDDNS_DATA_DIR` when set.
+
 ## Public IP policy
 
 `UDDNS_IP_FAMILY` selects `dual` (default), `v4`, or `v6`.
@@ -30,9 +34,28 @@ fails for a family. `clear` omits that family from the next upsert so providers
 do not rewrite it — it does **not** delete existing A/AAAA records at the DNS
 provider.
 
+HTTPS echo discovery uses pin-on-connect (resolve once, dial only verified
+public addresses). DNS fallbacks stay off unless `UDDNS_IP_DNS_FALLBACK=true`.
+See [Security](security.md).
+
 Transient transport errors, HTTP 429, and HTTP 5xx responses retry three times
 with exponential, jittered backoff. When a provider response includes
 `Retry-After`, that delay is honored (capped by the max retry delay).
+
+## Notifications
+
+Optional HTTPS notifications after cycles:
+
+```env
+# UDDNS_NOTIFY_WEBHOOK_URL=https://example.com/hook
+# UDDNS_NOTIFY_NTFY_URL=https://ntfy.sh/my-topic   # LAN ntfy allowed
+# UDDNS_NOTIFY_SLACK_URL=https://hooks.slack.com/services/...
+# UDDNS_NOTIFY_DISCORD_URL=https://discord.com/api/webhooks/...
+# UDDNS_NOTIFY_ON=change,error
+```
+
+Webhook/ntfy may target private LAN hosts; Slack/Discord may not. Loopback and
+cloud-metadata targets are always rejected.
 
 ## Cloudflare
 
@@ -110,9 +133,15 @@ UDDNS_PROVIDER=dyndns
 UDDNS_USER=your_username
 UDDNS_PASS=your_password
 UDDNS_HOSTS=myhost.example.com,other.example.com
-# Optional; credentials require HTTPS:
+# Optional; credentials require HTTPS and an allowlisted host:
 # DYNDNS_UPDATE_URL=https://members.dyndns.org/nic/update
+# Extra hosts beyond the built-in allowlist (comma-separated):
+# DYNDNS_UPDATE_URL_ALLOW_HOSTS=ddns.example.net
 ```
+
+Built-in allowlist hosts: `members.dyndns.org`, `members.dyndns.com`,
+`update.dyndns.org`, `dynupdate.no-ip.com`, `dynupdate.no-ip.org`. See
+[Security](security.md).
 
 ## AWS Route53
 

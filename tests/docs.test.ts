@@ -4,11 +4,14 @@ import { describe, expect, it } from 'vite-plus/test';
 
 import {
   DEFAULT_DYNDNS_UPDATE_URL,
+  DEFAULT_DYNDNS_UPDATE_URL_ALLOW_HOSTS,
   DEFAULT_INTERVAL_MS,
   DEFAULT_MCP_HOST,
   DEFAULT_MCP_PORT,
   DEFAULT_PROVIDER,
   DEFAULT_STATE_FILE,
+  MAX_INTERVAL_MS,
+  MIN_INTERVAL_MS,
 } from '../lib/defaults.js';
 import { MCP_RESOURCE_URIS } from '../lib/mcp/resources.js';
 import { MCP_PROMPT_NAMES, MCP_TOOL_NAMES } from '../lib/mcp/server.js';
@@ -118,9 +121,49 @@ describe('documentation contracts', () => {
       .filter((path): path is string => Boolean(path));
 
     expect([...new Set(links)].sort()).toEqual(
-      ['docs/deployment.md', 'docs/development.md', 'docs/mcp.md', 'docs/providers.md'].sort(),
+      [
+        'docs/deployment.md',
+        'docs/development.md',
+        'docs/mcp.md',
+        'docs/providers.md',
+        'docs/security.md',
+      ].sort(),
     );
     await expect(Promise.all(links.map(read))).resolves.toHaveLength(links.length);
+  });
+
+  it('locks security guide behavior to runtime defaults', async () => {
+    const [security, providers, deployment, development, readme] = await Promise.all([
+      read('docs/security.md'),
+      read('docs/providers.md'),
+      read('docs/deployment.md'),
+      read('docs/development.md'),
+      read('README.md'),
+    ]);
+
+    expect(security).toMatch(/pin-on-connect/i);
+    expect(security).toContain('UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK');
+    expect(security).toContain('UDDNS_MCP_ALLOW_INSECURE_LOOPBACK');
+    expect(security).toContain('DYNDNS_UPDATE_URL_ALLOW_HOSTS');
+    expect(security).toContain(String(MIN_INTERVAL_MS));
+    expect(security).toContain(String(MAX_INTERVAL_MS));
+    for (const host of DEFAULT_DYNDNS_UPDATE_URL_ALLOW_HOSTS) {
+      expect(security, `security.md missing DynDNS allow host ${host}`).toContain(host);
+    }
+
+    expect(providers).toContain('DYNDNS_UPDATE_URL_ALLOW_HOSTS');
+    expect(providers).toMatch(/pin-on-connect/i);
+    expect(providers).toContain(String(MIN_INTERVAL_MS));
+
+    expect(deployment).toContain('UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK');
+    expect(deployment).toMatch(/loopback/i);
+
+    expect(development).toContain('safe-https.ts');
+    expect(development).toContain('url-policy.ts');
+    expect(development).toContain('stubFetch');
+
+    expect(readme).toMatch(/pin-on-connect/i);
+    expect(readme).toContain('docs/security.md');
   });
 
   it('only documents package scripts that exist', async () => {

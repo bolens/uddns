@@ -33,9 +33,10 @@ node dist/cli.js mcp --transport=http
 
 Set `VITE_GIT_HOOKS=0` when hooks should not be installed.
 
-Provider HTTP suites mock `fetch`, so `vp test` and CI are deterministic. Dyn
-is the only bundled provider with a public client-development test account.
-Other providers remain mocked.
+Provider HTTP suites use `stubFetch` (which installs a pin-path transport
+override), so `vp test` and CI stay deterministic without live dials. Dyn is
+the only bundled provider with a public client-development test account. Other
+providers remain mocked.
 
 ## Architecture
 
@@ -49,13 +50,16 @@ lib/
   defaults.ts          # scalar runtime defaults
   hosts.ts             # multi-host parse/bind helpers
   history.ts           # cycle history ring buffer
-  ip.ts                # DNS + HTTPS public IP discovery
+  ip.ts                # HTTPS (+ optional DNS) public IP discovery
   ip-policy.ts         # family / missing-family policy
   init.ts              # uddns init wizard
   log.ts               # timestamped/json redacting logger
-  notify.ts            # webhook + ntfy notifications
+  notify.ts            # webhook + ntfy + Slack + Discord
   once.ts              # one-shot update
   runtime.ts           # updater + history + notify wiring
+  safe-https.ts        # pin-on-connect HTTPS dial
+  url-policy.ts        # HTTPS URL + resolved-host safety
+  sensitive.ts         # redaction key helpers
   side-server.ts       # health / metrics / SSE
   state.ts             # atomic per-host checkpoints
   updater.ts           # reusable check/update session
@@ -63,12 +67,12 @@ lib/
   schemas/             # Zod schemas + inferred types
   providers/
     index.ts           # provider registry
-    http.ts            # fetch helpers + HttpError
+    http.ts            # request helpers + HttpError (pin by default)
     nic-update.ts      # shared DynDNS /nic/update client
     cloudflare.ts      # Cloudflare API provider
     ...
 tests/
-  helpers/             # shared fixtures
+  helpers/             # shared fixtures (stubFetch, cleanup)
   *.test.ts            # core, entrypoint, MCP, and docs contracts
   providers/           # provider and shared-layer suites
   live/                # explicitly enabled live checks
@@ -79,7 +83,8 @@ tests/
 - `.env.example` is the complete environment-variable reference.
 - `README.md` is the short entry point; detailed guides live in `docs/`.
 - Documentation tests lock provider IDs, defaults, MCP surfaces, package
-  commands, README links, and CI test coverage to their source definitions.
+  commands, README links, security allowlists, and CI test coverage to their
+  source definitions.
 - Fallow rejects unused files, exports, and dependencies.
 - Run `vp run verify` before committing.
 

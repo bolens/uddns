@@ -1,8 +1,12 @@
 # uDDNS
 
-Micro multi-provider Dynamic DNS updater. Defaults to **Cloudflare**, and also supports DuckDNS, No-IP, Dynu, Namecheap, Route53, Porkbun, Hetzner, DigitalOcean, and generic DynDNS-compatible endpoints.
+Micro multi-provider Dynamic DNS updater. Defaults to **Cloudflare**, and also
+supports DuckDNS, No-IP, Dynu, Namecheap, Route53, Porkbun, Hetzner,
+DigitalOcean, Gandi, Linode, OVH, bunny.net, Contabo, and generic
+DynDNS-compatible endpoints.
 
-Checks your public IP on an interval and updates DNS only when it changes. Recommended interval: `900000` (15 minutes).
+Checks your public IP on an interval and updates DNS only when it changes.
+Recommended interval: `900000` (15 minutes). Allowed range: **60 s–24 h**.
 
 One process manages one provider/account by default. Use `UDDNS_CONFIG_FILE` for
 multi-account YAML, or run separate processes (with separate `.env` and state
@@ -53,6 +57,7 @@ vp run config:check
 ## Documentation
 
 - [Providers and configuration](docs/providers.md)
+- [Security (outbound HTTPS, auth, allowlists)](docs/security.md)
 - [Optional MCP server](docs/mcp.md)
 - [Deployment with systemd, Docker, or Compose](docs/deployment.md)
 - [Development, architecture, and adding providers](docs/development.md)
@@ -64,12 +69,24 @@ Set `UDDNS_LOG_FORMAT` to `text` (default) or `json`.
 
 - Timestamps include seconds
 - Failures include HTTP status/timing, sanitized URLs, response previews, and hints
-- Secrets (tokens, passwords, `Authorization`) are redacted from log context
+- Secrets (tokens, passwords, `Authorization`, usernames, OAuth client IDs) are
+  redacted from log context
 - Use `debug` when chasing provider/API issues
 
 ### Public IP discovery
 
-Public addresses are discovered without a third-party IP package: HTTPS echo services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer). Optional DNS fallbacks (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) are **off by default** because plain DNS can be spoofed on-path; enable with `UDDNS_IP_DNS_FALLBACK=true` only on networks where HTTPS echo is unreachable and you trust the DNS path. Override endpoints with `UDDNS_IP_HTTPS_V4` / `UDDNS_IP_HTTPS_V6`.
+Public addresses are discovered without a third-party IP package: HTTPS echo
+services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer).
+Connections use pin-on-connect so DNS cannot rebind to a private/metadata host
+between resolve and dial. Optional DNS fallbacks (OpenDNS
+`myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) are **off by
+default** because plain DNS can be spoofed on-path; enable with
+`UDDNS_IP_DNS_FALLBACK=true` only on networks where HTTPS echo is unreachable
+and you trust the DNS path. Override endpoints with `UDDNS_IP_HTTPS_V4` /
+`UDDNS_IP_HTTPS_V6`.
+
+See [Security](docs/security.md) for host-safety rules and notification URL
+policy.
 
 ## Configuration
 
