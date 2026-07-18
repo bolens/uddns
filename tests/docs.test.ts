@@ -166,6 +166,37 @@ describe('documentation contracts', () => {
     expect(readme).toContain('docs/security.md');
   });
 
+  it('documents retry knobs and provider failover', async () => {
+    const [envExample, providers, mcp, deployment, readme, failoverExample] = await Promise.all([
+      read('.env.example'),
+      read('docs/providers.md'),
+      read('docs/mcp.md'),
+      read('docs/deployment.md'),
+      read('README.md'),
+      read('examples/uddns.failover.yaml'),
+    ]);
+
+    for (const key of [
+      'UDDNS_RETRY_ATTEMPTS',
+      'UDDNS_RETRY_BASE_DELAY_MS',
+      'UDDNS_RETRY_MAX_DELAY_MS',
+    ]) {
+      expect(envExample, `${key} missing from .env.example`).toMatch(
+        new RegExp(`^#?\\s*${key}=`, 'm'),
+      );
+      expect(providers, `${key} missing from providers.md`).toContain(key);
+    }
+
+    expect(providers).toMatch(/Provider failover/i);
+    expect(providers).toContain('role: failover');
+    expect(providers).toContain('examples/uddns.failover.yaml');
+    expect(readme).toContain('examples/uddns.failover.yaml');
+    expect(deployment).toContain('examples/uddns.failover.yaml');
+    expect(mcp).toMatch(/role: failover/);
+    expect(failoverExample).toContain('role: failover');
+    expect(failoverExample).toContain('failover:');
+  });
+
   it('only documents package scripts that exist', async () => {
     const [files, packageJson] = await Promise.all([markdownFiles(), read('package.json')]);
     const scripts = (JSON.parse(packageJson) as { scripts: Record<string, string> }).scripts;

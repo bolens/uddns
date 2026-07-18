@@ -95,5 +95,8 @@ hosts. The default interval is `900000` ms and checkpoints persist in
 `.uddns-state.json`.
 
 See [Providers and configuration](docs/providers.md) for provider-specific
-examples. For multiple accounts in one process, set `UDDNS_CONFIG_FILE` to a
-YAML file (see `examples/uddns.multi.yaml`).
+examples. Transient provider updates retry with configurable backoff
+(`UDDNS_RETRY_*`). For multiple accounts in one process, set
+`UDDNS_CONFIG_FILE` to a YAML file (see `examples/uddns.multi.yaml`). For
+ordered DNS-provider failover on the same hostname, see
+`examples/uddns.failover.yaml`.

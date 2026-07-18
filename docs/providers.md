@@ -38,9 +38,54 @@ HTTPS echo discovery uses pin-on-connect (resolve once, dial only verified
 public addresses). DNS fallbacks stay off unless `UDDNS_IP_DNS_FALLBACK=true`.
 See [Security](security.md).
 
-Transient transport errors, HTTP 429, and HTTP 5xx responses retry three times
-with exponential, jittered backoff. When a provider response includes
-`Retry-After`, that delay is honored (capped by the max retry delay).
+Transient transport errors, HTTP 429, and HTTP 5xx responses retry with
+exponential, jittered backoff. Defaults are three attempts, 1000 ms base delay,
+and 30_000 ms max delay. Override with:
+
+```env
+# UDDNS_RETRY_ATTEMPTS=3
+# UDDNS_RETRY_BASE_DELAY_MS=1000
+# UDDNS_RETRY_MAX_DELAY_MS=30000
+```
+
+When a provider response includes `Retry-After`, that delay is honored (capped
+by the max retry delay).
+
+## Provider failover (multi-account YAML)
+
+When the same hostname can be updated at two DNS providers, configure a primary
+account with an ordered `failover` list of standby account ids. Standby accounts
+use `role: failover` and are validated with the rest of the file, but they do
+**not** run their own updater loop.
+
+```yaml
+version: 1
+accounts:
+  - id: home-cf
+    provider: cloudflare
+    hosts: [home.example.com]
+    failover: [home-r53]
+    retry: { attempts: 3 }
+    cloudflare:
+      api_token: replace-me
+      zone_id: replace-me
+  - id: home-r53
+    role: failover
+    provider: route53
+    hosts: [home.example.com]
+    route53:
+      access_key_id: replace-me
+      secret_access_key: replace-me
+      hosted_zone_id: replace-me
+```
+
+After the primary exhausts its retry budget (including non-retryable errors such
+as HTTP 401), uDDNS tries each failover target that lists the same host. The
+first success checkpoints on the primary state file. See
+`examples/uddns.failover.yaml`.
+
+Failover only helps when both providers can actually serve the FQDN (for
+example dual-provider DNS or a deliberate migration path).
 
 ## Notifications
 

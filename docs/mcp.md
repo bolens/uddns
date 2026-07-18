@@ -10,7 +10,9 @@ processes can issue updates.
 
 When `UDDNS_CONFIG_FILE` points at a multi-account YAML file, MCP loads every
 account and exposes `list_accounts` plus optional `accountId` arguments on
-account-scoped tools.
+account-scoped tools. Accounts with `role: failover` appear in `list_accounts`
+as standbys but do not run independent updater loops; destructive tools must
+target the primary account that references them.
 
 ## Run modes
 

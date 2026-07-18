@@ -1,0 +1,28 @@
+# Provider failover example — set UDDNS_CONFIG_FILE=examples/uddns.failover.yaml
+# Standby accounts (role: failover) are validated but do not run their own loop.
+version: 1
+accounts:
+  - id: home-cf
+    provider: cloudflare
+    hosts:
+      - home.example.com
+    failover:
+      - home-r53
+    retry:
+      attempts: 3
+      base_delay_ms: 1000
+      max_delay_ms: 30000
+    cloudflare:
+      api_token: replace-me
+      zone_id: replace-me
+      create_if_missing: true
+  - id: home-r53
+    role: failover
+    provider: route53
+    hosts:
+      - home.example.com
+    route53:
+      access_key_id: replace-me
+      secret_access_key: replace-me
+      hosted_zone_id: replace-me
+      create_if_missing: true

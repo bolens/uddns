@@ -75,6 +75,7 @@ Overlays:
 - `compose.mcp.yml` — Streamable HTTP MCP on port 3923
 - `compose.multi.yml` — two single-account services
 - `examples/uddns.multi.yaml` — multi-account YAML via `UDDNS_CONFIG_FILE`
+- `examples/uddns.failover.yaml` — primary + standby provider failover for shared hosts
 
 `podman-compose` can use the same files.
 
