@@ -138,6 +138,48 @@ describe('MCP tool handlers', () => {
     expect(handlers.getStatus().cycle).toBe(1);
   });
 
+  it('redacts bearer tokens from MCP toolResult payloads', async () => {
+    const update = vi.fn(async () => ({
+      ok: false,
+      message: 'provider rejected',
+      details: {
+        authorization: 'Bearer super-secret-token',
+        http: { bodyPreview: 'Bearer leaked-token xyz' },
+      },
+    }));
+    const config = makeConfig();
+    const updater = createUpdater({
+      config,
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    await updater.checkOnce();
+
+    const server = createUddnsMcpServer({
+      config,
+      provider: mockProvider(update),
+      updater,
+      log: silentLog(),
+    });
+    try {
+      const registered = server as unknown as {
+        _registeredTools: Record<
+          string,
+          { handler: (args: unknown, extra?: unknown) => Promise<unknown> }
+        >;
+      };
+      const payload = await registered._registeredTools['get_status']!.handler({});
+      const text = JSON.stringify(payload);
+      expect(text).not.toContain('super-secret-token');
+      expect(text).not.toContain('leaked-token');
+      expect(text).toContain('[redacted]');
+    } finally {
+      server.dispose();
+    }
+  });
+
   it('starts, retunes interval, and restarts after stop', async () => {
     const { timers, setIntervalFn, clearIntervalFn } = captureInterval();
     const updater = createUpdater({

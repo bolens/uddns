@@ -12,6 +12,7 @@ import { z } from 'zod';
 import packageJson from '../../package.json' with { type: 'json' };
 import { buildEnvContents } from '../init.js';
 import { PROVIDER_IDS_LIST } from '../init-defaults.js';
+import { redact } from '../log.js';
 import { providerIdSchema } from '../schemas/provider.js';
 import {
   buildDiagnoseUpdatePrompt,
@@ -53,9 +54,10 @@ const accountIdSchema = z
   .describe('Account id from list_accounts; defaults to the primary account');
 
 function toolResult(value: unknown) {
+  const safe = redact(value);
   return {
-    content: [{ type: 'text' as const, text: jsonText(value) }],
-    structuredContent: { result: value },
+    content: [{ type: 'text' as const, text: jsonText(safe) }],
+    structuredContent: { result: safe },
   };
 }
 
