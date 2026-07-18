@@ -104,9 +104,7 @@ async function upsert(
   }
   if (!parsed?.success) return fail('Contabo record lookup failed', { http: listed.meta });
   const record = parsed.data.data.find(
-    (item) =>
-      item.type === type &&
-      (item.name === label || item.name === fqdn || item.name === '@' || item.name === name),
+    (item) => item.type === type && contaboNameMatches(item.name, name, auth.zone!),
   );
   if (record?.data === data && record.ttl === auth.ttl) {
     return skipped(`${type} ${name} unchanged (${data})`);
@@ -127,4 +125,15 @@ async function upsert(
     : fail(`Contabo record update failed (HTTP ${changed.meta.status})`, {
         http: changed.meta,
       });
+}
+
+/** Match Contabo record names without letting apex aliases steal subdomain updates. */
+function contaboNameMatches(itemName: string, recordName: string, zone: string): boolean {
+  const item = normalizeDnsName(itemName);
+  const apex = normalizeDnsName(zone);
+  if (recordName === '@') {
+    return item === '@' || item === '' || item === apex;
+  }
+  const label = normalizeDnsName(recordName);
+  return item === label || item === `${label}.${apex}`;
 }

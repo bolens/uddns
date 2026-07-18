@@ -226,6 +226,32 @@ describe('contabo provider', () => {
     });
   });
 
+  it('does not PATCH apex when updating a subdomain even if search returns @', async () => {
+    const fetchMock = stubRoutedFetch(
+      authAndDnsRoutes({
+        records: [
+          { recordId: 1, name: '@', type: 'A', ttl: 300, data: '1.1.1.1' },
+          { recordId: 2, name: 'home', type: 'A', ttl: 300, data: '1.1.1.1' },
+        ],
+        mutateMethod: 'PATCH',
+        mutatePathEndsWith: '/records/2',
+      }),
+    );
+
+    await expect(
+      contaboProvider.update(contaboConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      message: expect.stringContaining('A home -> 9.9.9.9'),
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([, init = {}]) => (init.method ?? 'GET') === 'PATCH',
+    );
+    expect(patchCalls).toHaveLength(1);
+    expect(fetchInputUrl(patchCalls[0]![0] as FetchInput)).toContain('/records/2');
+  });
+
   it('fails when DNS record listing is invalid', async () => {
     stubRoutedFetch([
       {
