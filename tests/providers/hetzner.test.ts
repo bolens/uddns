@@ -328,6 +328,61 @@ describe('hetzner provider', () => {
     ).resolves.toMatchObject({ ok: true, skipped: true });
   });
 
+  it('strips trailing dots when auto-discovering zones by hostname', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) =>
+          method === 'GET' && url.includes('/zones?') && url.includes('name=home.example.com'),
+        response: jsonResponse({ zones: [] }, 404),
+      },
+      {
+        match: (url, method) =>
+          method === 'GET' && url.includes('/zones?') && url.includes('name=example.com'),
+        response: jsonResponse({ zones: [{ id: 'zone1', name: 'example.com' }] }),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?zone_id=zone1'),
+        response: hzRecords([{ id: 'r1', type: 'A', name: 'home', value: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      hetznerProvider.update(
+        hzConfig({
+          hosts: ['home.example.com.'],
+          hostname: 'home.example.com.',
+          hetzner: { zoneId: null, zoneName: null },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({ ok: true, skipped: true });
+  });
+
+  it('accepts bare labels under HETZNER_ZONE_NAME', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) =>
+          method === 'GET' && url.includes('/zones?') && url.includes('name=example.com'),
+        response: jsonResponse({ zones: [{ id: 'zone1', name: 'example.com' }] }),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?zone_id=zone1'),
+        response: hzRecords([{ id: 'r1', type: 'A', name: 'home', value: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      hetznerProvider.update(
+        hzConfig({
+          hosts: ['home'],
+          hostname: 'home',
+          hetzner: { zoneId: null, zoneName: 'example.com' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({ ok: true, skipped: true });
+  });
+
   it('updates A and AAAA independently', async () => {
     stubRoutedFetch([
       {

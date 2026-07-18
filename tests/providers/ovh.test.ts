@@ -291,4 +291,34 @@ describe('ovh provider', () => {
       ttl: 300,
     });
   });
+
+  it('fails when zone refresh returns a non-ok status after a successful write', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/auth/time'),
+        response: textResponse('1700000000'),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/record?fieldType=A'),
+        response: jsonResponse([]),
+      },
+      {
+        match: (url, method) =>
+          method === 'POST' && url.endsWith('/domain/zone/example.com/record'),
+        response: jsonResponse(99),
+      },
+      {
+        match: (url, method) =>
+          method === 'POST' && url.endsWith('/domain/zone/example.com/refresh'),
+        response: jsonResponse({ message: 'busy' }, 503),
+      },
+    ]);
+
+    await expect(
+      ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('OVH zone refresh failed (HTTP 503)'),
+    });
+  });
 });

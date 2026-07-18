@@ -35,10 +35,27 @@ export const ovhProvider: Provider = {
     const results: UpdateResult[] = [];
     if (ip.v4) results.push(await upsert(scoped, host.name, 'A', ip.v4));
     if (ip.v6) results.push(await upsert(scoped, host.name, 'AAAA', ip.v6));
-    if (results.some((result) => result.ok && !result.skipped)) {
-      await signedRequest(scoped, 'POST', `/domain/zone/${encodeURIComponent(zone)}/refresh`);
+    if (!results.length) {
+      return fail('No public IP available');
     }
-    return results.length ? combineRecordResults(results, host) : fail('No public IP available');
+    const combined = combineRecordResults(results, host);
+    if (!combined.ok) {
+      return combined;
+    }
+    if (results.some((result) => result.ok && !result.skipped)) {
+      const refreshed = await signedRequest(
+        scoped,
+        'POST',
+        `/domain/zone/${encodeURIComponent(zone)}/refresh`,
+      );
+      if (!refreshed.response.ok) {
+        return fail(`OVH zone refresh failed (HTTP ${refreshed.meta.status})`, {
+          http: refreshed.meta,
+          zone,
+        });
+      }
+    }
+    return combined;
   },
 };
 

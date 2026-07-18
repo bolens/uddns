@@ -6,9 +6,9 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
+import { normalizeDnsName, splitDomainHost } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
-import { normalizeDnsName } from './domain-host.js';
 
 const API = 'https://dns.hetzner.com/api/v1';
 
@@ -70,14 +70,15 @@ export const hetznerProvider: Provider = {
       });
     }
 
-    const recordName = relativeRecordName(hostname, zone.name);
-    if (!recordName) {
+    const record = splitDomainHost(hostname, zone.name);
+    if (!record) {
       return fail(`Host ${hostname} is not within Hetzner zone ${zone.name}`, {
         hostname,
         zoneId: zone.id,
         zoneName: zone.name,
       });
     }
+    const recordName = record.name;
 
     const results: UpdateResult[] = [];
 
@@ -123,7 +124,7 @@ async function resolveZone(
     return await findZoneByName(apiToken, normalizeDnsName(zoneName));
   }
 
-  const labels = hostname.split('.');
+  const labels = normalizeDnsName(hostname).split('.').filter(Boolean);
   for (let i = 0; i < labels.length - 1; i += 1) {
     const candidate = labels.slice(i).join('.');
     const zone = await findZoneByName(apiToken, candidate);
@@ -157,19 +158,6 @@ async function findZoneByName(apiToken: string, name: string): Promise<HetznerZo
   }
 
   return parseHetzner(hetznerZonesResponseSchema, payload, 'zones').zones[0] ?? null;
-}
-
-/** Hetzner records are named relative to the zone: `@` for the apex. */
-function relativeRecordName(hostname: string, zoneName: string): string | null {
-  const host = hostname.toLowerCase().replace(/\.$/, '');
-  const zone = zoneName.toLowerCase().replace(/\.$/, '');
-  if (host === zone) {
-    return '@';
-  }
-  if (host.endsWith(`.${zone}`)) {
-    return host.slice(0, -(zone.length + 1));
-  }
-  return null;
 }
 
 async function upsertRecord(

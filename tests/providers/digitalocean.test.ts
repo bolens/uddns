@@ -313,6 +313,27 @@ describe('digitalocean provider', () => {
     });
   });
 
+  it('accepts bare labels under DIGITALOCEAN_DOMAIN', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) =>
+          method === 'GET' && url.includes('/domains/example.com/records?type=A'),
+        response: doRecords([{ id: 101, type: 'A', name: 'home', data: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      digitaloceanProvider.update(
+        doConfig({ hosts: ['home'], hostname: 'home', digitalocean: { domain: 'example.com' } }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+      details: expect.objectContaining({ recordName: 'home' }),
+    });
+  });
+
   it('surfaces API errors from update and create requests', async () => {
     stubRoutedFetch([
       {

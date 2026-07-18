@@ -19,6 +19,10 @@ describe('splitDomainHost', () => {
       domain: 'example.com',
       name: '@',
     });
+    expect(splitDomainHost('home', 'example.com')).toEqual({
+      domain: 'example.com',
+      name: 'home',
+    });
     expect(splitDomainHost('other.net', 'example.com')).toBeNull();
   });
 

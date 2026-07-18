@@ -32,6 +32,10 @@ export function splitDomainHost(
     if (host.endsWith(`.${apex}`)) {
       return { domain: apex, name: host.slice(0, -(apex.length + 1)) };
     }
+    // Bare labels are treated as subdomains under the configured apex.
+    if (!host.includes('.')) {
+      return { domain: apex, name: host || '@' };
+    }
     return null;
   }
   return deriveTwoLabelApex(host);

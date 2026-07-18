@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
-import { deriveTwoLabelApex, normalizeDnsName } from './domain-host.js';
+import { deriveTwoLabelApex, normalizeDnsName, splitDomainHost } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 
@@ -57,13 +57,14 @@ export const digitaloceanProvider: Provider = {
       );
     }
 
-    const recordName = relativeRecordName(hostname, domain);
-    if (!recordName) {
+    const record = splitDomainHost(hostname, domain);
+    if (!record) {
       return fail(`Host ${hostname} is not within DigitalOcean domain ${domain}`, {
         hostname,
         domain,
       });
     }
+    const recordName = record.name;
 
     const apiToken = dio.apiToken!;
     const results: UpdateResult[] = [];
@@ -85,19 +86,6 @@ export const digitaloceanProvider: Provider = {
 
 function deriveDomain(hostname: string): string | null {
   return deriveTwoLabelApex(hostname)?.domain ?? null;
-}
-
-/** DigitalOcean records are named relative to the domain: `@` for the apex. */
-function relativeRecordName(hostname: string, domain: string): string | null {
-  const host = hostname.toLowerCase().replace(/\.$/, '');
-  const apex = domain.toLowerCase().replace(/\.$/, '');
-  if (host === apex) {
-    return '@';
-  }
-  if (host.endsWith(`.${apex}`)) {
-    return host.slice(0, -(apex.length + 1));
-  }
-  return null;
 }
 
 async function upsertRecord(
