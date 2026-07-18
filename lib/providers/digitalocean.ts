@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
-import { normalizeDnsName } from './domain-host.js';
+import { deriveTwoLabelApex, normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 
@@ -83,13 +83,8 @@ export const digitaloceanProvider: Provider = {
   },
 };
 
-/** Assume the registered domain is the last two labels of an FQDN. */
 function deriveDomain(hostname: string): string | null {
-  const parts = hostname.toLowerCase().split('.').filter(Boolean);
-  if (parts.length < 2) {
-    return null;
-  }
-  return parts.slice(-2).join('.');
+  return deriveTwoLabelApex(hostname)?.domain ?? null;
 }
 
 /** DigitalOcean records are named relative to the domain: `@` for the apex. */

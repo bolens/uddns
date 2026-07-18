@@ -32,5 +32,7 @@ describe('splitDomainHost', () => {
       name: '@',
     });
     expect(splitDomainHost('localhost', null)).toBeNull();
+    expect(splitDomainHost('vpn.home.example.com', null)).toBeNull();
+    expect(splitDomainHost('home.example.co.uk', null)).toBeNull();
   });
 });

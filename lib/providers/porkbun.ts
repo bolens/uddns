@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
 import { combineRecordResults, requireFields } from './guards.js';
+import { deriveTwoLabelApex } from './domain-host.js';
 import { request, throwWithHttpMeta, type RequestMeta } from './http.js';
 
 const API = 'https://api.porkbun.com/api/json/v3';
@@ -90,8 +91,8 @@ type HostSplit = {
 
 /**
  * Map an FQDN or bare label onto Porkbun's domain + subdomain fields.
- * Without PORKBUN_DOMAIN the registered domain is assumed to be the
- * last two labels of the host.
+ * Without PORKBUN_DOMAIN only short FQDNs (2–3 labels) are derived; longer
+ * names need an explicit registered domain (multi-part TLDs).
  */
 function splitHost(hostname: string, domain: string | null): HostSplit | null {
   const host = hostname.toLowerCase().replace(/\.$/, '');
@@ -111,13 +112,13 @@ function splitHost(hostname: string, domain: string | null): HostSplit | null {
     return null;
   }
 
-  const parts = host.split('.').filter(Boolean);
-  if (parts.length < 2) {
+  const derived = deriveTwoLabelApex(host);
+  if (!derived) {
     return null;
   }
   return {
-    domain: parts.slice(-2).join('.'),
-    subdomain: parts.slice(0, -2).join('.'),
+    domain: derived.domain,
+    subdomain: derived.name === '@' ? '' : derived.name,
   };
 }
 

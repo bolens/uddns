@@ -184,7 +184,42 @@ describe('digitalocean provider', () => {
     expect(result.details).toMatchObject({ recordName: '@' });
   });
 
-  it('derives the domain from an FQDN when DIGITALOCEAN_DOMAIN is unset', async () => {
+  it('derives short FQDNs and requires an explicit domain for deeper names', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) =>
+          method === 'GET' && url.includes('/domains/example.com/records?type=A'),
+        response: doRecords([{ id: 7, type: 'A', name: 'home', data: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      digitaloceanProvider.update(
+        makeConfig({
+          hosts: ['home.example.com'],
+          digitalocean: { apiToken: 'do-token' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+      details: expect.objectContaining({ domain: 'example.com', recordName: 'home' }),
+    });
+
+    await expect(
+      digitaloceanProvider.update(
+        makeConfig({
+          hosts: ['vpn.home.example.com'],
+          digitalocean: { apiToken: 'do-token' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('Set DIGITALOCEAN_DOMAIN'),
+    });
+
     stubRoutedFetch([
       {
         match: (url, method) =>
@@ -197,7 +232,7 @@ describe('digitalocean provider', () => {
       digitaloceanProvider.update(
         makeConfig({
           hosts: ['vpn.home.example.com'],
-          digitalocean: { apiToken: 'do-token' },
+          digitalocean: { apiToken: 'do-token', domain: 'example.com' },
         }),
         { v4: '9.9.9.9', v6: null },
       ),

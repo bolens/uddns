@@ -128,3 +128,7 @@ UDDNS_MCP_TLS_KEY=/path/to/key.pem
 
 Non-loopback binds require both a bearer token and TLS. uDDNS refuses to start
 without them when `UDDNS_MCP_HOST` is not loopback.
+
+The optional `compose.mcp.yml` overlay binds MCP to `127.0.0.1` inside the
+container (no published ports). For a published non-loopback MCP service, set
+`UDDNS_MCP_HOST=0.0.0.0` plus auth token and TLS cert mounts.

@@ -203,7 +203,7 @@ describe('porkbun provider', () => {
     ]);
   });
 
-  it('derives the domain from an FQDN and accepts bare labels under PORKBUN_DOMAIN', async () => {
+  it('derives short FQDNs and accepts bare labels under PORKBUN_DOMAIN', async () => {
     stubRoutedFetch([
       {
         match: (url) => url.includes('/dns/retrieveByNameType/example.com/A/vpn.home'),
@@ -219,13 +219,26 @@ describe('porkbun provider', () => {
       porkbunProvider.update(
         makeConfig({
           hosts: ['vpn.home.example.com'],
-          porkbun: { apiKey: 'pk', secretKey: 'sk' },
+          porkbun: { apiKey: 'pk', secretKey: 'sk', domain: 'example.com' },
         }),
         { v4: '9.9.9.9', v6: null },
       ),
     ).resolves.toMatchObject({
       ok: true,
       message: expect.stringContaining('Created A vpn.home.example.com'),
+    });
+
+    await expect(
+      porkbunProvider.update(
+        makeConfig({
+          hosts: ['vpn.home.example.com'],
+          porkbun: { apiKey: 'pk', secretKey: 'sk' },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringMatching(/PORKBUN_DOMAIN|outside|determine/i),
     });
 
     stubRoutedFetch([

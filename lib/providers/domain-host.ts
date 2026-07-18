@@ -3,6 +3,22 @@ export function normalizeDnsName(value: string): string {
   return value.toLowerCase().replace(/\.$/, '');
 }
 
+/**
+ * Derive a two-label registered domain only for short FQDNs (2–3 labels).
+ * Longer names (e.g. home.example.co.uk) need an explicit domain/zone setting.
+ */
+export function deriveTwoLabelApex(hostname: string): { domain: string; name: string } | null {
+  const host = normalizeDnsName(hostname);
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length < 2 || parts.length > 3) {
+    return null;
+  }
+  return {
+    domain: parts.slice(-2).join('.'),
+    name: parts.length === 2 ? '@' : (parts[0] ?? '@'),
+  };
+}
+
 export function splitDomainHost(
   hostname: string,
   domain: string | null,
@@ -18,8 +34,5 @@ export function splitDomainHost(
     }
     return null;
   }
-  const parts = host.split('.');
-  return parts.length < 2
-    ? null
-    : { domain: parts.slice(-2).join('.'), name: parts.slice(0, -2).join('.') || '@' };
+  return deriveTwoLabelApex(host);
 }

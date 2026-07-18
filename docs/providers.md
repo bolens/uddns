@@ -22,6 +22,14 @@ independently, so a partial failure retries only failed hosts. Checkpoints
 default to `.uddns-state.json`; set `UDDNS_STATE_FILE=` to keep state in memory.
 Disabled hosts are skipped and cannot be force-updated.
 
+## Public IP policy
+
+`UDDNS_IP_FAMILY` selects `dual` (default), `v4`, or `v6`.
+`UDDNS_IP_MISSING=keep` (default) reuses the previous address when discovery
+fails for a family. `clear` omits that family from the next upsert so providers
+do not rewrite it — it does **not** delete existing A/AAAA records at the DNS
+provider.
+
 Transient transport errors, HTTP 429, and HTTP 5xx responses retry three times
 with exponential, jittered backoff. When a provider response includes
 `Retry-After`, that delay is honored (capped by the max retry delay).

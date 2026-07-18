@@ -1,18 +1,15 @@
-# Optional MCP HTTP overlay:
+# Optional MCP HTTP overlay for loopback/sidecar access:
 #   docker compose -f compose.yml -f compose.mcp.yml up -d
+# Binds 127.0.0.1 inside the container (no published ports). For published
+# non-loopback MCP, set UDDNS_MCP_HOST=0.0.0.0 plus UDDNS_MCP_AUTH_TOKEN and
+# TLS cert/key mounts — see docs/mcp.md.
 services:
   uddns:
     command: ['dist/mcp.js', '--transport=http']
     environment:
       UDDNS_MCP_TRANSPORT: http
-      UDDNS_MCP_HOST: 0.0.0.0
+      UDDNS_MCP_HOST: 127.0.0.1
       UDDNS_MCP_PORT: '3923'
-      # Required when binding non-loopback — set in .env:
-      # UDDNS_MCP_AUTH_TOKEN=
-      # UDDNS_MCP_TLS_CERT=/certs/cert.pem
-      # UDDNS_MCP_TLS_KEY=/certs/key.pem
-    ports:
-      - '3923:3923'
     healthcheck:
       test:
         [
