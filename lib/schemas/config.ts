@@ -274,11 +274,7 @@ export function loadConfig(
     hostname: firstHost,
     user: parsedEnv['UDDNS_USER'] ?? null,
     password: parsedEnv['UDDNS_PASS'] ?? null,
-    token:
-      parsedEnv['UDDNS_TOKEN'] ??
-      parsedEnv['CLOUDFLARE_API_TOKEN'] ??
-      parsedEnv['DUCKDNS_TOKEN'] ??
-      null,
+    token: parsedEnv['UDDNS_TOKEN'] ?? null,
     ipFamily: parseIpFamily(parsedEnv['UDDNS_IP_FAMILY'] ?? DEFAULT_IP_FAMILY),
     ipMissing: parseIpMissing(parsedEnv['UDDNS_IP_MISSING'] ?? DEFAULT_IP_MISSING),
     ipHttpsV4: parseUrlList(parsedEnv['UDDNS_IP_HTTPS_V4']),
@@ -466,7 +462,9 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
       break;
     case 'dynu':
       if (!config.dyndns.username) missing.push('UDDNS_USER');
-      if (!config.dyndns.password && !config.token) missing.push('UDDNS_PASS or UDDNS_TOKEN');
+      if (!config.dyndns.password && !config.password && !config.token) {
+        missing.push('UDDNS_PASS or UDDNS_TOKEN');
+      }
       if (!config.dyndns.hostname) missing.push('UDDNS_HOST(S)');
       break;
     case 'route53':

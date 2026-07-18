@@ -257,6 +257,22 @@ describe('loadConfig', () => {
     ).toBe('api-token');
     expect(() =>
       loadConfig({
+        UDDNS_PROVIDER: 'dynu',
+        UDDNS_USER: 'user',
+        CLOUDFLARE_API_TOKEN: 'cf-only',
+        UDDNS_HOST: 'home.dynu.com',
+      }),
+    ).toThrow(/UDDNS_PASS or UDDNS_TOKEN/);
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'dynu',
+        UDDNS_USER: 'user',
+        DUCKDNS_TOKEN: 'duck-only',
+        UDDNS_HOST: 'home.dynu.com',
+      }),
+    ).toThrow(/UDDNS_PASS or UDDNS_TOKEN/);
+    expect(() =>
+      loadConfig({
         UDDNS_PROVIDER: 'namecheap',
         UDDNS_HOSTS: 'home',
         NAMECHEAP_PASSWORD: 'ddns',

@@ -7,7 +7,7 @@ export const dynuProvider: Provider = {
   label: 'Dynu',
   async update(config, ip) {
     const username = config.user;
-    const password = config.password ?? config.token;
+    const password = config.password ?? config.dyndns.password ?? config.token;
     const hostname = config.hostname;
 
     const missing = requireFields(
