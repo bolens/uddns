@@ -6,6 +6,11 @@ import { splitDomainHost, normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request } from './http.js';
 
+const domainSchema = z.object({
+  id: z.number(),
+  domain: z.string(),
+});
+
 const recordsSchema = z.object({
   data: z.array(
     z.object({
@@ -29,7 +34,42 @@ export const linodeProvider: Provider = {
     );
     if (missing) return missing;
     if (!config.hostname) return fail('linode requires UDDNS_HOST or UDDNS_HOSTS');
-    const host = splitDomainHost(config.hostname, auth.domain);
+    if (!ip.v4 && !ip.v6) return fail('No public IP available');
+    const headers = {
+      Authorization: `Bearer ${auth.apiToken!}`,
+      'Content-Type': 'application/json',
+    };
+    const domainLookup = await request(`https://api.linode.com/v4/domains/${auth.domainId}`, {
+      headers,
+    });
+    if (!domainLookup.response.ok) {
+      return fail(`Linode domain lookup failed (HTTP ${domainLookup.meta.status})`, {
+        http: domainLookup.meta,
+      });
+    }
+    let domainParsed: ReturnType<typeof domainSchema.safeParse> | null = null;
+    try {
+      domainParsed = domainSchema.safeParse(JSON.parse(domainLookup.body));
+    } catch {
+      return fail('Linode returned invalid domain data', { http: domainLookup.meta });
+    }
+    if (!domainParsed.success) {
+      return fail('Linode returned invalid domain data', { http: domainLookup.meta });
+    }
+    const apiDomain = normalizeDnsName(domainParsed.data.domain);
+    const configuredDomain = normalizeDnsName(auth.domain!);
+    // Domain ID is authoritative for writes; refuse when LINODE_DOMAIN points elsewhere.
+    if (apiDomain !== configuredDomain) {
+      return fail(
+        `Linode domain ${auth.domainId} is "${apiDomain}", not LINODE_DOMAIN "${configuredDomain}"`,
+        {
+          domainId: auth.domainId,
+          domain: configuredDomain,
+          apiDomain,
+        },
+      );
+    }
+    const host = splitDomainHost(config.hostname, apiDomain);
     if (!host) return fail(`Host ${config.hostname} is outside LINODE_DOMAIN`);
     const results: UpdateResult[] = [];
     if (ip.v4)

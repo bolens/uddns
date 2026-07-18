@@ -19,6 +19,20 @@ function linodeRecords(records: LinodeRecord[]): Response {
   return jsonResponse({ data: records });
 }
 
+function linodeDomain(domain = 'example.com', id = 42): Response {
+  return jsonResponse({ id, domain });
+}
+
+function withDomain(routes: Parameters<typeof stubRoutedFetch>[0]) {
+  return stubRoutedFetch([
+    {
+      match: (url, method) => method === 'GET' && /\/domains\/\d+$/.test(new URL(url).pathname),
+      response: linodeDomain(),
+    },
+    ...routes,
+  ]);
+}
+
 function linodeConfig(overrides: Parameters<typeof makeConfig>[0] = {}) {
   return makeConfig({
     ...overrides,
@@ -63,7 +77,7 @@ describe('linode provider', () => {
   });
 
   it('updates an existing A record with a bearer token', async () => {
-    const fetchMock = stubRoutedFetch([
+    const fetchMock = withDomain([
       {
         match: (url, method) =>
           method === 'GET' && url.includes('/domains/42/records?type=A&name=home'),
@@ -98,8 +112,24 @@ describe('linode provider', () => {
     });
   });
 
-  it('skips unchanged records and creates missing ones', async () => {
+  it('fails when LINODE_DOMAIN does not match the domain id', async () => {
     stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && /\/domains\/\d+$/.test(new URL(url).pathname),
+        response: linodeDomain('other.com'),
+      },
+    ]);
+
+    await expect(
+      linodeProvider.update(linodeConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('not LINODE_DOMAIN'),
+    });
+  });
+
+  it('skips unchanged records and creates missing ones', async () => {
+    withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('type=A'),
         response: linodeRecords([
@@ -116,7 +146,7 @@ describe('linode provider', () => {
       message: expect.stringContaining('unchanged'),
     });
 
-    stubRoutedFetch([
+    withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('type=A'),
         response: linodeRecords([
@@ -133,7 +163,7 @@ describe('linode provider', () => {
       message: expect.stringContaining('unchanged'),
     });
 
-    const fetchMock = stubRoutedFetch([
+    const fetchMock = withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('type=A'),
         response: linodeRecords([]),
@@ -158,7 +188,7 @@ describe('linode provider', () => {
   });
 
   it('fails when record lookup is rejected', async () => {
-    stubRoutedFetch([
+    withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('type=A'),
         response: jsonResponse({ errors: [{ reason: 'Unauthorized' }] }, 401),
@@ -174,7 +204,7 @@ describe('linode provider', () => {
   });
 
   it('writes an empty name for apex hosts', async () => {
-    const fetchMock = stubRoutedFetch([
+    const fetchMock = withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('type=A'),
         response: linodeRecords([]),
@@ -200,7 +230,7 @@ describe('linode provider', () => {
   });
 
   it('matches and skips existing apex records stored with an empty name', async () => {
-    const fetchMock = stubRoutedFetch([
+    const fetchMock = withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('/records?type=A&name='),
         response: linodeRecords([{ id: 7, type: 'A', name: '', target: '9.9.9.9', ttl_sec: 300 }]),
@@ -217,14 +247,22 @@ describe('linode provider', () => {
       skipped: true,
       message: expect.stringContaining('unchanged'),
     });
-    expect(getCall(fetchMock, 0).url.href).toContain('name=');
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        typeof input === 'string'
+          ? input.includes('/records?')
+          : input instanceof URL
+            ? input.href.includes('/records?')
+            : input.url.includes('/records?'),
+      ),
+    ).toBe(true);
     expect(
       fetchMock.mock.calls.some(([, init = {}]) => ['POST', 'PUT'].includes(init.method ?? 'GET')),
     ).toBe(false);
   });
 
   it('updates A and AAAA independently', async () => {
-    stubRoutedFetch([
+    withDomain([
       {
         match: (url, method) => method === 'GET' && url.includes('type=AAAA'),
         response: linodeRecords([
