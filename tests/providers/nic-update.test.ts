@@ -59,6 +59,11 @@ describe('interpretNicUpdateBody', () => {
   it('does not treat "good" as success on non-2xx statuses', () => {
     expect(interpretNicUpdateBody('good 1.2.3.4', 500)).toMatchObject({ ok: false });
   });
+
+  it('does not treat "nochg" as success on non-2xx statuses', () => {
+    expect(interpretNicUpdateBody('nochg 1.2.3.4', 401)).toMatchObject({ ok: false });
+    expect(interpretNicUpdateBody('nochg 1.2.3.4', 500)).toMatchObject({ ok: false });
+  });
 });
 
 describe('updateNicDns', () => {

@@ -79,7 +79,7 @@ export function interpretNicUpdateBody(
     ...(providerOutage ? { retryable: true } : {}),
   };
 
-  if (/^nochg/i.test(text)) {
+  if (/^nochg/i.test(text) && status >= 200 && status < 300) {
     return skipped(message, enriched);
   }
 
