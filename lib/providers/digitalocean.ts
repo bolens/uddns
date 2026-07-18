@@ -198,7 +198,37 @@ async function findRecord(
     throw new Error(`DigitalOcean records response failed validation: ${parsed.error.message}`);
   }
 
-  return parsed.data.domain_records[0] ?? null;
+  const record = parsed.data.domain_records[0] ?? null;
+  if (!record) {
+    return null;
+  }
+
+  // The name filter is advisory; refuse to edit a record whose name does not match.
+  if (!digitalOceanNameMatches(record.name, fqdn, domain)) {
+    return null;
+  }
+
+  return record;
+}
+
+function digitalOceanNameMatches(returned: string, fqdn: string, domain: string): boolean {
+  const name = normalizeDnsName(returned);
+  const target = normalizeDnsName(fqdn);
+  const apex = normalizeDnsName(domain);
+  if (name === target) {
+    return true;
+  }
+  if (name === '@' && target === apex) {
+    return true;
+  }
+  if (target === apex && (name === '@' || name === apex)) {
+    return true;
+  }
+  if (target.endsWith(`.${apex}`)) {
+    const relative = target.slice(0, -(apex.length + 1));
+    return name === relative;
+  }
+  return false;
 }
 
 type DigitalOceanPayload = {

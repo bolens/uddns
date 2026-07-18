@@ -313,6 +313,29 @@ describe('digitalocean provider', () => {
     });
   });
 
+  it('ignores lookup hits whose record name does not match the host', async () => {
+    const fetchMock = stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?type=A'),
+        response: doRecords([{ id: 101, type: 'A', name: 'other', data: '1.1.1.1' }]),
+      },
+      {
+        match: (url, method) => method === 'POST' && url.endsWith('/records'),
+        response: jsonResponse({
+          domain_record: { id: 202, type: 'A', name: 'home', data: '9.9.9.9' },
+        }),
+      },
+    ]);
+
+    await expect(
+      digitaloceanProvider.update(doConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      message: expect.stringContaining('Created A home.example.com'),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('accepts bare labels under DIGITALOCEAN_DOMAIN', async () => {
     stubRoutedFetch([
       {
