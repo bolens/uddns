@@ -10,6 +10,7 @@ import { createFileHistoryStore, type HistoryStore } from './history.js';
 import { createLogger, formatError, type Logger } from './log.js';
 import { dispatchNotifications } from './notify.js';
 import { getProvider } from './providers/index.js';
+import type { request } from './providers/http.js';
 import type { CycleEvent } from './schemas/cycle.js';
 import type { AppConfig, Provider } from './schemas/provider.js';
 import { createMetricsTracker } from './side-server.js';
@@ -45,6 +46,10 @@ export function createRuntimeBundle(options: {
   accountId?: string;
   createUpdaterFn?: (options: UpdaterOptions) => Updater;
   getProviderFn?: (id: string) => Provider;
+  /** Test override for IP discovery HTTP (skips pin dial). */
+  discoverFetch?: typeof globalThis.fetch;
+  /** Test override for notification HTTP. */
+  notifyRequestFn?: typeof request;
 }): RuntimeBundle {
   const log = options.log ?? createLogger();
   const provider = (options.getProviderFn ?? getProvider)(options.config.provider);
@@ -58,7 +63,6 @@ export function createRuntimeBundle(options: {
   const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
   const telemetry = createTelemetry(options.config.telemetryEnabled);
   const discoverDeps: Parameters<typeof discoverPublicIP>[0] = {
-    fetch: globalThis.fetch.bind(globalThis),
     createResolver: createDefaultResolver,
     timeoutMs: options.config.ipTimeoutMs,
     dnsFallback: options.config.ipDnsFallback,
@@ -68,6 +72,9 @@ export function createRuntimeBundle(options: {
   }
   if (options.config.ipHttpsV6) {
     discoverDeps.httpsV6 = options.config.ipHttpsV6;
+  }
+  if (options.discoverFetch) {
+    discoverDeps.fetch = options.discoverFetch;
   }
 
   const updaterOptions: UpdaterOptions = {
@@ -99,7 +106,10 @@ export function createRuntimeBundle(options: {
           on: options.config.notifyOn,
         },
         event,
-        { log },
+        {
+          log,
+          ...(options.notifyRequestFn ? { requestFn: options.notifyRequestFn } : {}),
+        },
       ).catch((error: unknown) => {
         log.warn('Notification dispatch failed', formatError(error));
       });

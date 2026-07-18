@@ -69,25 +69,35 @@ export function assertHttpsUrlHostAllowed(
 }
 
 /**
- * Resolve hostname and reject if any A/AAAA address is blocked under `policy`.
- * No-op for IP literals (already checked by {@link assertHttpsUrl} / {@link isBlockedOutboundHost}).
+ * Resolve hostname and return addresses only when every A/AAAA is allowed under
+ * `policy`. Fails closed on mixed public+private sets (rebinding pattern).
  */
-export async function assertResolvedHttpsHostSafe(
+export async function resolveSafeAddresses(
   url: URL,
   label: string,
   policy: HttpsUrlPolicy = {},
-  lookup: HostLookupFn = defaultHostLookup,
-): Promise<void> {
-  const host = url.hostname.replace(/^\[|\]$/g, '');
-  if (isIP(host)) {
-    if (isBlockedOutboundHost(host, policy)) {
-      throw new Error(`${label} targets a blocked address`);
-    }
-    return;
+  lookup?: HostLookupFn,
+): Promise<LookupAddress[]> {
+  const resolve = lookup ?? defaultHostLookup;
+  if (url.protocol !== 'https:') {
+    throw new Error(`${label} must be a valid https:// URL`);
   }
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (isBlockedOutboundHost(host, policy)) {
+    throw new Error(
+      policy.allowPrivateHosts
+        ? `${label} must not target loopback, link-local, or cloud-metadata hosts`
+        : `${label} must not target loopback, private, link-local, or cloud-metadata hosts`,
+    );
+  }
+
+  if (isIP(host)) {
+    return [{ address: host, family: isIP(host) === 6 ? 6 : 4 }];
+  }
+
   let addresses: LookupAddress[];
   try {
-    addresses = await lookup(host, { all: true, verbatim: true });
+    addresses = await resolve(host, { all: true, verbatim: true });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`${label} host "${host}" could not be resolved (${reason})`);
@@ -95,11 +105,27 @@ export async function assertResolvedHttpsHostSafe(
   if (addresses.length === 0) {
     throw new Error(`${label} host "${host}" resolved to no addresses`);
   }
-  for (const { address } of addresses) {
-    if (isBlockedOutboundHost(address, policy)) {
-      throw new Error(`${label} resolves to blocked address ${address}`);
-    }
+
+  const blocked = addresses.filter((entry) => isBlockedOutboundHost(entry.address, policy));
+  if (blocked.length > 0) {
+    throw new Error(
+      `${label} resolves to blocked address ${blocked.map((entry) => entry.address).join(', ')}`,
+    );
   }
+  return addresses;
+}
+
+/**
+ * Resolve hostname and reject if any A/AAAA address is blocked under `policy`.
+ * No-op for IP literals (already checked by {@link assertHttpsUrl} / {@link isBlockedOutboundHost}).
+ */
+export async function assertResolvedHttpsHostSafe(
+  url: URL,
+  label: string,
+  policy: HttpsUrlPolicy = {},
+  lookup?: HostLookupFn,
+): Promise<void> {
+  await resolveSafeAddresses(url, label, policy, lookup);
 }
 
 export function isBlockedOutboundHost(hostname: string, policy: HttpsUrlPolicy = {}): boolean {

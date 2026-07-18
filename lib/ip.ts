@@ -15,6 +15,7 @@ import { DEFAULT_IP_TIMEOUT_MS } from './defaults.js';
 import { errorMessage } from './errors.js';
 import { formatError, type ErrorInfo } from './log.js';
 import { sanitizeUrl } from './providers/http.js';
+import { pinnedHttpsFetch } from './safe-https.js';
 import type { PublicIP } from './schemas/provider.js';
 import { assertResolvedHttpsHostSafe, type HostLookupFn } from './url-policy.js';
 
@@ -51,7 +52,6 @@ export type DiscoverDeps = {
   dnsFallback?: boolean;
 };
 
-const defaultFetch = globalThis.fetch.bind(globalThis);
 const defaultCreateResolver = (): DnsResolver => {
   const resolver = new dns.Resolver();
   return {
@@ -64,14 +64,13 @@ const defaultCreateResolver = (): DnsResolver => {
   };
 };
 
-/** Resolve optional deps against library defaults (fetch + DNS resolver). */
-export type ResolvedDiscoverDeps = Required<Pick<DiscoverDeps, 'fetch' | 'createResolver'>> &
-  DiscoverDeps;
+/** Resolve optional deps against library defaults (DNS resolver). Fetch stays
+ * unset in production so discovery uses pin-on-connect HTTPS. */
+export type ResolvedDiscoverDeps = Required<Pick<DiscoverDeps, 'createResolver'>> & DiscoverDeps;
 
 export function resolveDiscoverDeps(deps: DiscoverDeps = {}): ResolvedDiscoverDeps {
   return {
     ...deps,
-    fetch: deps.fetch ?? defaultFetch,
     createResolver: deps.createResolver ?? defaultCreateResolver,
   };
 }
@@ -180,9 +179,14 @@ async function lookupViaHttps(
         errors.push(errorMessage(error));
         continue;
       }
-      // Follow redirects, but reject cleartext final URLs so a compromised echo
-      // host cannot downgrade TLS and steer DNS to an attacker IP.
-      const response = await deps.fetch(endpoint, { signal, redirect: 'follow' });
+      // Production path pins dial to the verified address set. Tests inject fetch.
+      const response = deps.fetch
+        ? await deps.fetch(endpoint, { signal, redirect: 'follow' })
+        : await pinnedHttpsFetch(endpoint, {
+            signal,
+            redirect: 'follow',
+            ...(deps.lookupHost ? { lookupHost: deps.lookupHost } : {}),
+          });
       if (!response.ok) {
         errors.push(`${endpointLabel} HTTP ${response.status}`);
         continue;
@@ -211,11 +215,14 @@ async function lookupViaHttps(
         errors.push(`${endpointLabel} redirected to different host (${sanitizeUrl(finalUrl)})`);
         continue;
       }
-      try {
-        await assertResolvedHttpsHostSafe(final, endpointLabel, {}, deps.lookupHost);
-      } catch (error) {
-        errors.push(errorMessage(error));
-        continue;
+      // pinnedHttpsFetch already re-validates each hop; custom fetch still needs a check.
+      if (deps.fetch) {
+        try {
+          await assertResolvedHttpsHostSafe(final, endpointLabel, {}, deps.lookupHost);
+        } catch (error) {
+          errors.push(errorMessage(error));
+          continue;
+        }
       }
       const text = await response.text();
       const candidate = parseCandidate(text, family);

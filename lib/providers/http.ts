@@ -3,6 +3,7 @@
  */
 
 import { errorMessage, networkErrorFields } from '../errors.js';
+import { pinnedHttpsFetch } from '../safe-https.js';
 import { isSensitiveKey } from '../sensitive.js';
 import packageJson from '../../package.json' with { type: 'json' };
 
@@ -63,6 +64,14 @@ export type RequestResult = {
 export type RequestInitWithTimeout = RequestInit & {
   /** Overall deadline for the request; combined with any caller-provided signal. */
   timeoutMs?: number;
+  /**
+   * When set, dial via pin-on-connect HTTPS (resolve once, connect only to
+   * verified addresses). Used for notify webhooks and other untrusted URLs.
+   */
+  pin?: {
+    policy?: import('../url-policy.js').HttpsUrlPolicy;
+    lookupHost?: import('../url-policy.js').HostLookupFn;
+  };
 };
 
 /**
@@ -73,7 +82,7 @@ export async function request(
   url: string | URL,
   init: RequestInitWithTimeout = {},
 ): Promise<RequestResult> {
-  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init;
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, pin, ...fetchInit } = init;
   const headers = new Headers(fetchInit.headers);
   if (!headers.has('User-Agent')) {
     headers.set('User-Agent', userAgent);
@@ -92,7 +101,16 @@ export async function request(
   const redirect = fetchInit.redirect ?? 'error';
 
   try {
-    const response = await fetch(url, { ...fetchInit, headers, signal, redirect });
+    const response = pin
+      ? await pinnedHttpsFetch(url, {
+          method,
+          headers,
+          body: typeof fetchInit.body === 'string' ? fetchInit.body : null,
+          signal,
+          redirect: redirect === 'follow' ? 'follow' : 'error',
+          ...pin,
+        })
+      : await fetch(url, { ...fetchInit, headers, signal, redirect });
     const body = await response.text();
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
     return {

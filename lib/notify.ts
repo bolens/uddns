@@ -5,7 +5,7 @@
 import { formatError, redact, type Logger } from './log.js';
 import { request } from './providers/http.js';
 import type { CycleEvent } from './schemas/cycle.js';
-import { assertResolvedHttpsHostSafe } from './url-policy.js';
+import type { HostLookupFn, HttpsUrlPolicy } from './url-policy.js';
 
 export type NotifyConfig = {
   webhookUrl: string | null;
@@ -17,7 +17,9 @@ export type NotifyConfig = {
 
 export type NotifyDeps = {
   log?: Logger;
-  lookupHost?: import('./url-policy.js').HostLookupFn;
+  lookupHost?: HostLookupFn;
+  /** Override outbound HTTP (tests). Production uses pinned `request`. */
+  requestFn?: typeof request;
 };
 
 export function matchesNotifyFilter(event: CycleEvent, on: NotifyConfig['on']): boolean {
@@ -30,6 +32,13 @@ export function matchesNotifyFilter(event: CycleEvent, on: NotifyConfig['on']): 
   return false;
 }
 
+function notifyPin(
+  policy: HttpsUrlPolicy,
+  lookupHost?: HostLookupFn,
+): NonNullable<import('./providers/http.js').RequestInitWithTimeout['pin']> {
+  return lookupHost ? { policy, lookupHost } : { policy };
+}
+
 export async function dispatchNotifications(
   config: NotifyConfig,
   event: CycleEvent,
@@ -40,22 +49,18 @@ export async function dispatchNotifications(
   }
 
   const log = deps.log;
+  const httpRequest = deps.requestFn ?? request;
   const payload = redact(event) as CycleEvent;
   const safeMessage = typeof payload.message === 'string' ? payload.message : '[redacted]';
   const ipLabel = `${payload.ip.v4 ?? '-'}/${payload.ip.v6 ?? '-'}`;
 
   if (config.webhookUrl) {
     try {
-      await assertResolvedHttpsHostSafe(
-        new URL(config.webhookUrl),
-        'webhook',
-        { allowPrivateHosts: true },
-        deps.lookupHost,
-      );
-      await request(config.webhookUrl, {
+      await httpRequest(config.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        pin: notifyPin({ allowPrivateHosts: true }, deps.lookupHost),
       });
     } catch (error) {
       log?.warn('Webhook notification failed', formatError(error));
@@ -64,21 +69,16 @@ export async function dispatchNotifications(
 
   if (config.ntfyUrl) {
     try {
-      await assertResolvedHttpsHostSafe(
-        new URL(config.ntfyUrl),
-        'ntfy',
-        { allowPrivateHosts: true },
-        deps.lookupHost,
-      );
       const title = `uDDNS ${payload.status}`;
       const body = `${safeMessage} (${ipLabel})`;
-      await request(config.ntfyUrl, {
+      await httpRequest(config.ntfyUrl, {
         method: 'POST',
         headers: {
           Title: title,
           'Content-Type': 'text/plain',
         },
         body,
+        pin: notifyPin({ allowPrivateHosts: true }, deps.lookupHost),
       });
     } catch (error) {
       log?.warn('ntfy notification failed', formatError(error));
@@ -88,16 +88,11 @@ export async function dispatchNotifications(
   const summary = `uDDNS ${payload.status}: ${safeMessage} (${ipLabel})`;
   if (config.slackUrl) {
     try {
-      await assertResolvedHttpsHostSafe(
-        new URL(config.slackUrl),
-        'Slack webhook',
-        {},
-        deps.lookupHost,
-      );
-      await request(config.slackUrl, {
+      await httpRequest(config.slackUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: summary }),
+        pin: notifyPin({}, deps.lookupHost),
       });
     } catch (error) {
       log?.warn('Slack notification failed', formatError(error));
@@ -106,16 +101,11 @@ export async function dispatchNotifications(
 
   if (config.discordUrl) {
     try {
-      await assertResolvedHttpsHostSafe(
-        new URL(config.discordUrl),
-        'Discord webhook',
-        {},
-        deps.lookupHost,
-      );
-      await request(config.discordUrl, {
+      await httpRequest(config.discordUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: summary }),
+        pin: notifyPin({}, deps.lookupHost),
       });
     } catch (error) {
       log?.warn('Discord notification failed', formatError(error));

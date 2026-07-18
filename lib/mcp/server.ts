@@ -124,9 +124,14 @@ async function reportProgress(
   });
 }
 
-export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
+export function createUddnsMcpServer(
+  sessionInput: McpSession,
+  options: {
+    discoverPublicIPFn?: () => Promise<import('../ip.js').PublicIPDiscovery>;
+  } = {},
+): UddnsMcpServer {
   const session = normalizeSession(sessionInput);
-  const handlers = createToolHandlers(session);
+  const handlers = createToolHandlers(session, options);
   const server = new McpServer({
     name: 'uddns',
     version: packageJson.version,
@@ -455,7 +460,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const body = await readMcpResource(session, uri.href);
+      const body = await readMcpResource(session, uri.href, options);
       return { contents: [{ uri: uri.href, mimeType: body.mimeType, text: body.text }] };
     },
   );
@@ -468,7 +473,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const body = await readMcpResource(session, uri.href);
+      const body = await readMcpResource(session, uri.href, options);
       return { contents: [{ uri: uri.href, mimeType: body.mimeType, text: body.text }] };
     },
   );
@@ -481,7 +486,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const body = await readMcpResource(session, uri.href);
+      const body = await readMcpResource(session, uri.href, options);
       return { contents: [{ uri: uri.href, mimeType: body.mimeType, text: body.text }] };
     },
   );
@@ -494,7 +499,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const body = await readMcpResource(session, uri.href);
+      const body = await readMcpResource(session, uri.href, options);
       return { contents: [{ uri: uri.href, mimeType: body.mimeType, text: body.text }] };
     },
   );
@@ -515,7 +520,7 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
     {
       description: 'Diagnose a failed or skipped DNS update using live session data',
     },
-    async () => buildDiagnoseUpdatePrompt(session),
+    async () => buildDiagnoseUpdatePrompt(session, options),
   );
 
   server.registerPrompt(

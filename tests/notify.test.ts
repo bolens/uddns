@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { dispatchNotifications, matchesNotifyFilter } from '../lib/notify.js';
+import type { request } from '../lib/providers/http.js';
 import type { CycleEvent } from '../lib/schemas/cycle.js';
 import { afterEachRestoreMocks } from './helpers/cleanup.js';
 import { silentLog } from './helpers/log.js';
@@ -24,9 +25,20 @@ describe('notifications', () => {
   });
 
   it('posts webhook and ntfy without failing the cycle on errors', async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    const requestFn = vi
+      .fn<typeof request>()
+      .mockResolvedValueOnce({
+        response: new Response('ok', { status: 200 }),
+        body: 'ok',
+        meta: {
+          method: 'POST',
+          url: 'https://example.com/hook',
+          status: 200,
+          statusText: 'OK',
+          durationMs: 1,
+          bodyPreview: 'ok',
+        },
+      })
       .mockRejectedValueOnce(new Error('ntfy down'));
 
     const log = silentLog();
@@ -39,18 +51,30 @@ describe('notifications', () => {
       baseEvent,
       {
         log,
+        requestFn,
         lookupHost: async () => [{ address: '1.1.1.1', family: 4 }],
       },
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestFn).toHaveBeenCalledTimes(2);
     expect(log.warn).toHaveBeenCalled();
   });
 
   it('posts Slack and Discord payloads and swallows delivery failures', async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    const requestFn = vi
+      .fn<typeof request>()
+      .mockResolvedValueOnce({
+        response: new Response('ok', { status: 200 }),
+        body: 'ok',
+        meta: {
+          method: 'POST',
+          url: 'https://hooks.slack.com/services/T/B/X',
+          status: 200,
+          statusText: 'OK',
+          durationMs: 1,
+          bodyPreview: 'ok',
+        },
+      })
       .mockRejectedValueOnce(new Error('discord down'));
 
     const log = silentLog();
@@ -68,12 +92,13 @@ describe('notifications', () => {
       },
       {
         log,
+        requestFn,
         lookupHost: async () => [{ address: '1.1.1.1', family: 4 }],
       },
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const slackInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(requestFn).toHaveBeenCalledTimes(2);
+    const slackInit = requestFn.mock.calls[0]?.[1];
     expect(typeof slackInit?.body).toBe('string');
     const slackBody = JSON.parse(slackInit?.body as string) as { text: string };
     expect(slackBody.text).toContain('uDDNS updated');

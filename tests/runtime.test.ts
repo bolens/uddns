@@ -4,6 +4,7 @@ import dns from 'node:dns/promises';
 import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { createRuntimeBundle } from '../lib/runtime.js';
+import type { request } from '../lib/providers/http.js';
 import { createUpdater } from '../lib/updater.js';
 import { deferred } from './helpers/async.js';
 import { afterEachRestoreMocks } from './helpers/cleanup.js';
@@ -13,12 +14,29 @@ import { mockProvider } from './helpers/provider.js';
 
 afterEachRestoreMocks();
 
+function okRequestResult(url: string) {
+  return {
+    response: new Response('ok', { status: 200 }),
+    body: 'ok',
+    meta: {
+      method: 'POST',
+      url,
+      status: 200,
+      statusText: 'OK',
+      durationMs: 1,
+      bodyPreview: 'ok',
+    },
+  };
+}
+
 describe('createRuntimeBundle', () => {
   it('wires IP policy, notify, and metrics on cycle complete', async () => {
     vi.spyOn(dns, 'lookup').mockImplementation((async () => [
       { address: '1.1.1.1', family: 4 },
     ]) as unknown as typeof dns.lookup);
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+    const notifyRequestFn = vi
+      .fn<typeof request>()
+      .mockResolvedValue(okRequestResult('https://example.com/hook'));
     const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
     const bundle = createRuntimeBundle({
       accountId: 'acct',
@@ -31,6 +49,7 @@ describe('createRuntimeBundle', () => {
         ipFamily: 'v4',
         ipMissing: 'clear',
       }),
+      notifyRequestFn,
       getProviderFn: () => mockProvider(update),
       createUpdaterFn: (options) =>
         createUpdater({
@@ -53,12 +72,13 @@ describe('createRuntimeBundle', () => {
     expect(bundle.metrics.snapshot().updatesTotal).toBe(1);
     expect(events).toHaveLength(1);
     await bundle.flushNotifications();
-    expect(fetchMock).toHaveBeenCalled();
-    fetchMock.mockRestore();
+    expect(notifyRequestFn).toHaveBeenCalled();
   });
 
   it('does not notify on all-skipped unchanged cycles', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
+    const notifyRequestFn = vi
+      .fn<typeof request>()
+      .mockResolvedValue(okRequestResult('https://example.com/hook'));
     const bundle = createRuntimeBundle({
       log: silentLog(),
       config: makeConfig({
@@ -67,6 +87,7 @@ describe('createRuntimeBundle', () => {
         notifyWebhookUrl: 'https://example.com/hook',
         notifyOn: ['change'],
       }),
+      notifyRequestFn,
       getProviderFn: () =>
         mockProvider(async () => ({ ok: true, skipped: true, message: 'nochg' })),
       createUpdaterFn: (options) =>
@@ -82,16 +103,15 @@ describe('createRuntimeBundle', () => {
     const result = await bundle.updater.checkOnce();
     expect(result.status).toBe('unchanged');
     await bundle.flushNotifications();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(notifyRequestFn).not.toHaveBeenCalled();
     expect(bundle.metrics.snapshot().updatesTotal).toBe(0);
-    fetchMock.mockRestore();
   });
 
   it('uses the default discovery resolver when not overridden', async () => {
     vi.spyOn(dns, 'lookup').mockImplementation((async () => [
       { address: '1.1.1.1', family: 4 },
     ]) as unknown as typeof dns.lookup);
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const discoverFetch = vi.fn(async (input) => {
       const url = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
       if (url.includes('ipv6') || url.includes('api64')) {
         const response = new Response('not-an-ip');
@@ -111,11 +131,11 @@ describe('createRuntimeBundle', () => {
         ipDnsFallback: false,
         ipTimeoutMs: 2000,
       }),
+      discoverFetch,
       getProviderFn: () => mockProvider(update),
     });
     const result = await bundle.updater.checkOnce();
     expect(result.ip.v4).toBe('198.51.100.10');
-    fetchMock.mockRestore();
   });
 
   it('appends history and uses custom HTTPS discovery endpoints', async () => {
@@ -178,6 +198,9 @@ describe('createRuntimeBundle', () => {
   it('warns when history append fails and still completes the cycle', async () => {
     const log = silentLog();
     const historyFile = `${tmpdir()}/uddns-history-${Date.now()}.json`;
+    const notifyRequestFn = vi
+      .fn<typeof request>()
+      .mockResolvedValue(okRequestResult('https://hooks.slack.com/services/T/B/X'));
     const bundle = createRuntimeBundle({
       log,
       config: makeConfig({
@@ -189,6 +212,7 @@ describe('createRuntimeBundle', () => {
         notifyOn: ['change'],
       }),
       accountId: 'acct',
+      notifyRequestFn,
       getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
       createUpdaterFn: (options) =>
         createUpdater({
@@ -200,7 +224,6 @@ describe('createRuntimeBundle', () => {
         }),
     });
     vi.spyOn(bundle.history!, 'append').mockRejectedValue(new Error('disk full'));
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
 
     await expect(bundle.updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
     expect(log.warn).toHaveBeenCalledWith(
@@ -213,13 +236,13 @@ describe('createRuntimeBundle', () => {
     vi.spyOn(dns, 'lookup').mockImplementation((async () => [
       { address: '1.1.1.1', family: 4 },
     ]) as unknown as typeof dns.lookup);
-    const response = deferred<Response>();
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
+    const response = deferred<ReturnType<typeof okRequestResult>>();
+    const notifyRequestFn = vi.fn<typeof request>().mockImplementation((input) => {
+      const url = typeof input === 'string' || input instanceof URL ? String(input) : String(input);
       if (url.includes('/hook')) {
         return response.promise;
       }
-      return Promise.resolve(new Response('ok'));
+      return Promise.resolve(okRequestResult(url));
     });
     const bundle = createRuntimeBundle({
       log: silentLog(),
@@ -229,6 +252,7 @@ describe('createRuntimeBundle', () => {
         notifyWebhookUrl: 'https://example.com/hook',
         notifyOn: ['change'],
       }),
+      notifyRequestFn,
       getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
       createUpdaterFn: (options) =>
         createUpdater({
@@ -246,10 +270,10 @@ describe('createRuntimeBundle', () => {
       new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 50)),
     ]);
     expect(outcome).toBe('completed');
-    response.resolve(new Response('ok'));
+    response.resolve(okRequestResult('https://example.com/hook'));
     await vi.waitFor(() =>
       expect(
-        fetchMock.mock.calls.some((call) => {
+        notifyRequestFn.mock.calls.some((call) => {
           const input = call[0];
           const url =
             typeof input === 'string' || input instanceof URL
@@ -261,6 +285,5 @@ describe('createRuntimeBundle', () => {
         }),
       ).toBe(true),
     );
-    fetchMock.mockRestore();
   });
 });

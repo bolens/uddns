@@ -549,12 +549,20 @@ describe('MCP prompts and resources', () => {
       stateStore: memoryStateStore(),
     });
     await updater.checkOnce();
-    const prompt = await buildDiagnoseUpdatePrompt({
-      config,
-      provider: mockProvider(update),
-      updater,
-      log: silentLog(),
-    });
+    const prompt = await buildDiagnoseUpdatePrompt(
+      {
+        config,
+        provider: mockProvider(update),
+        updater,
+        log: silentLog(),
+      },
+      {
+        discoverPublicIPFn: async () => ({
+          ip: { v4: '8.8.8.8', v6: null },
+          errors: { v4: null, v6: null },
+        }),
+      },
+    );
     expect(prompt.messages[0]?.content.text).toContain('Diagnose a uDDNS update');
     expect(prompt.messages[0]?.content.text).not.toContain('diagnose-secret-token');
     expect(prompt.messages[0]?.content.text).toContain('[redacted]');
@@ -699,7 +707,12 @@ describe('createUddnsMcpServer', () => {
       updater,
       log: silentLog(),
     };
-    const server = createUddnsMcpServer(session);
+    const server = createUddnsMcpServer(session, {
+      discoverPublicIPFn: async () => ({
+        ip: { v4: '1.2.3.4', v6: null },
+        errors: { v4: null, v6: null },
+      }),
+    });
 
     const registered = server as unknown as {
       _registeredTools: Record<
