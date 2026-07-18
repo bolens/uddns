@@ -98,7 +98,7 @@ jobs:
           - name: config
             paths: tests/config.test.ts tests/defaults.test.ts tests/hosts.test.ts
           - name: core
-            paths: tests/app.test.ts tests/cli.test.ts tests/config-file.test.ts tests/data-path.test.ts tests/domain-host.test.ts tests/errors.test.ts tests/health-config.test.ts tests/history.test.ts tests/http.test.ts tests/init.test.ts tests/ip-discovery-config.test.ts tests/ip-policy.test.ts tests/ip.test.ts tests/log.test.ts tests/notify.test.ts tests/once.test.ts tests/result.test.ts tests/runtime.test.ts tests/safe-https.test.ts tests/scaffold.test.ts tests/sensitive.test.ts tests/side-server.test.ts tests/state.test.ts tests/telemetry.test.ts tests/updater.test.ts tests/url-policy.test.ts
+            paths: tests/app.test.ts tests/cli.test.ts tests/config-file.test.ts tests/data-path.test.ts tests/domain-host.test.ts tests/errors.test.ts tests/failover.test.ts tests/health-config.test.ts tests/history.test.ts tests/http.test.ts tests/init.test.ts tests/ip-discovery-config.test.ts tests/ip-policy.test.ts tests/ip.test.ts tests/log.test.ts tests/notify.test.ts tests/once.test.ts tests/result.test.ts tests/runtime.test.ts tests/safe-https.test.ts tests/scaffold.test.ts tests/sensitive.test.ts tests/side-server.test.ts tests/state.test.ts tests/telemetry.test.ts tests/updater.test.ts tests/url-policy.test.ts
           - name: mcp
             paths: tests/mcp-entry.test.ts tests/mcp-session.test.ts tests/mcp.test.ts
           - name: docs

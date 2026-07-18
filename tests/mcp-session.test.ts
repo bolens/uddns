@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vite-plus/test';
 import { createMcpSession } from '../lib/mcp/session.js';
 import { createToolHandlers } from '../lib/mcp/tools.js';
 import { createUpdater } from '../lib/updater.js';
-import { makeConfig } from './helpers/config.js';
+import { makeConfig, makeLoadedAccount } from './helpers/config.js';
 import { silentLog } from './helpers/log.js';
 import { mockProvider } from './helpers/provider.js';
 
@@ -22,7 +22,7 @@ describe('mcp session runtime wiring', () => {
     const handlers = createToolHandlers(session);
     expect(await handlers.getHistory()).toEqual({ accountId: 'default', events: [] });
     expect(handlers.listAccounts()).toEqual([
-      { id: 'default', provider: 'cloudflare', hosts: ['home.example.com'] },
+      { id: 'default', provider: 'cloudflare', hosts: ['home.example.com'], role: 'primary' },
     ]);
   });
 
@@ -48,8 +48,8 @@ describe('mcp session runtime wiring', () => {
     const session = await createMcpSession({
       log: silentLog(),
       resolveAccountsFn: () => [
-        { id: 'a', config: makeConfig({ hosts: ['a.example.com'], historyFile: null }) },
-        { id: 'b', config: makeConfig({ hosts: ['b.example.com'], historyFile: null }) },
+        makeLoadedAccount('a', { hosts: ['a.example.com'], historyFile: null }),
+        makeLoadedAccount('b', { hosts: ['b.example.com'], historyFile: null }),
       ],
       getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
       createUpdaterFn: (options) =>

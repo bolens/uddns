@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { runOnce } from '../lib/once.js';
 import { afterEachRestoreMocks } from './helpers/cleanup.js';
-import { makeConfig } from './helpers/config.js';
+import { makeConfig, makeLoadedAccount } from './helpers/config.js';
 import { silentLog } from './helpers/log.js';
 import { mockProvider } from './helpers/provider.js';
 
@@ -113,8 +113,8 @@ describe('once', () => {
     await runOnce({
       log,
       resolveAccountsFn: () => [
-        { id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) },
-        { id: 'b', config: makeConfig({ hosts: ['b.example.com'] }) },
+        makeLoadedAccount('a', { hosts: ['a.example.com'] }),
+        makeLoadedAccount('b', { hosts: ['b.example.com'] }),
       ],
       getProviderFn: () => mockProvider(),
       createUpdaterFn: () => updaterWith(checkOnce),
@@ -133,6 +133,34 @@ describe('once', () => {
       exit,
     });
     expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('skips failover standby accounts and only runs primaries', async () => {
+    const checkOnce = vi.fn(async () => ({
+      status: 'unchanged' as const,
+      ip: { v4: '1.1.1.1', v6: null },
+      message: 'ok',
+    }));
+    const exit = vi.fn();
+    await runOnce({
+      log: silentLog(),
+      resolveAccountsFn: () => [
+        makeLoadedAccount('primary', {
+          hosts: ['home.example.com'],
+          failoverAccountIds: ['backup'],
+        }),
+        makeLoadedAccount('backup', {
+          role: 'failover',
+          hosts: ['home.example.com'],
+          provider: 'route53',
+        }),
+      ],
+      getProviderFn: () => mockProvider(),
+      createUpdaterFn: () => updaterWith(checkOnce),
+      exit,
+    });
+    expect(checkOnce).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledWith(0);
   });
 
   it('uses injected createUpdaterFn through the runtime bundle', async () => {

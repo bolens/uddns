@@ -372,6 +372,7 @@ describe('MCP tool handlers', () => {
         id: 'default',
         provider: 'cloudflare',
         hosts: ['home.example.com', 'vpn.example.com'],
+        role: 'primary',
       },
     ]);
     expect(handlers.validateConfig()).toMatchObject({

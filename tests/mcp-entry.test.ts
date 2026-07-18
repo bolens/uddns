@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vite-plus/test';
 import { main } from '../mcp.js';
 import { deferred } from './helpers/async.js';
 import { afterEachRestoreMocks } from './helpers/cleanup.js';
-import { makeConfig } from './helpers/config.js';
+import { makeConfig, makeLoadedAccount } from './helpers/config.js';
 import { silentLog } from './helpers/log.js';
 import { mockProvider, stubUpdater } from './helpers/provider.js';
 
@@ -60,8 +60,8 @@ describe('MCP entrypoint', () => {
       env: {},
       log,
       resolveAccountsFn: () => [
-        { id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) },
-        { id: 'b', config: makeConfig({ hosts: ['b.example.com'] }) },
+        makeLoadedAccount('a', { hosts: ['a.example.com'] }),
+        makeLoadedAccount('b', { hosts: ['b.example.com'] }),
       ],
       getProviderFn: () => stubProvider,
       on: vi.fn(),
