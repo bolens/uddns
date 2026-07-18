@@ -233,7 +233,7 @@ describe('MCP tool handlers', () => {
   it('starts, retunes interval, and restarts after stop', async () => {
     const { timers, setIntervalFn, clearIntervalFn } = captureInterval();
     const updater = createUpdater({
-      config: makeConfig({ interval: 15_000 }),
+      config: makeConfig({ interval: 90_000 }),
       provider: mockProvider(async () => ({ ok: true, message: 'ok' })),
       getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
       log: silentLog(),
@@ -242,7 +242,7 @@ describe('MCP tool handlers', () => {
       stateStore: memoryStateStore(),
     });
     const handlers = createToolHandlers({
-      config: makeConfig(),
+      config: makeConfig({ interval: 90_000 }),
       provider: mockProvider(),
       updater,
       log: silentLog(),
@@ -250,11 +250,11 @@ describe('MCP tool handlers', () => {
 
     await handlers.startLoop();
     expect(handlers.getStatus().running).toBe(true);
-    expect(timers[0]?.delay).toBe(15_000);
+    expect(timers[0]?.delay).toBe(90_000);
 
-    handlers.setInterval(30_000);
-    expect(handlers.getStatus().intervalMs).toBe(30_000);
-    expect(timers.at(-1)?.delay).toBe(30_000);
+    handlers.setInterval(120_000);
+    expect(handlers.getStatus().intervalMs).toBe(120_000);
+    expect(timers.at(-1)?.delay).toBe(120_000);
 
     await handlers.stopLoop();
     expect(handlers.getStatus().running).toBe(false);
@@ -316,14 +316,14 @@ describe('MCP tool handlers', () => {
     expect(updaterA.getStatus().running).toBe(false);
     expect(updaterB.getStatus().running).toBe(false);
 
-    expect(handlers.setInterval(45_000)).toMatchObject({
+    expect(handlers.setInterval(90_000)).toMatchObject({
       accounts: [
-        { id: 'a', status: expect.objectContaining({ intervalMs: 45_000 }) },
-        { id: 'b', status: expect.objectContaining({ intervalMs: 45_000 }) },
+        { id: 'a', status: expect.objectContaining({ intervalMs: 90_000 }) },
+        { id: 'b', status: expect.objectContaining({ intervalMs: 90_000 }) },
       ],
     });
-    expect(updaterA.getStatus().intervalMs).toBe(45_000);
-    expect(updaterB.getStatus().intervalMs).toBe(45_000);
+    expect(updaterA.getStatus().intervalMs).toBe(90_000);
+    expect(updaterB.getStatus().intervalMs).toBe(90_000);
 
     await handlers.startLoop('b');
     expect(updaterA.getStatus().running).toBe(false);
@@ -750,7 +750,7 @@ describe('createUddnsMcpServer', () => {
       content: [{ type: 'text' }],
     });
     expect(
-      await registered._registeredTools['set_interval']!.handler({ intervalMs: 5000 }, extra),
+      await registered._registeredTools['set_interval']!.handler({ intervalMs: 60_000 }, extra),
     ).toMatchObject({ content: [{ type: 'text' }] });
     expect(
       await registered._registeredTools['check_once']!.handler({ confirm: true }, extra),

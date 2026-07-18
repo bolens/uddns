@@ -6,6 +6,8 @@ import type { ProviderId } from './schemas/provider.js';
 
 export const DEFAULT_PROVIDER: ProviderId = 'cloudflare';
 export const DEFAULT_INTERVAL_MS = 900_000;
+/** Floor check intervals at 60s to avoid provider API hammering. */
+export const MIN_INTERVAL_MS = 60_000;
 /** Cap check intervals at 24h (also stays below Node's 2^31-1 timer overflow). */
 export const MAX_INTERVAL_MS = 86_400_000;
 export const DEFAULT_STATE_FILE = '.uddns-state.json';

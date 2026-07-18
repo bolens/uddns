@@ -65,7 +65,7 @@ Tool results include both JSON text `content` and `structuredContent`.
 - `get_history` — return recent cycle history
 - `validate_config` — field-level configuration validation
 - `explain_last_cycle` — summarize the last cycle with next steps
-- `set_interval` — change the live interval (1000 ms–24 h; multi-account without `accountId` updates every account)
+- `set_interval` — change the live interval (60 s–24 h; multi-account without `accountId` updates every account)
 - `start_loop` — run an immediate check and start interval scheduling (`confirm: true`; all accounts when `accountId` is omitted)
 - `stop_loop` — stop scheduling and wait for an active cycle (all accounts when `accountId` is omitted)
 - `init_config` — elicit non-secret init values and return a `.env` template

@@ -6,6 +6,7 @@ import { access, writeFile } from 'node:fs/promises';
 import * as readline from 'node:readline/promises';
 
 import { DEFAULT_INTERVAL_MS, DEFAULT_PROVIDER, PROVIDER_IDS_LIST } from './init-defaults.js';
+import { MIN_INTERVAL_MS } from './defaults.js';
 import { createLogger, formatError, type Logger } from './log.js';
 
 export type InitOptions = {
@@ -89,8 +90,8 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
         const intervalAnswer = (await ask(`Interval ms (${interval}): `)).trim();
         if (intervalAnswer) {
           const parsed = Number(intervalAnswer);
-          if (!Number.isFinite(parsed) || parsed < 1_000) {
-            throw new Error('Interval must be a number of milliseconds >= 1000');
+          if (!Number.isFinite(parsed) || parsed < MIN_INTERVAL_MS) {
+            throw new Error(`Interval must be a number of milliseconds >= ${MIN_INTERVAL_MS}`);
           }
           interval = intervalAnswer;
         }

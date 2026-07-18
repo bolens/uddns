@@ -10,7 +10,7 @@ import {
 import { z } from 'zod';
 
 import packageJson from '../../package.json' with { type: 'json' };
-import { MAX_INTERVAL_MS } from '../defaults.js';
+import { MAX_INTERVAL_MS, MIN_INTERVAL_MS } from '../defaults.js';
 import { buildEnvContents } from '../init.js';
 import { PROVIDER_IDS_LIST } from '../init-defaults.js';
 import { redact } from '../log.js';
@@ -341,13 +341,12 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
   server.registerTool(
     MCP_TOOL_NAMES[12],
     {
-      description:
-        'Set the updater check interval in milliseconds (1000–86400000). With multiple accounts and no accountId, updates every account.',
+      description: `Set the updater check interval in milliseconds (${MIN_INTERVAL_MS}–${MAX_INTERVAL_MS}). With multiple accounts and no accountId, updates every account.`,
       inputSchema: {
         intervalMs: z
           .number()
           .int()
-          .min(1000)
+          .min(MIN_INTERVAL_MS)
           .max(MAX_INTERVAL_MS)
           .describe('Check interval in milliseconds'),
         accountId: accountIdSchema,

@@ -335,7 +335,7 @@ describe('createUpdater', () => {
     const { timers, setIntervalFn, clearIntervalFn, clear } = captureInterval();
 
     const updater = createUpdater({
-      config: makeConfig({ interval: 15_000, hosts: ['home.example.com'] }),
+      config: makeConfig({ interval: 90_000, hosts: ['home.example.com'] }),
       provider: mockProvider(update),
       getPublicIP: async () => ({ v4: '1.1.1.1', v6: null }),
       log: silentLog(),
@@ -344,7 +344,7 @@ describe('createUpdater', () => {
     });
 
     const handle = await updater.start();
-    expect(timers).toEqual([{ fn: expect.any(Function), delay: 15_000 }]);
+    expect(timers).toEqual([{ fn: expect.any(Function), delay: 90_000 }]);
     expect(update).toHaveBeenCalledOnce();
 
     const firstTimer = timers[0];
@@ -776,7 +776,7 @@ describe('createUpdater', () => {
       return Promise.resolve({ ok: true, message: 'ok' } satisfies UpdateResult);
     });
     const updater = createUpdater({
-      config: makeConfig({ interval: 15_000, hosts: ['home.example.com'] }),
+      config: makeConfig({ interval: 90_000, hosts: ['home.example.com'] }),
       provider: mockProvider(update),
       getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
       log: silentLog(),

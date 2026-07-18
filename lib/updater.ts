@@ -3,7 +3,7 @@
  */
 
 import { errorMessage, getErrorProp } from './errors.js';
-import { MAX_INTERVAL_MS } from './defaults.js';
+import { MAX_INTERVAL_MS, MIN_INTERVAL_MS } from './defaults.js';
 import { configForHost } from './hosts.js';
 import {
   discoverPublicIP,
@@ -487,9 +487,9 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   function setIntervalMs(ms: number): void {
-    if (!Number.isFinite(ms) || ms < 1_000 || ms > MAX_INTERVAL_MS) {
+    if (!Number.isFinite(ms) || ms < MIN_INTERVAL_MS || ms > MAX_INTERVAL_MS) {
       throw new Error(
-        `intervalMs must be a number of milliseconds from 1000 to ${MAX_INTERVAL_MS}`,
+        `intervalMs must be a number of milliseconds from ${MIN_INTERVAL_MS} to ${MAX_INTERVAL_MS}`,
       );
     }
     intervalMs = ms;
