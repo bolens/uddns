@@ -84,6 +84,22 @@ describe('request', () => {
     expect(result.meta.bodyPreview).not.toContain('leaked-token');
   });
 
+  it('scrubs JSON secret fields and JWTs from bodyPreview', async () => {
+    stubFetch(
+      async () =>
+        new Response(
+          '{"access_token":"opaquesecret","host":"ok","jwt":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig"}',
+          { status: 200 },
+        ),
+    );
+
+    const result = await request('https://example.com/x');
+    expect(result.meta.bodyPreview).toContain('"access_token":"[redacted]"');
+    expect(result.meta.bodyPreview).toContain('"host":"ok"');
+    expect(result.meta.bodyPreview).not.toContain('opaquesecret');
+    expect(result.meta.bodyPreview).toContain('[redacted-jwt]');
+  });
+
   it('allows callers to opt into redirect following', async () => {
     const fetchMock = stubFetch(async () => new Response('ok', { status: 200 }));
     await request('https://example.com/x', { redirect: 'follow' });

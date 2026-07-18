@@ -17,6 +17,16 @@ export type StateStore = {
   save: (state: HostState) => Promise<void>;
 };
 
+async function quarantineCorruptFile(resolved: string, reason: string): Promise<void> {
+  const corrupt = `${resolved}.corrupt.${process.pid}.${Date.now()}`;
+  try {
+    await rename(resolved, corrupt);
+    console.warn(`uDDNS: quarantined corrupt state file (${reason}) -> ${corrupt}`);
+  } catch {
+    console.warn(`uDDNS: ignoring corrupt state file (${reason}): ${resolved}`);
+  }
+}
+
 export function createFileStateStore(file: string, provider: ProviderId): StateStore {
   const resolved = path.resolve(file);
 
@@ -36,11 +46,20 @@ export function createFileStateStore(file: string, provider: ProviderId): StateS
       try {
         parsedJson = JSON.parse(raw);
       } catch {
+        await quarantineCorruptFile(resolved, 'invalid JSON');
         return {};
       }
 
       const parsed = stateFileSchema.safeParse(parsedJson);
-      if (!parsed.success || parsed.data.provider !== provider) {
+      if (!parsed.success) {
+        await quarantineCorruptFile(resolved, 'schema validation failed');
+        return {};
+      }
+      if (parsed.data.provider !== provider) {
+        // Provider switches intentionally discard checkpoints; keep the file.
+        console.warn(
+          `uDDNS: ignoring state file for provider "${parsed.data.provider}" (current: "${provider}")`,
+        );
         return {};
       }
       return parsed.data.hosts;

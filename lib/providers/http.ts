@@ -182,7 +182,11 @@ export function truncateBody(body: string, max = 800): string {
 export function scrubBodyPreview(body: string, max = 800): string {
   return truncateBody(body, max)
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+/gi, '$1 [redacted]')
-    .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => sanitizeUrl(url));
+    .replace(/"([A-Za-z0-9_-]+)"\s*:\s*"((?:\\.|[^"\\])*)"/g, (match, key: string) =>
+      isSensitiveKey(key) ? `"${key}":"[redacted]"` : match,
+    )
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => sanitizeUrl(url))
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted-jwt]');
 }
 
 export function basicAuthHeader(username: string, password: string): string {
