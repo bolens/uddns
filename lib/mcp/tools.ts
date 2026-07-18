@@ -7,7 +7,7 @@ import { redact } from '../log.js';
 import { listProviders } from '../providers/index.js';
 import { getProviderConfigIssues } from '../schemas/config.js';
 import type { CheckResult } from '../schemas/provider.js';
-import type { UpdaterStatus } from '../updater.js';
+import type { BusyCheckResult, UpdaterStatus } from '../updater.js';
 import { getMcpAccount, type McpAccount, type McpSession } from './session.js';
 
 function normalizeSession(session: McpSession): McpSession & {
@@ -43,13 +43,13 @@ export type McpToolHandlers = {
   getPublicIp: () => Promise<PublicIPDiscovery>;
   getConfig: (accountId?: string) => unknown;
   getAccountsConfig: () => { accounts: Array<{ id: string; config: unknown }> };
-  checkOnce: (accountId?: string) => Promise<CheckResult | null>;
-  forceUpdate: (accountId?: string) => Promise<CheckResult | null>;
-  dryRun: (accountId?: string) => Promise<CheckResult | null>;
+  checkOnce: (accountId?: string) => Promise<CheckResult | BusyCheckResult>;
+  forceUpdate: (accountId?: string) => Promise<CheckResult | BusyCheckResult>;
+  dryRun: (accountId?: string) => Promise<CheckResult | BusyCheckResult>;
   updateHosts: (
     hosts: string[],
     options?: { force?: boolean; dryRun?: boolean; accountId?: string },
-  ) => Promise<CheckResult | null>;
+  ) => Promise<CheckResult | BusyCheckResult>;
   getStatus: (accountId?: string) => UpdaterStatus;
   getAccountsStatus: () => { accounts: Array<{ id: string; status: UpdaterStatus }> };
   getHistory: (accountId?: string) => Promise<unknown>;

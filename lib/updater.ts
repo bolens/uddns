@@ -26,6 +26,13 @@ type CheckOnceOptions = {
   hosts?: string[];
 };
 
+export type BusyCheckResult = {
+  status: 'busy';
+  message: string;
+  cycle: number;
+  ip: PublicIP;
+};
+
 export type UpdaterOptions = {
   config: AppConfig;
   provider: Provider;
@@ -187,10 +194,15 @@ export function createUpdater(options: UpdaterOptions) {
    */
   async function checkOnceGuarded(
     checkOptions: CheckOnceOptions = {},
-  ): Promise<CheckResult | null> {
+  ): Promise<CheckResult | BusyCheckResult> {
     if (inFlight) {
       log.warn('Skipping check cycle: previous cycle still in progress', { cycle });
-      return null;
+      return {
+        status: 'busy',
+        message: 'Previous cycle still in progress',
+        cycle,
+        ip: { ...currentIP },
+      };
     }
 
     inFlight = true;
@@ -700,6 +712,9 @@ export function summarizeHostResults(
   }
 
   if (anyOk) {
+    // Advance the policy baseline so keep+discovery-blip cannot regress hosts
+    // that already accepted this cycle's IP.
+    commitIP(ip);
     return {
       status: 'partial',
       ip,

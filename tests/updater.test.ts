@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vite-plus/test';
 
 import type { AppConfig, Provider, PublicIP, UpdateResult } from '../lib/schemas/provider.js';
+import { applyIpPolicy } from '../lib/ip-policy.js';
 import { createUpdater, isRetryableHttpStatus, summarizeHostResults } from '../lib/updater.js';
 import { captureInterval, deferred, flushMicrotasks } from './helpers/async.js';
 import { makeConfig } from './helpers/config.js';
@@ -126,7 +127,7 @@ describe('createUpdater', () => {
 
     const first = await updater.checkOnce();
     expect(first.status).toBe('partial');
-    expect(updater.getCurrentIP()).toEqual({ v4: null, v6: null });
+    expect(updater.getCurrentIP()).toEqual({ v4: '9.9.9.9', v6: null });
 
     const second = await updater.checkOnce();
     expect(second.status).toBe('partial');
@@ -138,6 +139,85 @@ describe('createUpdater', () => {
     expect(third.status).toBe('updated');
     expect(update).toHaveBeenCalledTimes(4);
     expect(updater.getCurrentIP()).toEqual({ v4: '9.9.9.9', v6: null });
+  });
+
+  it('does not regress successful hosts after partial when keep restores a prior IP', async () => {
+    const update = vi.fn(async (config: AppConfig) => {
+      if (config.hostname === 'vpn.example.com') {
+        return { ok: false, message: 'badauth' };
+      }
+      return { ok: true, message: 'ok' };
+    });
+    let discovered: PublicIP = { v4: '2.2.2.2', v6: null };
+    const updater = createUpdater({
+      config: makeConfig({
+        hosts: ['home.example.com', 'vpn.example.com'],
+        ipMissing: 'keep',
+      }),
+      provider: mockProvider(update),
+      getPublicIP: async () => discovered,
+      applyIpPolicy: (discoveredIp, previous) =>
+        applyIpPolicy(discoveredIp, previous, { family: 'dual', missing: 'keep' }),
+      log: silentLog(),
+      stateStore: {
+        load: async () => ({
+          'home.example.com': { v4: '1.1.1.1', v6: null },
+          'vpn.example.com': { v4: '1.1.1.1', v6: null },
+        }),
+        save: async () => {},
+      },
+    });
+
+    await updater.checkOnce();
+    expect(updater.getCurrentIP()).toEqual({ v4: '2.2.2.2', v6: null });
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ hostname: 'home.example.com' }),
+      { v4: '2.2.2.2', v6: null },
+    );
+    expect(update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ hostname: 'vpn.example.com' }),
+      { v4: '2.2.2.2', v6: null },
+    );
+
+    discovered = { v4: null, v6: null };
+    update.mockClear();
+    const kept = await updater.checkOnce();
+    expect(kept.status).toBe('partial');
+    expect(update).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ hostname: 'vpn.example.com' }), {
+      v4: '2.2.2.2',
+      v6: null,
+    });
+  });
+
+  it('returns a busy result when a cycle is already in flight', async () => {
+    let release: ((result: UpdateResult) => void) | undefined;
+    const update = vi.fn(
+      () =>
+        new Promise<UpdateResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+    });
+
+    const first = updater.checkOnceGuarded();
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledOnce();
+    });
+    await expect(updater.checkOnceGuarded()).resolves.toMatchObject({
+      status: 'busy',
+      message: expect.stringMatching(/still in progress/i),
+    });
+    release?.({ ok: true, message: 'ok' });
+    await expect(first).resolves.toMatchObject({ status: 'updated' });
   });
 
   it('captures thrown provider errors as host failures without aborting the loop', async () => {
@@ -743,7 +823,7 @@ describe('isRetryableHttpStatus', () => {
 });
 
 describe('summarizeHostResults', () => {
-  it('commits IP only when every host succeeds', () => {
+  it('commits IP when every host succeeds or any host succeeds (partial)', () => {
     const commitIP = vi.fn();
     const ip = { v4: '1.1.1.1', v6: null };
 
@@ -780,7 +860,7 @@ describe('summarizeHostResults', () => {
       commitIP,
     );
     expect(partial.status).toBe('partial');
-    expect(commitIP).not.toHaveBeenCalled();
+    expect(commitIP).toHaveBeenCalledWith(ip);
 
     commitIP.mockClear();
     const failed = summarizeHostResults(

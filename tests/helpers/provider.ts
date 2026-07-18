@@ -1,7 +1,7 @@
 import { vi, type Mock } from 'vite-plus/test';
 
-import type { Provider, PublicIP } from '../../lib/schemas/provider.js';
-import type { UpdaterStatus } from '../../lib/updater.js';
+import type { CheckResult, Provider } from '../../lib/schemas/provider.js';
+import type { BusyCheckResult, Updater, UpdaterStatus } from '../../lib/updater.js';
 
 export function mockProvider(
   update: Provider['update'] = async () => ({ ok: true, message: 'ok' }),
@@ -29,26 +29,13 @@ const emptyStatus = (): UpdaterStatus => ({
   accountId: null,
 });
 
-export type StubUpdater = {
+export type StubUpdater = Updater & {
   start: Mock<() => Promise<{ stop: () => Promise<void> }>>;
   stop: Mock<() => Promise<void>>;
-  checkOnce: Mock<
-    () => Promise<{
-      status: 'unchanged';
-      ip: PublicIP;
-      message: string;
-    }>
-  >;
-  checkOnceGuarded: Mock<
-    () => Promise<{
-      status: 'unchanged';
-      ip: PublicIP;
-      message: string;
-    } | null>
-  >;
+  checkOnce: Mock<() => Promise<CheckResult>>;
+  checkOnceGuarded: Mock<() => Promise<CheckResult | BusyCheckResult>>;
   setIntervalMs: Mock<(ms: number) => void>;
   getStatus: Mock<() => UpdaterStatus>;
-  getCurrentIP: () => PublicIP;
 };
 
 export function stubUpdater(stop: () => Promise<void> = async () => {}): StubUpdater {
