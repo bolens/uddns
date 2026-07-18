@@ -128,6 +128,25 @@ describe('hetzner provider', () => {
     });
   });
 
+  it('fails when HETZNER_ZONE_ID does not match HETZNER_ZONE_NAME', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: hzZone('zone1', 'evil.net'),
+      },
+    ]);
+
+    await expect(
+      hetznerProvider.update(hzConfig({ hetzner: { zoneId: 'zone1', zoneName: 'example.com' } }), {
+        v4: '9.9.9.9',
+        v6: null,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('not HETZNER_ZONE_NAME'),
+    });
+  });
+
   it('pages through Hetzner records until the target is found', async () => {
     const filler = Array.from({ length: 100 }, (_, index) => ({
       id: `filler-${index}`,

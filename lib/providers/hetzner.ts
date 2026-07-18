@@ -70,6 +70,17 @@ export const hetznerProvider: Provider = {
       });
     }
 
+    if (hz.zoneName && normalizeDnsName(zone.name) !== normalizeDnsName(hz.zoneName)) {
+      return fail(
+        `Hetzner zone ${zone.id} is "${normalizeDnsName(zone.name)}", not HETZNER_ZONE_NAME "${normalizeDnsName(hz.zoneName)}"`,
+        {
+          zoneId: zone.id,
+          zoneName: hz.zoneName,
+          apiZoneName: zone.name,
+        },
+      );
+    }
+
     const record = splitDomainHost(hostname, zone.name);
     if (!record) {
       return fail(`Host ${hostname} is not within Hetzner zone ${zone.name}`, {

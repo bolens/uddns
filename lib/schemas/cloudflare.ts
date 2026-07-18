@@ -32,6 +32,8 @@ export const cloudflareEnvelopeSchema = cloudflareResponse(z.unknown());
 
 export const cloudflareZonesResponseSchema = cloudflareResponse(z.array(cloudflareZoneSchema));
 
+export const cloudflareZoneResponseSchema = cloudflareResponse(cloudflareZoneSchema.nullable());
+
 export const cloudflareRecordResponseSchema = cloudflareResponse(
   cloudflareDnsRecordSchema.nullable(),
 );

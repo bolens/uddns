@@ -9,6 +9,7 @@ import {
   cloudflareEnvelopeSchema,
   cloudflareRecordResponseSchema,
   cloudflareRecordsResponseSchema,
+  cloudflareZoneResponseSchema,
   cloudflareZonesResponseSchema,
   type CloudflareDnsRecord,
   type CloudflareEnvelope,
@@ -61,7 +62,29 @@ export const cloudflareProvider: Provider = {
       return fail('No public IP available', { recordName, ip });
     }
 
-    const zoneId = cf.zoneId ?? (await resolveZoneId(apiToken, zoneName, recordName));
+    let zoneId = cf.zoneId;
+    if (zoneId && zoneName) {
+      const zone = await getZone(apiToken, zoneId);
+      if (!zone) {
+        return fail(`Cloudflare zone lookup for ${zoneId} returned no zone`, {
+          zoneId,
+          zoneName,
+        });
+      }
+      // Zone ID is authoritative for writes; refuse when CLOUDFLARE_ZONE_NAME points elsewhere.
+      if (normalizeDnsLabel(zone.name) !== zoneName) {
+        return fail(
+          `Cloudflare zone ${zoneId} is "${normalizeDnsLabel(zone.name)}", not CLOUDFLARE_ZONE_NAME "${zoneName}"`,
+          {
+            zoneId,
+            zoneName,
+            apiZoneName: zone.name,
+          },
+        );
+      }
+    } else if (!zoneId) {
+      zoneId = await resolveZoneId(apiToken, zoneName, recordName);
+    }
     if (!zoneId) {
       return fail(
         'Could not resolve Cloudflare zone. Set CLOUDFLARE_ZONE_ID or CLOUDFLARE_ZONE_NAME.',
@@ -153,6 +176,15 @@ async function resolveZoneId(
   }
 
   return null;
+}
+
+async function getZone(
+  apiToken: string,
+  zoneId: string,
+): Promise<{ id: string; name: string } | null> {
+  const payload = await cloudflareJson(apiToken, `${API}/zones/${zoneId}`);
+  assertCloudflareSuccess(payload, `zone lookup for ${zoneId}`);
+  return parseCloudflare(cloudflareZoneResponseSchema, payload, 'zone').result ?? null;
 }
 
 async function listZones(apiToken: string, name: string) {

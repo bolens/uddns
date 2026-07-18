@@ -121,6 +121,88 @@ describe('cloudflare provider', () => {
     });
   });
 
+  it('fails when CLOUDFLARE_ZONE_ID does not match CLOUDFLARE_ZONE_NAME', async () => {
+    stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: cfOk({ id: 'zone1', name: 'evil.net' }),
+      },
+    ]);
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneId: 'zone1',
+            zoneName: 'example.com',
+            recordName: 'home',
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('not CLOUDFLARE_ZONE_NAME'),
+    });
+  });
+
+  it('fails when a pinned zone id returns a null zone body', async () => {
+    stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: cfOk(null),
+      },
+    ]);
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneId: 'zone1',
+            zoneName: 'example.com',
+            recordName: 'home',
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('returned no zone'),
+    });
+  });
+
+  it('accepts matching zone id and zone name before updating', async () => {
+    stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: cfOk({ id: 'zone1', name: 'example.com' }),
+      },
+      {
+        match: (url) => url.includes('/dns_records?') && url.includes('type=A'),
+        response: cfRecords([{ id: 'record1', content: '9.9.9.9', proxied: false }]),
+      },
+    ]);
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneId: 'zone1',
+            zoneName: 'example.com',
+            recordName: 'home.example.com',
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+    });
+  });
+
   it('skips unchanged records and creates missing ones when enabled', async () => {
     stubCloudflareFetch([
       {
