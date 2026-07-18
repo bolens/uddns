@@ -87,9 +87,12 @@ export async function request(
   const method = (fetchInit.method ?? 'GET').toUpperCase();
   const safeUrl = sanitizeUrl(url);
   const started = Date.now();
+  // Providers send Bearer/Basic/query tokens; never follow redirects that could
+  // move those credentials (or a forged "good" body) onto another host.
+  const redirect = fetchInit.redirect ?? 'error';
 
   try {
-    const response = await fetch(url, { ...fetchInit, headers, signal });
+    const response = await fetch(url, { ...fetchInit, headers, signal, redirect });
     const body = await response.text();
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
     return {
@@ -101,7 +104,7 @@ export async function request(
         status: response.status,
         statusText: response.statusText,
         durationMs: Date.now() - started,
-        bodyPreview: truncateBody(body),
+        bodyPreview: scrubBodyPreview(body),
         ...(retryAfterMs !== null ? { retryAfterMs } : {}),
       },
     };
@@ -173,6 +176,13 @@ export function truncateBody(body: string, max = 800): string {
     return trimmed;
   }
   return `${trimmed.slice(0, max)}…(+${trimmed.length - max} chars)`;
+}
+
+/** Truncate response bodies and scrub common auth tokens before they hit logs/meta. */
+export function scrubBodyPreview(body: string, max = 800): string {
+  return truncateBody(body, max)
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+/gi, '$1 [redacted]')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => sanitizeUrl(url));
 }
 
 export function basicAuthHeader(username: string, password: string): string {

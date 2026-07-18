@@ -73,6 +73,21 @@ describe('request', () => {
     const call = getCall(fetchMock);
     expect(call.headers.get('User-Agent')).toBe(userAgent);
     expect(call.headers.get('Authorization')).toBe('Bearer abc');
+    expect(call.init.redirect).toBe('error');
+  });
+
+  it('scrubs bearer tokens from bodyPreview metadata', async () => {
+    stubFetch(async () => new Response('Authorization: Bearer leaked-token', { status: 401 }));
+
+    const result = await request('https://example.com/x');
+    expect(result.meta.bodyPreview).toBe('Authorization: Bearer [redacted]');
+    expect(result.meta.bodyPreview).not.toContain('leaked-token');
+  });
+
+  it('allows callers to opt into redirect following', async () => {
+    const fetchMock = stubFetch(async () => new Response('ok', { status: 200 }));
+    await request('https://example.com/x', { redirect: 'follow' });
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('follow');
   });
 
   it('wraps network failures with method, sanitized URL, timing, and cause code', async () => {
