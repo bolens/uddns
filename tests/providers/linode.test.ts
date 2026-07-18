@@ -116,6 +116,23 @@ describe('linode provider', () => {
       message: expect.stringContaining('unchanged'),
     });
 
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.includes('type=A'),
+        response: linodeRecords([
+          { id: 101, type: 'A', name: 'home.', target: '9.9.9.9', ttl_sec: 300 },
+        ]),
+      },
+    ]);
+
+    await expect(
+      linodeProvider.update(linodeConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+      message: expect.stringContaining('unchanged'),
+    });
+
     const fetchMock = stubRoutedFetch([
       {
         match: (url, method) => method === 'GET' && url.includes('type=A'),

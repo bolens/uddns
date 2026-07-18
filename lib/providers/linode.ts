@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
-import { splitDomainHost } from './domain-host.js';
+import { splitDomainHost, normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request } from './http.js';
 
@@ -66,7 +66,9 @@ async function upsert(
     return fail('Linode returned invalid record data', { http: listed.meta });
   }
   if (!parsed.success) return fail('Linode returned invalid record data', { http: listed.meta });
-  const record = parsed.data.data.find((item) => item.type === type && item.name === apiName);
+  const record = parsed.data.data.find(
+    (item) => item.type === type && normalizeDnsName(item.name) === normalizeDnsName(apiName),
+  );
   if (record?.target === target && record.ttl_sec === ttl) {
     return skipped(`${type} ${name} unchanged (${target})`);
   }

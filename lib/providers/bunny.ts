@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
-import { splitDomainHost } from './domain-host.js';
+import { splitDomainHost, normalizeDnsName } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request } from './http.js';
 
@@ -88,7 +88,9 @@ async function upsert(
   ttl: number,
 ): Promise<UpdateResult> {
   const label = name === '@' ? '' : name;
-  const record = records.find((item) => item.Type === typeCode && item.Name === label);
+  const record = records.find(
+    (item) => item.Type === typeCode && normalizeDnsName(item.Name) === normalizeDnsName(label),
+  );
   if (record?.Value === value && record.Ttl === ttl)
     return skipped(`${type} ${name} unchanged (${value})`);
   const base = `https://api.bunny.net/dnszone/${zoneId}/records`;

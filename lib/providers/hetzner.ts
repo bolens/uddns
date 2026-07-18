@@ -271,7 +271,11 @@ async function findRecord(
     }
 
     const records = parseHetzner(hetznerRecordsResponseSchema, payload, 'records').records ?? [];
-    const match = records.find((record) => record.type === type && record.name === name) ?? null;
+    const match =
+      records.find(
+        (record) =>
+          record.type === type && normalizeDnsName(record.name) === normalizeDnsName(name),
+      ) ?? null;
     if (match) {
       return match;
     }

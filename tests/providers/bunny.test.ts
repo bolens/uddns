@@ -123,6 +123,22 @@ describe('bunny provider', () => {
     );
   });
 
+  it('matches API record names that include a trailing root dot', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/dnszone/7'),
+        response: zoneWith([{ Id: 11, Type: 0, Name: 'home.', Value: '9.9.9.9', Ttl: 300 }]),
+      },
+    ]);
+
+    await expect(
+      bunnyProvider.update(bunnyConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+    });
+  });
+
   it('fails when the zone payload is invalid', async () => {
     stubRoutedFetch([
       {

@@ -233,6 +233,26 @@ describe('hetzner provider', () => {
     });
   });
 
+  it('matches API record names that include a trailing root dot', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+        response: hzZone('zone1', 'example.com'),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/records?zone_id=zone1'),
+        response: hzRecords([{ id: 'r1', type: 'A', name: 'home.', value: '9.9.9.9' }]),
+      },
+    ]);
+
+    await expect(
+      hetznerProvider.update(hzConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      skipped: true,
+    });
+  });
+
   it('walks host labels to discover the zone when id/name are unset', async () => {
     const zoneQueries: string[] = [];
     stubRoutedFetch([
