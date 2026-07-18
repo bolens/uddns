@@ -23,7 +23,7 @@ export function parseHostList(value: string | null | undefined): string[] {
   const hosts: string[] = [];
 
   for (const part of value.split(/[,\s]+/)) {
-    const host = part.trim().toLowerCase();
+    const host = part.trim().toLowerCase().replace(/\.$/, '');
     if (!host || seen.has(host)) {
       continue;
     }

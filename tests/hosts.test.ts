@@ -26,6 +26,13 @@ describe('parseHostList', () => {
     ]);
   });
 
+  it('strips trailing DNS root dots', () => {
+    expect(parseHostList('home.example.com.,vpn.example.com.')).toEqual([
+      'home.example.com',
+      'vpn.example.com',
+    ]);
+  });
+
   it('returns an empty list for blank input', () => {
     expect(parseHostList('')).toEqual([]);
     expect(parseHostList(null)).toEqual([]);
