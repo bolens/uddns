@@ -242,6 +242,21 @@ describe('loadConfig', () => {
     );
     expect(() =>
       loadConfig({
+        UDDNS_PROVIDER: 'dynu',
+        UDDNS_USER: 'user',
+        UDDNS_HOST: 'home.dynu.com',
+      }),
+    ).toThrow(/UDDNS_PASS or UDDNS_TOKEN/);
+    expect(
+      loadConfig({
+        UDDNS_PROVIDER: 'dynu',
+        UDDNS_USER: 'user',
+        UDDNS_TOKEN: 'api-token',
+        UDDNS_HOST: 'home.dynu.com',
+      }).dyndns.password,
+    ).toBe('api-token');
+    expect(() =>
+      loadConfig({
         UDDNS_PROVIDER: 'namecheap',
         UDDNS_HOSTS: 'home',
         NAMECHEAP_PASSWORD: 'ddns',

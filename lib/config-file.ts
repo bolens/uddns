@@ -8,12 +8,13 @@ import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
-import { loadConfig } from './config.js';
+import { loadConfig, MANAGED_ENV_PREFIXES } from './config.js';
 import type { AppConfig } from './schemas/provider.js';
 
 const accountYamlSchema = z
   .object({
     id: z.string().min(1),
+    provider: z.string().min(1),
   })
   .passthrough();
 
@@ -27,14 +28,31 @@ export type LoadedAccount = {
   config: AppConfig;
 };
 
+/** Drop managed uDDNS/provider keys so YAML accounts cannot inherit process env bleed. */
+function scrubManagedEnv(
+  baseEnv: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (!MANAGED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
 function accountToEnv(
   accountId: string,
   account: Record<string, unknown>,
   baseEnv: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...baseEnv };
+  const env: Record<string, string | undefined> = scrubManagedEnv(baseEnv);
   const set = (key: string, value: unknown) => {
-    if (value === undefined || value === null) {
+    if (value === undefined) {
+      return;
+    }
+    if (value === null) {
+      delete env[key];
       return;
     }
     env[key] =

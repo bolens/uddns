@@ -115,7 +115,7 @@ const envSchema = z
   })
   .passthrough();
 
-const MANAGED_ENV_PREFIXES = [
+export const MANAGED_ENV_PREFIXES = [
   'UDDNS_',
   'CLOUDFLARE_',
   'DUCKDNS_',
@@ -321,7 +321,9 @@ export function loadConfig(
     dyndns: {
       updateUrl: dyndnsUpdateUrl,
       username: parsedEnv['UDDNS_USER'] ?? null,
-      password: parsedEnv['UDDNS_PASS'] ?? null,
+      password:
+        parsedEnv['UDDNS_PASS'] ??
+        (providerResult.data === 'dynu' ? (parsedEnv['UDDNS_TOKEN'] ?? null) : null),
       hostname: firstHost,
     },
     route53: {
@@ -457,10 +459,14 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
       }
       break;
     case 'noip':
-    case 'dynu':
     case 'dyndns':
       if (!config.dyndns.username) missing.push('UDDNS_USER');
       if (!config.dyndns.password) missing.push('UDDNS_PASS');
+      if (!config.dyndns.hostname) missing.push('UDDNS_HOST(S)');
+      break;
+    case 'dynu':
+      if (!config.dyndns.username) missing.push('UDDNS_USER');
+      if (!config.dyndns.password && !config.token) missing.push('UDDNS_PASS or UDDNS_TOKEN');
       if (!config.dyndns.hostname) missing.push('UDDNS_HOST(S)');
       break;
     case 'route53':

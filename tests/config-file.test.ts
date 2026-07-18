@@ -210,6 +210,48 @@ accounts:
     expect(accounts[0]?.config.historyFile).toContain('uddns-history-a');
   });
 
+  it('requires provider and does not inherit managed process env into accounts', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
+    const file = path.join(dir, 'uddns.yaml');
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: duck
+    provider: duckdns
+    hosts: [myhost]
+    duckdns:
+      token: duck-token
+      domains: myhost
+`,
+    );
+    const accounts = await loadAccountsFromFile(file, {
+      UDDNS_PROVIDER: 'cloudflare',
+      UDDNS_HOSTS: 'evil.example.com',
+      CLOUDFLARE_API_TOKEN: 'should-not-bleed',
+      CLOUDFLARE_ZONE_ID: 'zone-bleed',
+    });
+    expect(accounts[0]?.config.provider).toBe('duckdns');
+    expect(accounts[0]?.config.hosts).toEqual(['myhost']);
+    expect(accounts[0]?.config.cloudflare.apiToken).toBeNull();
+    expect(accounts[0]?.config.cloudflare.zoneId).toBeNull();
+
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: missing-provider
+    hosts: [myhost]
+    duckdns:
+      token: t
+      domains: myhost
+`,
+    );
+    await expect(loadAccountsFromFile(file, {})).rejects.toThrow(/provider/i);
+  });
+
   it('rejects accounts that share state or history files', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
     const file = path.join(dir, 'uddns.yaml');

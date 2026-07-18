@@ -15,7 +15,7 @@ const PROVIDER_HINTS: Record<ProviderId, string[]> = {
   ],
   duckdns: ['DUCKDNS_TOKEN', 'UDDNS_HOSTS or DUCKDNS_DOMAINS (DuckDNS subdomains)'],
   noip: ['UDDNS_USER', 'UDDNS_PASS', 'UDDNS_HOSTS'],
-  dynu: ['UDDNS_USER', 'UDDNS_PASS', 'UDDNS_HOSTS'],
+  dynu: ['UDDNS_USER', 'UDDNS_PASS or UDDNS_TOKEN', 'UDDNS_HOSTS'],
   namecheap: [
     'NAMECHEAP_PASSWORD (Dynamic DNS password)',
     'NAMECHEAP_DOMAIN (unless hosts are FQDNs)',
