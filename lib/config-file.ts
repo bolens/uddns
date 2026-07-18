@@ -225,6 +225,16 @@ function accountToEnv(
   return env;
 }
 
+function assertUniqueAccountIds(accounts: Array<{ id: string }>): void {
+  const seen = new Set<string>();
+  for (const account of accounts) {
+    if (seen.has(account.id)) {
+      throw new Error(`Duplicate account id "${account.id}"`);
+    }
+    seen.add(account.id);
+  }
+}
+
 function assertUniqueAccountPaths(accounts: LoadedAccount[]): void {
   if (accounts.length <= 1) {
     return;
@@ -261,6 +271,7 @@ export async function loadAccountsFromFile(
 ): Promise<LoadedAccount[]> {
   const raw = await readFile(filePath, 'utf8');
   const parsed = configFileSchema.parse(parseYaml(raw));
+  assertUniqueAccountIds(parsed.accounts);
   const accounts = parsed.accounts.map((account) => {
     const { id, ...rest } = account;
     const env = accountToEnv(

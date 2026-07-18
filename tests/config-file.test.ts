@@ -306,4 +306,31 @@ accounts:
     );
     await expect(loadAccountsFromFile(file)).rejects.toThrow(/share stateFile/);
   });
+
+  it('rejects duplicate account ids', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
+    const file = path.join(dir, 'uddns.yaml');
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: same
+    provider: duckdns
+    hosts: [a]
+    state_file: /tmp/state-a.json
+    duckdns:
+      token: t
+      domains: a
+  - id: same
+    provider: duckdns
+    hosts: [b]
+    state_file: /tmp/state-b.json
+    duckdns:
+      token: t
+      domains: b
+`,
+    );
+    await expect(loadAccountsFromFile(file)).rejects.toThrow(/Duplicate account id "same"/);
+  });
 });
