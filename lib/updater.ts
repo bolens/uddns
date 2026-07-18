@@ -4,7 +4,13 @@
 
 import { errorMessage, getErrorProp } from './errors.js';
 import { configForHost } from './hosts.js';
-import { discoverPublicIP, formatPublicIP, ipChanged, type PublicIPDiscovery } from './ip.js';
+import {
+  discoverPublicIP,
+  formatPublicIP,
+  ipChanged,
+  mergePresentFamilies,
+  type PublicIPDiscovery,
+} from './ip.js';
 import { createLogger, formatError, type Logger } from './log.js';
 import { HttpError } from './providers/http.js';
 import { formatResultSummary } from './result.js';
@@ -278,7 +284,7 @@ export function createUpdater(options: UpdaterOptions) {
 
     if (pendingHosts.length === 0) {
       const previousIP = currentIP;
-      currentIP = { ...ip };
+      currentIP = mergePresentFamilies(currentIP, ip);
       const message = 'No update required.';
       log.info(message, {
         cycle,
@@ -352,7 +358,7 @@ export function createUpdater(options: UpdaterOptions) {
         const durationMs = now() - hostStarted;
         hostResults.push({ host, result, durationMs });
         if (result.ok) {
-          hostState[host] = { ...ip };
+          hostState[host] = mergePresentFamilies(hostState[host] ?? { v4: null, v6: null }, ip);
           stateChanged = true;
         }
 
@@ -391,7 +397,7 @@ export function createUpdater(options: UpdaterOptions) {
     }
 
     const summary = summarizeHostResults(ip, hostResults, (nextIP) => {
-      currentIP = nextIP;
+      currentIP = mergePresentFamilies(currentIP, nextIP);
     });
     summary.forced = forced;
     summary.dryRun = false;

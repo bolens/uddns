@@ -803,6 +803,42 @@ describe('createUpdater', () => {
     expect(updater.getStatus().lastSuccessAt).not.toBeNull();
   });
 
+  it('preserves omitted IP families in checkpoints under IP_MISSING=clear', async () => {
+    const update = vi.fn<Provider['update']>(async () => ({
+      ok: true,
+      skipped: true,
+      message: 'unchanged',
+    }));
+    let discovered: PublicIP = { v4: '9.9.9.9', v6: '2001:db8::9' };
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'], ipMissing: 'clear', ipFamily: 'dual' }),
+      provider: mockProvider(update),
+      getPublicIP: async () => discovered,
+      applyIpPolicy: (next) => ({ v4: next.v4, v6: next.v6 }),
+      log: silentLog(),
+      stateStore: {
+        load: async () => ({}),
+        save: async () => {},
+      },
+    });
+
+    await updater.checkOnce({ force: true });
+    expect(updater.getStatus().hosts['home.example.com']).toEqual({
+      v4: '9.9.9.9',
+      v6: '2001:db8::9',
+    });
+
+    discovered = { v4: '9.9.9.9', v6: null };
+    update.mockClear();
+    await updater.checkOnce();
+    expect(update).not.toHaveBeenCalled();
+    expect(updater.getStatus().hosts['home.example.com']).toEqual({
+      v4: '9.9.9.9',
+      v6: '2001:db8::9',
+    });
+    expect(updater.getCurrentIP().v6).toBe('2001:db8::9');
+  });
+
   it('does not clear lastError or advance lastSuccessAt on dry_run', async () => {
     const update = vi.fn(async () => ({ ok: false, message: 'provider down' }));
     const updater = createUpdater({

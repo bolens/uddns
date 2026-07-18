@@ -246,7 +246,19 @@ export async function getPublicIP(deps?: DiscoverDeps): Promise<PublicIP> {
 }
 
 export function ipChanged(next: PublicIP, previous: PublicIP): boolean {
-  return next.v4 !== previous.v4 || next.v6 !== previous.v6;
+  // Null families in `next` mean "omit from this update" (e.g. IP_MISSING=clear),
+  // not "family changed to empty" — only compare families that are present.
+  return (
+    (next.v4 !== null && next.v4 !== previous.v4) || (next.v6 !== null && next.v6 !== previous.v6)
+  );
+}
+
+/** Keep previously known families when the next snapshot omits them (null). */
+export function mergePresentFamilies(previous: PublicIP, next: PublicIP): PublicIP {
+  return {
+    v4: next.v4 ?? previous.v4,
+    v6: next.v6 ?? previous.v6,
+  };
 }
 
 export function formatPublicIP(ip: PublicIP): string {

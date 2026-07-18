@@ -5,6 +5,7 @@ import {
   formatPublicIP,
   getPublicIP,
   ipChanged,
+  mergePresentFamilies,
   type DiscoverDeps,
   type DnsResolver,
 } from '../lib/ip.js';
@@ -318,12 +319,23 @@ describe('discoverPublicIP', () => {
 });
 
 describe('ipChanged', () => {
-  it('detects family-specific changes and ignores identical snapshots', () => {
+  it('detects present-family changes and ignores omitted (null) families', () => {
     const base = { v4: '1.1.1.1', v6: '::1' };
     expect(ipChanged({ v4: '8.8.8.8', v6: '::1' }, base)).toBe(true);
     expect(ipChanged({ v4: '1.1.1.1', v6: '::2' }, base)).toBe(true);
     expect(ipChanged({ ...base }, base)).toBe(false);
-    expect(ipChanged({ v4: null, v6: null }, base)).toBe(true);
+    // Omitted families (IP_MISSING=clear) must not look like a change.
+    expect(ipChanged({ v4: null, v6: null }, base)).toBe(false);
+    expect(ipChanged({ v4: '1.1.1.1', v6: null }, base)).toBe(false);
+    expect(ipChanged({ v4: '8.8.8.8', v6: null }, base)).toBe(true);
+  });
+});
+
+describe('mergePresentFamilies', () => {
+  it('keeps previous families when the next snapshot omits them', () => {
+    expect(mergePresentFamilies({ v4: '1.1.1.1', v6: '::1' }, { v4: '9.9.9.9', v6: null })).toEqual(
+      { v4: '9.9.9.9', v6: '::1' },
+    );
   });
 });
 
