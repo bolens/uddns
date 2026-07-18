@@ -103,9 +103,16 @@ async function upsert(
     }
   }
   if (!parsed?.success) return fail('Contabo record lookup failed', { http: listed.meta });
-  const record = parsed.data.data.find(
+  const matches = parsed.data.data.filter(
     (item) => item.type === type && contaboNameMatches(item.name, name, auth.zone!),
   );
+  if (matches.length > 1) {
+    return fail(
+      `Multiple ${type} records for ${name === '@' ? auth.zone : name}; remove duplicates before updating`,
+      { zone: auth.zone, type, name, count: matches.length },
+    );
+  }
+  const record = matches[0] ?? null;
   if (record?.data === data && record.ttl === auth.ttl) {
     return skipped(`${type} ${name} unchanged (${data})`);
   }

@@ -151,20 +151,21 @@ async function upsertRecord(
     });
   }
 
-  const record = retrieved.records?.[0] ?? null;
+  const records = retrieved.records ?? [];
 
-  if (record && record.content === content) {
+  if (records.length > 0 && records.every((entry) => entry.content === content)) {
     return skipped(`${type} ${label} unchanged (${content})`, {
       domain,
-      recordId: String(record.id),
+      recordId: String(records[0]!.id),
       type,
       name: label,
       content,
       action: 'unchanged',
+      ...(records.length > 1 ? { recordCount: records.length } : {}),
     });
   }
 
-  if (record) {
+  if (records.length > 0) {
     const edited = await porkbunJson(`${API}/dns/editByNameType/${domain}/${type}${namePath}`, {
       ...auth,
       content,
@@ -173,19 +174,20 @@ async function upsertRecord(
     if (edited.success) {
       return ok(`${type} ${label} -> ${content}`, {
         domain,
-        recordId: String(record.id),
+        recordId: String(records[0]!.id),
         type,
         name: label,
-        previous: record.content,
+        previous: records.map((entry) => entry.content).join(','),
         content,
         action: 'edit',
         http: edited.meta,
+        ...(records.length > 1 ? { recordCount: records.length } : {}),
       });
     }
 
     return fail(formatPorkbunError(edited, `${type} record edit for ${label}`), {
       domain,
-      recordId: String(record.id),
+      recordId: String(records[0]!.id),
       type,
       name: label,
       content,

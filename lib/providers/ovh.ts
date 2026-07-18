@@ -78,6 +78,12 @@ async function upsert(
     return fail('OVH returned invalid record IDs', { http: listed.meta });
   }
   if (!ids.success) return fail('OVH returned invalid record IDs', { http: listed.meta });
+  if (ids.data.length > 1) {
+    return fail(
+      `Multiple ${type} records for ${name === '@' ? auth.zone : name}; remove duplicates before updating`,
+      { zone: auth.zone, type, name, count: ids.data.length },
+    );
+  }
   let record: z.infer<typeof recordSchema> | null = null;
   if (ids.data[0] !== undefined) {
     const current = await signedRequest(auth, 'GET', `/domain/zone/${zone}/record/${ids.data[0]}`);

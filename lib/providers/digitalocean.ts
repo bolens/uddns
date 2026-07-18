@@ -178,7 +178,7 @@ async function findRecord(
   const url = new URL(`${API}/domains/${domain}/records`);
   url.searchParams.set('type', type);
   url.searchParams.set('name', fqdn);
-  url.searchParams.set('per_page', '1');
+  url.searchParams.set('per_page', '100');
 
   const payload = await digitaloceanJson(apiToken, url);
   if (!payload.response.ok) {
@@ -198,17 +198,20 @@ async function findRecord(
     throw new Error(`DigitalOcean records response failed validation: ${parsed.error.message}`);
   }
 
-  const record = parsed.data.domain_records[0] ?? null;
-  if (!record) {
-    return null;
+  const matches = parsed.data.domain_records.filter((entry) =>
+    digitalOceanNameMatches(entry.name, fqdn, domain),
+  );
+  if (matches.length > 1) {
+    const error = new Error(
+      `Multiple ${type} records for ${fqdn}; remove duplicates before updating`,
+    );
+    Object.assign(error, {
+      details: { domain, type, fqdn, count: matches.length },
+    });
+    throw error;
   }
 
-  // The name filter is advisory; refuse to edit a record whose name does not match.
-  if (!digitalOceanNameMatches(record.name, fqdn, domain)) {
-    return null;
-  }
-
-  return record;
+  return matches[0] ?? null;
 }
 
 function digitalOceanNameMatches(returned: string, fqdn: string, domain: string): boolean {

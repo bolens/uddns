@@ -137,6 +137,30 @@ describe('porkbun provider', () => {
     });
   });
 
+  it('does not skip when duplicate records disagree on content', async () => {
+    const fetchMock = stubRoutedFetch([
+      {
+        match: (url) => url.includes('/dns/retrieveByNameType/'),
+        response: pbSuccess([
+          { id: '101', name: 'home.example.com', type: 'A', content: '9.9.9.9' },
+          { id: '102', name: 'home.example.com', type: 'A', content: '1.1.1.1' },
+        ]),
+      },
+      {
+        match: (url) => url.includes('/dns/editByNameType/'),
+        response: pbSuccess(),
+      },
+    ]);
+
+    await expect(
+      porkbunProvider.update(pbConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      message: expect.stringContaining('A home.example.com -> 9.9.9.9'),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('creates missing records with the bare subdomain as the name', async () => {
     const fetchMock = stubRoutedFetch([
       {

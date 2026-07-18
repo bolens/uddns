@@ -139,6 +139,26 @@ describe('ovh provider', () => {
     });
   });
 
+  it('fails closed when multiple A records share the same subdomain', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/auth/time'),
+        response: textResponse('1700000000'),
+      },
+      {
+        match: (url, method) => method === 'GET' && url.includes('/record?fieldType=A'),
+        response: jsonResponse([55, 56]),
+      },
+    ]);
+
+    await expect(
+      ovhProvider.update(ovhConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('Multiple A records'),
+    });
+  });
+
   it('fails when the time endpoint is unavailable', async () => {
     stubRoutedFetch([
       {
