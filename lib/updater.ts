@@ -573,7 +573,7 @@ export function createUpdater(options: UpdaterOptions) {
     const delayMs =
       retryAfterMs === null
         ? Math.max(0, Math.round(exponential * (0.8 + random() * 0.4)))
-        : Math.max(0, Math.round(retryAfterMs));
+        : Math.max(0, Math.min(retryMaxDelayMs, Math.round(retryAfterMs)));
     nextRetryAt = new Date(now() + delayMs).toISOString();
     log.warn(`Transient update failure for ${host}; retrying`, {
       attempt,

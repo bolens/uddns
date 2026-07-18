@@ -516,7 +516,7 @@ describe('createUpdater', () => {
     expect(delays).toEqual([2500]);
   });
 
-  it('does not clamp server Retry-After to retryMaxDelayMs', async () => {
+  it('clamps server Retry-After to retryMaxDelayMs', async () => {
     const delays: number[] = [];
     const update = vi
       .fn<Provider['update']>()
@@ -540,7 +540,7 @@ describe('createUpdater', () => {
     });
 
     await expect(updater.checkOnce()).resolves.toMatchObject({ status: 'updated' });
-    expect(delays).toEqual([60_000]);
+    expect(delays).toEqual([30_000]);
   });
 
   it('refreshes currentIP from enabled-host checkpoints when some hosts are disabled', async () => {
