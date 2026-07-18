@@ -26,5 +26,11 @@ describe('url policy', () => {
     expect(isBlockedOutboundHost('metadata.google.internal')).toBe(true);
     expect(isBlockedOutboundHost('192.168.1.1')).toBe(true);
     expect(isBlockedOutboundHost('example.com')).toBe(false);
+    // Node normalizes [::ffff:169.254.169.254] to ::ffff:a9fe:a9fe
+    expect(isBlockedOutboundHost('[::ffff:a9fe:a9fe]')).toBe(true);
+    expect(isBlockedOutboundHost('::ffff:a9fe:a9fe')).toBe(true);
+    expect(() => assertHttpsUrl('https://[::ffff:169.254.169.254]/x', 'TEST')).toThrow(
+      /loopback, private/,
+    );
   });
 });
