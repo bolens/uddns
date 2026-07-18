@@ -150,7 +150,7 @@ export function createUpdater(options: UpdaterOptions) {
     }
     const event = cycleEventFromResult(result, meta);
     lastCycle = event;
-    if (result.status === 'updated' || result.status === 'unchanged') {
+    if ((result.status === 'updated' || result.status === 'unchanged') && !result.dryRun) {
       lastSuccessAt = event.at;
       lastError = null;
     }
@@ -285,7 +285,9 @@ export function createUpdater(options: UpdaterOptions) {
 
     if (pendingHosts.length === 0) {
       const previousIP = currentIP;
-      currentIP = mergePresentFamilies(currentIP, ip);
+      if (!dryRun) {
+        currentIP = mergePresentFamilies(currentIP, ip);
+      }
       const message = 'No update required.';
       log.info(message, {
         cycle,

@@ -874,6 +874,35 @@ describe('createUpdater', () => {
     expect(updater.getStatus().lastSuccessAt).toBe(failedAt);
     expect(update).toHaveBeenCalledOnce();
   });
+
+  it('does not treat dry-run unchanged as readiness success', async () => {
+    const update = vi.fn(async () => ({ ok: false, message: 'provider down' }));
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async () => {},
+      retryAttempts: 1,
+    });
+
+    // Seed a successful checkpoint, then fail a forced update so lastError is set
+    // while the host state still matches the discovered IP.
+    update.mockResolvedValueOnce({ ok: true, message: 'updated' });
+    await updater.checkOnce();
+    update.mockResolvedValueOnce({ ok: false, message: 'provider down' });
+    await updater.checkOnce({ force: true });
+    expect(updater.getStatus().lastError).toMatch(/provider down/);
+    const failedAt = updater.getStatus().lastSuccessAt;
+
+    update.mockClear();
+    await updater.checkOnce({ dryRun: true });
+    expect(updater.getStatus().lastCycle?.status).toBe('unchanged');
+    expect(updater.getStatus().lastCycle?.dryRun).toBe(true);
+    expect(updater.getStatus().lastError).toMatch(/provider down/);
+    expect(updater.getStatus().lastSuccessAt).toBe(failedAt);
+    expect(update).not.toHaveBeenCalled();
+  });
 });
 
 describe('isRetryableHttpStatus', () => {
