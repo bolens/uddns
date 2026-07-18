@@ -214,6 +214,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, DYNDNS_UPDATE_URL: 'not a url' })).toThrow(
       /DYNDNS_UPDATE_URL must be a valid https/,
     );
+    expect(() =>
+      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://user:pass@ddns.example/nic/update' }),
+    ).toThrow(/must not include credentials/);
+    expect(() =>
+      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://169.254.169.254/latest/meta-data' }),
+    ).toThrow(/must not target loopback, private/);
     expect(
       loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://ddns.example/nic/update' }).dyndns
         .updateUrl,
@@ -467,8 +473,30 @@ describe('loadConfig', () => {
       loadConfig({ ...base, UDDNS_NOTIFY_DISCORD_URL: 'http://discord.example/hook' }),
     ).toThrow(/UDDNS_NOTIFY_DISCORD_URL must be a valid https/);
     expect(() => loadConfig({ ...base, UDDNS_IP_HTTPS_V4: 'http://not-https.example' })).toThrow(
-      /IP discovery endpoint must be https/,
+      /IP discovery endpoint must be a valid https/,
     );
+    expect(() => loadConfig({ ...base, UDDNS_IP_HTTPS_V4: 'https://127.0.0.1/echo' })).toThrow(
+      /must not target loopback, private/,
+    );
+    expect(() =>
+      loadConfig({
+        ...base,
+        UDDNS_PROVIDER: 'porkbun',
+        PORKBUN_API_KEY: 'k',
+        PORKBUN_SECRET_KEY: 's',
+        PORKBUN_DOMAIN: '../evil.example',
+      }),
+    ).toThrow(/PORKBUN_DOMAIN must not contain path separators/);
+    expect(() =>
+      loadConfig({
+        ...base,
+        UDDNS_NOTIFY_WEBHOOK_URL: 'https://user:pass@hooks.example/hook',
+      }),
+    ).toThrow(/must not include credentials/);
+    // Self-hosted notify on LAN remains allowed.
+    expect(
+      loadConfig({ ...base, UDDNS_NOTIFY_NTFY_URL: 'https://10.0.0.5/uddns' }).notifyNtfyUrl,
+    ).toBe('https://10.0.0.5/uddns');
 
     expect(() => loadConfig({ ...base, CLOUDFLARE_PROXIED: 'treu' })).toThrow(
       /CLOUDFLARE_PROXIED must be one of/,

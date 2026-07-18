@@ -19,6 +19,7 @@ import {
 } from '../defaults.js';
 import { parseHostList, resolveHosts } from '../hosts.js';
 import { parseIpFamily, parseIpMissing } from '../ip-policy.js';
+import { assertHttpsUrl } from '../url-policy.js';
 import { appConfigSchema, PROVIDER_IDS, providerIdSchema, type AppConfig } from './provider.js';
 
 const optionalEnv = z.string().optional();
@@ -159,14 +160,6 @@ function parseBoolean(name: string, value: string | undefined, fallback: boolean
   throw new Error(`${name} must be one of: true, false, 1, 0, yes, no, on, off`);
 }
 
-function isHttpsUrl(value: string): boolean {
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Load and validate runtime configuration from environment variables.
  */
@@ -223,11 +216,7 @@ export function loadConfig(
   }
 
   const dyndnsUpdateUrl = parsedEnv['DYNDNS_UPDATE_URL'] ?? DEFAULT_DYNDNS_UPDATE_URL;
-  if (!isHttpsUrl(dyndnsUpdateUrl)) {
-    throw new Error(
-      'DYNDNS_UPDATE_URL must be a valid https:// URL (credentials would travel in cleartext over http)',
-    );
-  }
+  assertHttpsUrl(dyndnsUpdateUrl, 'DYNDNS_UPDATE_URL');
 
   const ipTimeoutMs = Number(parsedEnv['UDDNS_IP_TIMEOUT_MS'] ?? DEFAULT_IP_TIMEOUT_MS);
   if (!Number.isFinite(ipTimeoutMs) || ipTimeoutMs < 100 || ipTimeoutMs > 120_000) {
@@ -244,20 +233,20 @@ export function loadConfig(
   }
 
   const webhookUrl = parsedEnv['UDDNS_NOTIFY_WEBHOOK_URL']?.trim() || null;
-  if (webhookUrl && !isHttpsUrl(webhookUrl)) {
-    throw new Error('UDDNS_NOTIFY_WEBHOOK_URL must be a valid https:// URL');
+  if (webhookUrl) {
+    assertHttpsUrl(webhookUrl, 'UDDNS_NOTIFY_WEBHOOK_URL', { allowPrivateHosts: true });
   }
   const ntfyUrl = parsedEnv['UDDNS_NOTIFY_NTFY_URL']?.trim() || null;
-  if (ntfyUrl && !isHttpsUrl(ntfyUrl)) {
-    throw new Error('UDDNS_NOTIFY_NTFY_URL must be a valid https:// URL');
+  if (ntfyUrl) {
+    assertHttpsUrl(ntfyUrl, 'UDDNS_NOTIFY_NTFY_URL', { allowPrivateHosts: true });
   }
   const slackUrl = parsedEnv['UDDNS_NOTIFY_SLACK_URL']?.trim() || null;
-  if (slackUrl && !isHttpsUrl(slackUrl)) {
-    throw new Error('UDDNS_NOTIFY_SLACK_URL must be a valid https:// URL');
+  if (slackUrl) {
+    assertHttpsUrl(slackUrl, 'UDDNS_NOTIFY_SLACK_URL', { allowPrivateHosts: true });
   }
   const discordUrl = parsedEnv['UDDNS_NOTIFY_DISCORD_URL']?.trim() || null;
-  if (discordUrl && !isHttpsUrl(discordUrl)) {
-    throw new Error('UDDNS_NOTIFY_DISCORD_URL must be a valid https:// URL');
+  if (discordUrl) {
+    assertHttpsUrl(discordUrl, 'UDDNS_NOTIFY_DISCORD_URL', { allowPrivateHosts: true });
   }
 
   const config = {
@@ -393,6 +382,7 @@ export function loadConfig(
 
   const parsedConfig = appConfigSchema.parse(config);
   validateProviderConfig(parsedConfig);
+  validateProviderDomainPaths(parsedConfig);
   return parsedConfig;
 }
 
@@ -405,9 +395,7 @@ function parseUrlList(value: string | undefined): string[] | null {
     .map((part) => part.trim())
     .filter(Boolean);
   for (const url of urls) {
-    if (!isHttpsUrl(url)) {
-      throw new Error(`IP discovery endpoint must be https:// URL: ${url}`);
-    }
+    assertHttpsUrl(url, 'IP discovery endpoint');
   }
   return urls;
 }
@@ -422,6 +410,55 @@ function isValidHostname(value: string): boolean {
       (label) =>
         label.length >= 1 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label),
     );
+}
+
+/** Reject domain/zone path segments that could traverse provider API URLs. */
+function assertDnsPathSegment(label: string, value: string | null | undefined): void {
+  if (value == null || value === '') {
+    return;
+  }
+  const normalized = value.toLowerCase().replace(/\.$/, '');
+  if (
+    normalized.includes('/') ||
+    normalized.includes('\\') ||
+    normalized.includes('..') ||
+    normalized.includes('\0')
+  ) {
+    throw new Error(`${label} must not contain path separators or ".."`);
+  }
+  if (!isValidHostname(normalized) && !/^[a-z0-9][a-z0-9._-]{0,253}$/i.test(normalized)) {
+    throw new Error(`${label} is not a valid DNS name: "${value}"`);
+  }
+}
+
+function assertOpaqueId(label: string, value: string | null | undefined): void {
+  if (value == null || value === '') {
+    return;
+  }
+  if (value.includes('/') || value.includes('\\') || value.includes('..') || value.includes('\0')) {
+    throw new Error(`${label} must not contain path separators or ".."`);
+  }
+}
+
+function validateProviderDomainPaths(config: AppConfig): void {
+  assertDnsPathSegment('NAMECHEAP_DOMAIN', config.namecheap.domain);
+  assertDnsPathSegment('PORKBUN_DOMAIN', config.porkbun.domain);
+  assertDnsPathSegment('HETZNER_ZONE_NAME', config.hetzner.zoneName);
+  assertOpaqueId('HETZNER_ZONE_ID', config.hetzner.zoneId);
+  assertDnsPathSegment('DIGITALOCEAN_DOMAIN', config.digitalocean.domain);
+  assertDnsPathSegment('GANDI_DOMAIN', config.gandi.domain);
+  assertDnsPathSegment('LINODE_DOMAIN', config.linode.domain);
+  assertDnsPathSegment('OVH_ZONE', config.ovh.zone);
+  assertDnsPathSegment('BUNNY_DOMAIN', config.bunny.domain);
+  assertDnsPathSegment('CONTABO_ZONE', config.contabo.zone);
+  assertOpaqueId('CLOUDFLARE_ZONE_ID', config.cloudflare.zoneId);
+  assertDnsPathSegment('CLOUDFLARE_ZONE_NAME', config.cloudflare.zoneName);
+  assertOpaqueId('ROUTE53_HOSTED_ZONE_ID', config.route53.hostedZoneId);
+  assertOpaqueId(
+    'LINODE_DOMAIN_ID',
+    config.linode.domainId != null ? String(config.linode.domainId) : null,
+  );
+  assertOpaqueId('BUNNY_ZONE_ID', config.bunny.zoneId != null ? String(config.bunny.zoneId) : null);
 }
 
 export type ConfigIssue = {

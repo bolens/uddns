@@ -102,6 +102,30 @@ describe('discoverPublicIP', () => {
     expect(discovered.ip.v6).toBe('2001:db8::10');
   });
 
+  it('rejects HTTPS echo responses that redirect to a different host', async () => {
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = fetchInputUrl(input);
+      if (url.includes('ipv6') || url.includes('api64')) {
+        return httpsResponse('2001:db8::10\n', url);
+      }
+      return httpsResponse('203.0.113.66\n', 'https://attacker.example/echo');
+    });
+
+    const deps: DiscoverDeps = {
+      httpsV4: ['https://ipv4.icanhazip.com'],
+      httpsV6: ['https://ipv6.icanhazip.com'],
+      fetch: fetchMock,
+      dnsFallback: false,
+      createResolver: () => {
+        throw new Error('dns should not run');
+      },
+    };
+
+    const discovered = await discoverPublicIP(deps);
+    expect(discovered.ip.v4).toBeNull();
+    expect(discovered.errors.v4?.message).toMatch(/different host|DNS fallback is disabled/);
+  });
+
   it('rejects HTTPS echo responses that omit Response.url after redirect follow', async () => {
     const fetchMock = vi.fn(async () => new Response('203.0.113.66\n'));
 

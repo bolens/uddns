@@ -166,15 +166,28 @@ async function lookupViaHttps(
         errors.push(`${endpointLabel} missing final URL after redirect follow`);
         continue;
       }
-      let protocol: string;
+      let final: URL;
       try {
-        protocol = new URL(finalUrl).protocol;
+        final = new URL(finalUrl);
       } catch {
         errors.push(`${endpointLabel} redirected to invalid URL`);
         continue;
       }
-      if (protocol !== 'https:') {
+      if (final.protocol !== 'https:') {
         errors.push(`${endpointLabel} redirected off HTTPS (${sanitizeUrl(finalUrl)})`);
+        continue;
+      }
+      let requested: URL;
+      try {
+        requested = new URL(endpoint);
+      } catch {
+        errors.push(`${endpointLabel} is not a valid URL`);
+        continue;
+      }
+      // Cross-host HTTPS redirects can move the trusted echo answer onto an
+      // attacker-controlled host; pin the final host to the configured endpoint.
+      if (final.hostname.toLowerCase() !== requested.hostname.toLowerCase()) {
+        errors.push(`${endpointLabel} redirected to different host (${sanitizeUrl(finalUrl)})`);
         continue;
       }
       const text = await response.text();
