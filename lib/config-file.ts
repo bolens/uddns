@@ -42,26 +42,30 @@ function accountToEnv(
         ? String(value)
         : JSON.stringify(value);
   };
+  const setList = (key: string, value: unknown) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+    set(key, Array.isArray(value) ? value.join(',') : value);
+  };
 
   set('UDDNS_PROVIDER', account['provider']);
   set('UDDNS_INTERVAL', account['interval']);
   set('UDDNS_STATE_FILE', account['stateFile'] ?? account['state_file']);
   set('UDDNS_HISTORY_FILE', account['historyFile'] ?? account['history_file']);
-  set(
-    'UDDNS_HOSTS',
-    Array.isArray(account['hosts']) ? account['hosts'].join(',') : account['hosts'],
-  );
+  setList('UDDNS_HOSTS', account['hosts']);
   const disabledHosts = account['disabledHosts'] ?? account['disabled_hosts'];
-  set(
-    'UDDNS_DISABLED_HOSTS',
-    Array.isArray(disabledHosts) ? disabledHosts.join(',') : disabledHosts,
-  );
+  setList('UDDNS_DISABLED_HOSTS', disabledHosts);
   set('UDDNS_HOST', account['host'] ?? account['hostname']);
   set('UDDNS_USER', account['user']);
   set('UDDNS_PASS', account['password'] ?? account['pass']);
   set('UDDNS_TOKEN', account['token']);
   set('UDDNS_IP_FAMILY', account['ipFamily'] ?? account['ip_family']);
   set('UDDNS_IP_MISSING', account['ipMissing'] ?? account['ip_missing']);
+  setList('UDDNS_IP_HTTPS_V4', account['ipHttpsV4'] ?? account['ip_https_v4']);
+  setList('UDDNS_IP_HTTPS_V6', account['ipHttpsV6'] ?? account['ip_https_v6']);
+  set('UDDNS_IP_TIMEOUT_MS', account['ipTimeoutMs'] ?? account['ip_timeout_ms']);
+  set('UDDNS_IP_DNS_FALLBACK', account['ipDnsFallback'] ?? account['ip_dns_fallback']);
   set('UDDNS_OTEL', account['telemetryEnabled'] ?? account['telemetry_enabled']);
 
   const notify = account['notify'];
@@ -81,6 +85,7 @@ function accountToEnv(
     set('CLOUDFLARE_ZONE_ID', cf['zoneId'] ?? cf['zone_id']);
     set('CLOUDFLARE_ZONE_NAME', cf['zoneName'] ?? cf['zone_name']);
     set('CLOUDFLARE_RECORD_NAME', cf['recordName'] ?? cf['record_name']);
+    set('CLOUDFLARE_RECORD_ID', cf['recordId'] ?? cf['record_id']);
     set('CLOUDFLARE_PROXIED', cf['proxied']);
     set('CLOUDFLARE_TTL', cf['ttl']);
     set('CLOUDFLARE_CREATE_IF_MISSING', cf['createIfMissing'] ?? cf['create_if_missing']);
@@ -90,7 +95,7 @@ function accountToEnv(
   if (duckdns && typeof duckdns === 'object') {
     const dd = duckdns as Record<string, unknown>;
     set('DUCKDNS_TOKEN', dd['token']);
-    set('DUCKDNS_DOMAINS', dd['domains']);
+    setList('DUCKDNS_DOMAINS', dd['domains']);
   }
 
   const namecheap = account['namecheap'];

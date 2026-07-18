@@ -24,12 +24,15 @@ accounts:
       proxied: false
       ttl: 1
       create_if_missing: true
+      record_id: pinned-record
   - id: duck
     provider: duckdns
     hosts: [myhost]
     duckdns:
       token: duck-token
-      domains: myhost
+      domains: [myhost, other]
+    ip_https_v4: [https://ipv4.example.test]
+    ip_timeout_ms: 2500
   - id: r53
     provider: route53
     hosts: [home.example.com]
@@ -140,6 +143,16 @@ accounts:
     expect(accounts.find((account) => account.id === 'r53')?.config.route53.createIfMissing).toBe(
       false,
     );
+    expect(accounts.find((account) => account.id === 'cf')?.config.cloudflare.recordId).toBe(
+      'pinned-record',
+    );
+    expect(accounts.find((account) => account.id === 'duck')?.config.duckdns.domains).toBe(
+      'myhost,other',
+    );
+    expect(accounts.find((account) => account.id === 'duck')?.config.ipHttpsV4).toEqual([
+      'https://ipv4.example.test',
+    ]);
+    expect(accounts.find((account) => account.id === 'duck')?.config.ipTimeoutMs).toBe(2500);
   });
 
   it('resolveAccounts falls back to single-env config', () => {
