@@ -87,9 +87,13 @@ describe('createRuntimeBundle', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
       if (url.includes('ipv6') || url.includes('api64')) {
-        return new Response('not-an-ip');
+        const response = new Response('not-an-ip');
+        Object.defineProperty(response, 'url', { value: url });
+        return response;
       }
-      return new Response('198.51.100.10');
+      const response = new Response('198.51.100.10');
+      Object.defineProperty(response, 'url', { value: url });
+      return response;
     });
     const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
     const bundle = createRuntimeBundle({

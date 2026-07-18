@@ -35,11 +35,28 @@ export type CfRoute = {
   response: Response | ((url: string, init?: RequestInit) => Response);
 };
 
-export function stubCloudflareFetch(routes: CfRoute[]) {
+export function stubCloudflareFetch(
+  routes: CfRoute[],
+  options: { zone?: { id: string; name: string } | false } = {},
+) {
+  const zone =
+    options.zone === false ? null : (options.zone ?? { id: 'zone1', name: 'example.com' });
+  const allRoutes: CfRoute[] = zone
+    ? [
+        {
+          // Prefer a successful zone-id lookup before catch-all error stubs.
+          match: (url, method) =>
+            method === 'GET' && /\/zones\/[^/?]+$/.test(new URL(url).pathname),
+          response: cfOk(zone),
+        },
+        ...routes,
+      ]
+    : routes;
+
   return stubFetch((input: FetchInput, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const method = (init?.method ?? 'GET').toUpperCase();
-    for (const route of routes) {
+    for (const route of allRoutes) {
       if (route.match(url, method)) {
         return typeof route.response === 'function'
           ? route.response(url, init)
@@ -56,8 +73,21 @@ export function stubCloudflareFetch(routes: CfRoute[]) {
   });
 }
 
-export function stubCloudflareResponse(response: Response) {
-  return stubCloudflareFetch([{ match: () => true, response }]);
+export function stubCloudflareResponse(
+  response: Response,
+  options: { zone?: { id: string; name: string } } = {},
+) {
+  const zone = options.zone ?? { id: 'zone1', name: 'example.com' };
+  return stubCloudflareFetch(
+    [
+      {
+        match: (url, method) => method === 'GET' && /\/zones\/[^/?]+$/.test(new URL(url).pathname),
+        response: cfOk(zone),
+      },
+      { match: () => true, response },
+    ],
+    { zone: false },
+  );
 }
 
 export function parseJsonBody(body: string | null): unknown {

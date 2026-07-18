@@ -9,6 +9,7 @@ import { createHash, createHmac } from 'node:crypto';
 
 import { fail, ok, skipped } from '../result.js';
 import type { Provider, UpdateResult } from '../schemas/provider.js';
+import { splitDomainHost } from './domain-host.js';
 import { combineRecordResults, requireFields } from './guards.js';
 import { request, type RequestMeta } from './http.js';
 
@@ -56,6 +57,18 @@ export const route53Provider: Provider = {
       secretAccessKey: r53.secretAccessKey!,
       region: r53.region,
     };
+
+    const zoneName = await getHostedZoneName(credentials, zoneId);
+    if (!zoneName) {
+      return fail(`Route53 hosted zone lookup for ${zoneId} returned no zone`, { zoneId });
+    }
+    if (!splitDomainHost(recordName, zoneName)) {
+      return fail(`Host ${recordName} is not within Route53 zone ${zoneName}`, {
+        zoneId,
+        zoneName,
+        recordName,
+      });
+    }
 
     const results: UpdateResult[] = [];
 
@@ -105,6 +118,31 @@ type UpsertOptions = {
   ttl: number;
   createIfMissing: boolean;
 };
+
+async function getHostedZoneName(
+  credentials: AwsCredentials,
+  zoneId: string,
+): Promise<string | null> {
+  const listed = await route53Request(
+    credentials,
+    'GET',
+    new URL(`https://${API_HOST}/${API_VERSION}/hostedzone/${zoneId}`),
+  );
+  if (!listed.response.ok) {
+    const error = new Error(
+      `Route53 hosted zone lookup for ${zoneId} failed: ${formatRoute53Error(listed.body, listed.meta)}`,
+    );
+    Object.assign(error, {
+      status: listed.meta.status,
+      details: { http: listed.meta },
+      retryAfterMs: listed.meta.retryAfterMs,
+    });
+    throw error;
+  }
+
+  const name = xmlText(listed.body, 'Name');
+  return name ? name.toLowerCase().replace(/\.$/, '') : null;
+}
 
 async function upsertRecordSet(options: UpsertOptions): Promise<UpdateResult> {
   const { credentials, zoneId, name, type, content, ttl, createIfMissing } = options;

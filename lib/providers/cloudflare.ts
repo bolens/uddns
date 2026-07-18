@@ -63,7 +63,7 @@ export const cloudflareProvider: Provider = {
     }
 
     let zoneId = cf.zoneId;
-    if (zoneId && zoneName) {
+    if (zoneId) {
       const zone = await getZone(apiToken, zoneId);
       if (!zone) {
         return fail(`Cloudflare zone lookup for ${zoneId} returned no zone`, {
@@ -71,10 +71,11 @@ export const cloudflareProvider: Provider = {
           zoneName,
         });
       }
+      const apiZoneName = normalizeDnsLabel(zone.name);
       // Zone ID is authoritative for writes; refuse when CLOUDFLARE_ZONE_NAME points elsewhere.
-      if (normalizeDnsLabel(zone.name) !== zoneName) {
+      if (zoneName && apiZoneName !== zoneName) {
         return fail(
-          `Cloudflare zone ${zoneId} is "${normalizeDnsLabel(zone.name)}", not CLOUDFLARE_ZONE_NAME "${zoneName}"`,
+          `Cloudflare zone ${zoneId} is "${apiZoneName}", not CLOUDFLARE_ZONE_NAME "${zoneName}"`,
           {
             zoneId,
             zoneName,
@@ -82,7 +83,20 @@ export const cloudflareProvider: Provider = {
           },
         );
       }
-    } else if (!zoneId) {
+      // Even without CLOUDFLARE_ZONE_NAME, refuse FQDNs that sit outside this zone.
+      // Relative single-label names (e.g. "home") are accepted as in-zone subdomains.
+      if (
+        recordName.includes('.') &&
+        recordName !== apiZoneName &&
+        !recordName.endsWith(`.${apiZoneName}`)
+      ) {
+        return fail(`Record ${recordName} is not within Cloudflare zone ${apiZoneName}`, {
+          zoneId,
+          recordName,
+          apiZoneName: zone.name,
+        });
+      }
+    } else {
       zoneId = await resolveZoneId(apiToken, zoneName, recordName);
     }
     if (!zoneId) {

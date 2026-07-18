@@ -122,12 +122,15 @@ describe('cloudflare provider', () => {
   });
 
   it('fails when CLOUDFLARE_ZONE_ID does not match CLOUDFLARE_ZONE_NAME', async () => {
-    stubCloudflareFetch([
-      {
-        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
-        response: cfOk({ id: 'zone1', name: 'evil.net' }),
-      },
-    ]);
+    stubCloudflareFetch(
+      [
+        {
+          match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+          response: cfOk({ id: 'zone1', name: 'evil.net' }),
+        },
+      ],
+      { zone: false },
+    );
 
     await expect(
       cloudflareProvider.update(
@@ -148,12 +151,15 @@ describe('cloudflare provider', () => {
   });
 
   it('fails when a pinned zone id returns a null zone body', async () => {
-    stubCloudflareFetch([
-      {
-        match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
-        response: cfOk(null),
-      },
-    ]);
+    stubCloudflareFetch(
+      [
+        {
+          match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+          response: cfOk(null),
+        },
+      ],
+      { zone: false },
+    );
 
     await expect(
       cloudflareProvider.update(
@@ -200,6 +206,34 @@ describe('cloudflare provider', () => {
     ).resolves.toMatchObject({
       ok: true,
       skipped: true,
+    });
+  });
+
+  it('refuses zone-id-only writes when the record FQDN is outside the zone', async () => {
+    stubCloudflareFetch(
+      [
+        {
+          match: (url, method) => method === 'GET' && url.endsWith('/zones/zone1'),
+          response: cfOk({ id: 'zone1', name: 'example.com' }),
+        },
+      ],
+      { zone: false },
+    );
+
+    await expect(
+      cloudflareProvider.update(
+        makeConfig({
+          cloudflare: {
+            apiToken: 'token',
+            zoneId: 'zone1',
+            recordName: 'home.evil.net',
+          },
+        }),
+        { v4: '9.9.9.9', v6: null },
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('not within Cloudflare zone example.com'),
     });
   });
 
@@ -576,7 +610,8 @@ describe('cloudflare provider', () => {
         { v4: '9.9.9.9', v6: null },
       ),
     ).rejects.toThrow(/record lookup.*Authentication error/i);
-    expect(fetchMock).toHaveBeenCalledOnce();
+    // Zone-id verification plus the record list lookup.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('fetches the pinned record by id for A and updates AAAA independently', async () => {

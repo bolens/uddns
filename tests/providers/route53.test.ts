@@ -52,6 +52,28 @@ function awsError(code: string, message: string, status = 400): Response {
   );
 }
 
+function hostedZoneOk(name = 'example.com.'): Response {
+  return textResponse(
+    '<?xml version="1.0"?><GetHostedZoneResponse><HostedZone>' +
+      `<Id>/hostedzone/Z123</Id><Name>${name}</Name>` +
+      '</HostedZone></GetHostedZoneResponse>',
+  );
+}
+
+function withHostedZone(
+  routes: Parameters<typeof stubRoutedFetch>[0],
+  zoneName = 'example.com.',
+): Parameters<typeof stubRoutedFetch>[0] {
+  return [
+    {
+      match: (url, method) =>
+        method === 'GET' && /\/hostedzone\/[^/?]+$/.test(new URL(url).pathname),
+      response: hostedZoneOk(zoneName),
+    },
+    ...routes,
+  ];
+}
+
 function r53Config(overrides: Parameters<typeof makeConfig>[0] = {}) {
   return makeConfig({
     ...overrides,
@@ -66,7 +88,7 @@ function r53Config(overrides: Parameters<typeof makeConfig>[0] = {}) {
 
 describe('route53 provider', () => {
   it('requires credentials and a host before contacting the API', async () => {
-    const fetchMock = stubRoutedFetch([]);
+    const fetchMock = stubRoutedFetch(withHostedZone([]));
 
     await expect(
       route53Provider.update(makeConfig({ route53: { accessKeyId: 'AKIA' } }), {
@@ -93,7 +115,7 @@ describe('route53 provider', () => {
   });
 
   it('fails fast when no public IP is available', async () => {
-    const fetchMock = stubRoutedFetch([]);
+    const fetchMock = stubRoutedFetch(withHostedZone([]));
 
     await expect(
       route53Provider.update(r53Config(), { v4: null, v6: null }),
@@ -106,18 +128,20 @@ describe('route53 provider', () => {
   });
 
   it('upserts a changed A record with a SigV4-signed XML request', async () => {
-    const fetchMock = stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/hostedzone/Z123/rrset?'),
-        response: rrsetList([
-          { name: 'home.example.com.', type: 'A', ttl: 300, values: ['1.1.1.1'] },
-        ]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/hostedzone/Z123/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    const fetchMock = stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/hostedzone/Z123/rrset?'),
+          response: rrsetList([
+            { name: 'home.example.com.', type: 'A', ttl: 300, values: ['1.1.1.1'] },
+          ]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/hostedzone/Z123/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     const result = await route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null });
 
@@ -139,7 +163,7 @@ describe('route53 provider', () => {
       }),
     });
 
-    const list = getCall(fetchMock, 0);
+    const list = getCall(fetchMock, 1);
     expect(list.url.host).toBe('route53.amazonaws.com');
     expect(list.url.searchParams.get('name')).toBe('home.example.com.');
     expect(list.url.searchParams.get('type')).toBe('A');
@@ -162,15 +186,17 @@ describe('route53 provider', () => {
   });
 
   it('skips unchanged records but upserts on a TTL change', async () => {
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        // No trailing dot: names must be normalized before comparison.
-        response: rrsetList([
-          { name: 'home.example.com', type: 'A', ttl: 300, values: ['9.9.9.9'] },
-        ]),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          // No trailing dot: names must be normalized before comparison.
+          response: rrsetList([
+            { name: 'home.example.com', type: 'A', ttl: 300, values: ['9.9.9.9'] },
+          ]),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -180,18 +206,20 @@ describe('route53 provider', () => {
       message: expect.stringContaining('unchanged'),
     });
 
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([
-          { name: 'home.example.com.', type: 'A', ttl: 60, values: ['9.9.9.9'] },
-        ]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([
+            { name: 'home.example.com.', type: 'A', ttl: 60, values: ['9.9.9.9'] },
+          ]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -203,18 +231,20 @@ describe('route53 provider', () => {
 
   it('treats the lexicographically-next record set as missing and creates when enabled', async () => {
     // Route53 list returns the *next* record set when there is no exact match.
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([
-          { name: 'other.example.com.', type: 'A', ttl: 300, values: ['1.1.1.1'] },
-        ]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([
+            { name: 'other.example.com.', type: 'A', ttl: 300, values: ['1.1.1.1'] },
+          ]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -230,12 +260,14 @@ describe('route53 provider', () => {
   });
 
   it('fails when the record is missing and createIfMissing is false', async () => {
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([]),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([]),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config({ route53: { createIfMissing: false } }), {
@@ -258,22 +290,24 @@ describe('route53 provider', () => {
   });
 
   it('updates A and AAAA independently and strips the /hostedzone/ prefix', async () => {
-    const fetchMock = stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('type=A&'),
-        response: rrsetList([
-          { name: 'home.example.com.', type: 'A', ttl: 300, values: ['1.1.1.1'] },
-        ]),
-      },
-      {
-        match: (url, method) => method === 'GET' && url.includes('type=AAAA'),
-        response: rrsetList([]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    const fetchMock = stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('type=A&'),
+          response: rrsetList([
+            { name: 'home.example.com.', type: 'A', ttl: 300, values: ['1.1.1.1'] },
+          ]),
+        },
+        {
+          match: (url, method) => method === 'GET' && url.includes('type=AAAA'),
+          response: rrsetList([]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     const result = await route53Provider.update(
       r53Config({ route53: { hostedZoneId: '/hostedzone/Z123' } }),
@@ -286,22 +320,24 @@ describe('route53 provider', () => {
 
     for (const [input] of fetchMock.mock.calls) {
       const url = fetchInputUrl(input);
-      expect(url).toContain('/hostedzone/Z123/rrset');
+      expect(url).toContain('/hostedzone/Z123');
       expect(url).not.toContain('/hostedzone//hostedzone/');
     }
   });
 
   it('surfaces Route53 error responses from change requests', async () => {
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: awsError('InvalidChangeBatch', 'RRSet with DNS name x is not permitted'),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: awsError('InvalidChangeBatch', 'RRSet with DNS name x is not permitted'),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -319,16 +355,18 @@ describe('route53 provider', () => {
   });
 
   it('falls back to HTTP status when the error body carries no message', async () => {
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: textResponse('<ErrorResponse></ErrorResponse>', 500),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: textResponse('<ErrorResponse></ErrorResponse>', 500),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -338,19 +376,21 @@ describe('route53 provider', () => {
     });
 
     // Message without a Code element is reported bare.
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: textResponse(
-          '<ErrorResponse><Error><Message>Throttled</Message></Error></ErrorResponse>',
-          400,
-        ),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: textResponse(
+            '<ErrorResponse><Error><Message>Throttled</Message></Error></ErrorResponse>',
+            400,
+          ),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -362,16 +402,18 @@ describe('route53 provider', () => {
 
   it('handles wildcard names, multi-value sets, and malformed record-set XML', async () => {
     // Wildcard host: `*` must be RFC3986-encoded in the signed query string.
-    const fetchMock = stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    const fetchMock = stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config({ hosts: ['*.example.com'], hostname: '*.example.com' }), {
@@ -383,22 +425,24 @@ describe('route53 provider', () => {
       message: expect.stringContaining('Created A *.example.com -> 9.9.9.9'),
     });
     // `*` travels literally in the URL but is RFC3986-encoded when signing.
-    expect(getCall(fetchMock, 0).url.searchParams.get('name')).toBe('*.example.com.');
-    expect(getCall(fetchMock, 0).headers.get('Authorization')).toMatch(/Signature=[0-9a-f]{64}$/);
+    expect(getCall(fetchMock, 1).url.searchParams.get('name')).toBe('*.example.com.');
+    expect(getCall(fetchMock, 1).headers.get('Authorization')).toMatch(/Signature=[0-9a-f]{64}$/);
 
     // A record set with multiple values is never "unchanged"; it gets replaced.
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: rrsetList([
-          { name: 'home.example.com.', type: 'A', ttl: 300, values: ['9.9.9.9', '8.8.8.8'] },
-        ]),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: rrsetList([
+            { name: 'home.example.com.', type: 'A', ttl: 300, values: ['9.9.9.9', '8.8.8.8'] },
+          ]),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -415,20 +459,22 @@ describe('route53 provider', () => {
     });
 
     // Record-set XML without Name/Type is treated as missing.
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: textResponse(
-          '<?xml version="1.0"?><ListResourceRecordSetsResponse><ResourceRecordSets>' +
-            '<ResourceRecordSet><Weight>1</Weight></ResourceRecordSet>' +
-            '</ResourceRecordSets></ListResourceRecordSetsResponse>',
-        ),
-      },
-      {
-        match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
-        response: changeOk(),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: textResponse(
+            '<?xml version="1.0"?><ListResourceRecordSetsResponse><ResourceRecordSets>' +
+              '<ResourceRecordSet><Weight>1</Weight></ResourceRecordSet>' +
+              '</ResourceRecordSets></ListResourceRecordSetsResponse>',
+          ),
+        },
+        {
+          match: (url, method) => method === 'POST' && url.endsWith('/rrset/'),
+          response: changeOk(),
+        },
+      ]),
+    );
 
     await expect(
       route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
@@ -439,15 +485,28 @@ describe('route53 provider', () => {
   });
 
   it('throws when the record lookup itself is rejected', async () => {
-    stubRoutedFetch([
-      {
-        match: (url, method) => method === 'GET' && url.includes('/rrset?'),
-        response: awsError('SignatureDoesNotMatch', 'Signature expired', 403),
-      },
-    ]);
+    stubRoutedFetch(
+      withHostedZone([
+        {
+          match: (url, method) => method === 'GET' && url.includes('/rrset?'),
+          response: awsError('SignatureDoesNotMatch', 'Signature expired', 403),
+        },
+      ]),
+    );
 
     await expect(route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null })).rejects.toThrow(
       /record lookup for home\.example\.com\..*Signature expired \[SignatureDoesNotMatch\]/,
     );
+  });
+
+  it('refuses hosts that are not within the hosted zone apex', async () => {
+    stubRoutedFetch(withHostedZone([], 'other.net.'));
+
+    await expect(
+      route53Provider.update(r53Config(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('not within Route53 zone other.net'),
+    });
   });
 });
