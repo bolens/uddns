@@ -92,7 +92,7 @@ describe('bindNamecheapHost', () => {
     );
   });
 
-  it('splits FQDNs when domain is unset', () => {
+  it('splits short FQDNs when domain is unset and fails closed for deep names', () => {
     expect(
       bindNamecheapHost({ host: '@', domain: null, password: null }, 'home.example.com'),
     ).toEqual({
@@ -100,6 +100,14 @@ describe('bindNamecheapHost', () => {
       domain: 'example.com',
       password: null,
     });
+    expect(bindNamecheapHost({ host: '@', domain: null, password: null }, 'example.com')).toEqual({
+      host: '@',
+      domain: 'example.com',
+      password: null,
+    });
+    expect(() =>
+      bindNamecheapHost({ host: '@', domain: null, password: null }, 'home.example.co.uk'),
+    ).toThrow(/Cannot derive NAMECHEAP_DOMAIN/);
   });
 
   it('maps the apex host to @ and rejects FQDNs outside NAMECHEAP_DOMAIN', () => {

@@ -1,3 +1,4 @@
+import { deriveTwoLabelApex, normalizeDnsName } from './providers/domain-host.js';
 import type { AppConfig, NamecheapConfig } from './schemas/provider.js';
 
 export type HostSources = {
@@ -103,9 +104,9 @@ export function stripDuckDnsSuffix(host: string): string {
  */
 export function bindNamecheapHost(namecheap: NamecheapConfig, host: string): NamecheapConfig {
   if (namecheap.domain) {
-    const domain = namecheap.domain.toLowerCase();
+    const domain = normalizeDnsName(namecheap.domain);
     const suffix = `.${domain}`;
-    const normalized = host.toLowerCase();
+    const normalized = normalizeDnsName(host);
 
     if (normalized === domain) {
       return { ...namecheap, host: '@', domain };
@@ -124,14 +125,18 @@ export function bindNamecheapHost(namecheap: NamecheapConfig, host: string): Nam
     throw new Error(`Host ${host} is outside NAMECHEAP_DOMAIN ${domain}`);
   }
 
-  const parts = host.toLowerCase().split('.').filter(Boolean);
-  if (parts.length >= 2) {
-    return {
-      ...namecheap,
-      host: parts[0] ?? '@',
-      domain: parts.slice(1).join('.'),
-    };
+  const normalized = normalizeDnsName(host);
+  const derived = deriveTwoLabelApex(normalized);
+  if (derived) {
+    return { ...namecheap, host: derived.name, domain: derived.domain };
   }
 
-  return { ...namecheap, host: host || '@' };
+  // Bare labels stay as NAMECHEAP_HOST until NAMECHEAP_DOMAIN is set.
+  if (!normalized.includes('.')) {
+    return { ...namecheap, host: normalized || '@' };
+  }
+
+  throw new Error(
+    `Cannot derive NAMECHEAP_DOMAIN from "${host}"; set NAMECHEAP_DOMAIN explicitly for multi-label domains`,
+  );
 }
