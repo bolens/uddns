@@ -52,6 +52,7 @@ const envSchema = z
     UDDNS_HEALTH: optionalEnv,
     UDDNS_HEALTH_HOST: optionalEnv,
     UDDNS_HEALTH_PORT: optionalEnv,
+    UDDNS_HEALTH_AUTH_TOKEN: optionalEnv,
     UDDNS_METRICS: optionalEnv,
     UDDNS_CONFIG_FILE: optionalEnv,
     UDDNS_MCP_TRANSPORT: optionalEnv,
@@ -443,8 +444,16 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
       break;
     case 'namecheap':
       if (!config.namecheap.password) missing.push('NAMECHEAP_PASSWORD');
-      if (!config.namecheap.domain && config.hosts.some((host) => !host.includes('.'))) {
-        missing.push('NAMECHEAP_DOMAIN (required when hosts are not FQDNs)');
+      if (
+        !config.namecheap.domain &&
+        config.hosts.some((host) => {
+          const labels = host.split('.').filter(Boolean).length;
+          return labels < 2 || labels > 3;
+        })
+      ) {
+        missing.push(
+          'NAMECHEAP_DOMAIN (required for bare labels and multi-label domains like example.co.uk)',
+        );
       }
       break;
     case 'noip':
@@ -462,8 +471,16 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
     case 'porkbun':
       if (!config.porkbun.apiKey) missing.push('PORKBUN_API_KEY');
       if (!config.porkbun.secretKey) missing.push('PORKBUN_SECRET_KEY');
-      if (!config.porkbun.domain && config.hosts.some((host) => !host.includes('.'))) {
-        missing.push('PORKBUN_DOMAIN (required when hosts are not FQDNs)');
+      if (
+        !config.porkbun.domain &&
+        config.hosts.some((host) => {
+          const labels = host.split('.').filter(Boolean).length;
+          return labels < 2 || labels > 3;
+        })
+      ) {
+        missing.push(
+          'PORKBUN_DOMAIN (required for bare labels and multi-label domains like example.co.uk)',
+        );
       }
       break;
     case 'hetzner':
@@ -471,8 +488,16 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
       break;
     case 'digitalocean':
       if (!config.digitalocean.apiToken) missing.push('DIGITALOCEAN_API_TOKEN');
-      if (!config.digitalocean.domain && config.hosts.some((host) => !host.includes('.'))) {
-        missing.push('DIGITALOCEAN_DOMAIN (required when hosts are not FQDNs)');
+      if (
+        !config.digitalocean.domain &&
+        config.hosts.some((host) => {
+          const labels = host.split('.').filter(Boolean).length;
+          return labels < 2 || labels > 3;
+        })
+      ) {
+        missing.push(
+          'DIGITALOCEAN_DOMAIN (required for bare labels and multi-label domains like example.co.uk)',
+        );
       }
       break;
     case 'gandi':

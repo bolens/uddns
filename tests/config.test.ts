@@ -184,7 +184,7 @@ describe('loadConfig', () => {
         PORKBUN_API_KEY: 'pk',
         PORKBUN_SECRET_KEY: 'sk',
       }),
-    ).toThrow(/PORKBUN_DOMAIN \(required when hosts are not FQDNs\)/);
+    ).toThrow(/PORKBUN_DOMAIN \(required for bare labels/);
     expect(() => loadConfig({ UDDNS_PROVIDER: 'hetzner', UDDNS_HOST: 'home.example.com' })).toThrow(
       /HETZNER_API_TOKEN/,
     );
@@ -197,7 +197,7 @@ describe('loadConfig', () => {
         UDDNS_HOSTS: 'home',
         DIGITALOCEAN_API_TOKEN: 'token',
       }),
-    ).toThrow(/DIGITALOCEAN_DOMAIN \(required when hosts are not FQDNs\)/);
+    ).toThrow(/DIGITALOCEAN_DOMAIN \(required for bare labels/);
   });
 
   it('rejects non-https DYNDNS_UPDATE_URL values', () => {
@@ -246,7 +246,14 @@ describe('loadConfig', () => {
         UDDNS_HOSTS: 'home',
         NAMECHEAP_PASSWORD: 'ddns',
       }),
-    ).toThrow(/NAMECHEAP_DOMAIN \(required when hosts are not FQDNs\)/);
+    ).toThrow(/NAMECHEAP_DOMAIN \(required for bare labels/);
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'namecheap',
+        UDDNS_HOSTS: 'home.example.co.uk',
+        NAMECHEAP_PASSWORD: 'ddns',
+      }),
+    ).toThrow(/NAMECHEAP_DOMAIN \(required for bare labels/);
     expect(() => loadConfig({ UDDNS_HOST: 'x.com', UDDNS_INTERVAL: 'abc' })).toThrow(
       /UDDNS_INTERVAL/,
     );
@@ -448,6 +455,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, CLOUDFLARE_API_T0KEN: 'typo' })).toThrow(
       /Unknown uDDNS environment variable.*API_T0KEN/,
     );
+    expect(() =>
+      loadConfig({
+        ...base,
+        UDDNS_HEALTH_AUTH_TOKEN: 'health-secret',
+      }),
+    ).not.toThrow();
   });
 
   it('allows disabling the persisted state file explicitly', () => {
