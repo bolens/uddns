@@ -6,9 +6,19 @@ import { discoverPublicIP, type PublicIPDiscovery } from '../ip.js';
 import { redact } from '../log.js';
 import { listProviders } from '../providers/index.js';
 import { getProviderConfigIssues } from '../schemas/config.js';
-import type { CheckResult } from '../schemas/provider.js';
+import type { AppConfig, CheckResult } from '../schemas/provider.js';
 import type { BusyCheckResult, UpdaterStatus } from '../updater.js';
 import { getMcpAccount, type McpAccount, type McpSession } from './session.js';
+
+function discoverFromConfig(config: AppConfig): () => Promise<PublicIPDiscovery> {
+  return () =>
+    discoverPublicIP({
+      timeoutMs: config.ipTimeoutMs,
+      dnsFallback: config.ipDnsFallback,
+      ...(config.ipHttpsV4 ? { httpsV4: config.ipHttpsV4 } : {}),
+      ...(config.ipHttpsV6 ? { httpsV6: config.ipHttpsV6 } : {}),
+    });
+}
 
 function normalizeSession(session: McpSession): McpSession & {
   accountId: string;
@@ -40,7 +50,7 @@ function normalizeSession(session: McpSession): McpSession & {
 export type McpToolHandlers = {
   listProviders: () => Array<{ id: string; label: string }>;
   listAccounts: () => Array<{ id: string; provider: string; hosts: string[] }>;
-  getPublicIp: () => Promise<PublicIPDiscovery>;
+  getPublicIp: (accountId?: string) => Promise<PublicIPDiscovery>;
   getConfig: (accountId?: string) => unknown;
   getAccountsConfig: () => { accounts: Array<{ id: string; config: unknown }> };
   checkOnce: (accountId?: string) => Promise<CheckResult | BusyCheckResult>;
@@ -79,7 +89,6 @@ export function createToolHandlers(
     discoverPublicIPFn?: () => Promise<PublicIPDiscovery>;
   } = {},
 ): McpToolHandlers {
-  const discover = options.discoverPublicIPFn ?? discoverPublicIP;
   const normalized = normalizeSession(session);
 
   return {
@@ -95,8 +104,11 @@ export function createToolHandlers(
       }));
     },
 
-    async getPublicIp() {
-      return await discover();
+    async getPublicIp(accountId) {
+      if (options.discoverPublicIPFn) {
+        return await options.discoverPublicIPFn();
+      }
+      return await discoverFromConfig(getMcpAccount(normalized, accountId).config)();
     },
 
     getConfig(accountId) {

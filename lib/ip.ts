@@ -40,28 +40,38 @@ export type DnsResolver = {
 };
 
 export type DiscoverDeps = {
-  fetch: typeof globalThis.fetch;
-  createResolver: () => DnsResolver;
+  fetch?: typeof globalThis.fetch;
+  createResolver?: () => DnsResolver;
   timeoutMs?: number;
   httpsV4?: readonly string[];
   httpsV6?: readonly string[];
   dnsFallback?: boolean;
 };
 
-const defaultDeps: DiscoverDeps = {
-  fetch: globalThis.fetch.bind(globalThis),
-  createResolver: () => {
-    const resolver = new dns.Resolver();
-    return {
-      setServers: (servers) => {
-        resolver.setServers(servers);
-      },
-      resolve4: (hostname) => resolver.resolve4(hostname),
-      resolve6: (hostname) => resolver.resolve6(hostname),
-      resolveTxt: (hostname) => resolver.resolveTxt(hostname),
-    };
-  },
+const defaultFetch = globalThis.fetch.bind(globalThis);
+const defaultCreateResolver = (): DnsResolver => {
+  const resolver = new dns.Resolver();
+  return {
+    setServers: (servers) => {
+      resolver.setServers(servers);
+    },
+    resolve4: (hostname) => resolver.resolve4(hostname),
+    resolve6: (hostname) => resolver.resolve6(hostname),
+    resolveTxt: (hostname) => resolver.resolveTxt(hostname),
+  };
 };
+
+/** Resolve optional deps against library defaults (fetch + DNS resolver). */
+export type ResolvedDiscoverDeps = Required<Pick<DiscoverDeps, 'fetch' | 'createResolver'>> &
+  DiscoverDeps;
+
+export function resolveDiscoverDeps(deps: DiscoverDeps = {}): ResolvedDiscoverDeps {
+  return {
+    ...deps,
+    fetch: deps.fetch ?? defaultFetch,
+    createResolver: deps.createResolver ?? defaultCreateResolver,
+  };
+}
 
 type AddressFamily = 'v4' | 'v6';
 
@@ -106,7 +116,7 @@ async function withTimeout<T>(promise: Promise<T>, signal: AbortSignal): Promise
 
 async function lookupViaOpenDns(
   family: AddressFamily,
-  deps: DiscoverDeps,
+  deps: ResolvedDiscoverDeps,
   signal: AbortSignal,
 ): Promise<string> {
   const resolver = deps.createResolver();
@@ -124,7 +134,7 @@ async function lookupViaOpenDns(
 
 async function lookupViaGoogleTxt(
   family: AddressFamily,
-  deps: DiscoverDeps,
+  deps: ResolvedDiscoverDeps,
   signal: AbortSignal,
 ): Promise<string> {
   const resolver = deps.createResolver();
@@ -140,7 +150,7 @@ async function lookupViaGoogleTxt(
 
 async function lookupViaHttps(
   family: AddressFamily,
-  deps: DiscoverDeps,
+  deps: ResolvedDiscoverDeps,
   signal: AbortSignal,
 ): Promise<string> {
   const errors: string[] = [];
@@ -209,7 +219,7 @@ async function lookupViaHttps(
 
 async function discoverFamily(
   family: AddressFamily,
-  deps: DiscoverDeps,
+  deps: ResolvedDiscoverDeps,
   signal: AbortSignal,
 ): Promise<string> {
   try {
@@ -241,20 +251,19 @@ async function discoverFamily(
  * Resolve the machine's current public IPv4/IPv6 addresses.
  * Missing families are returned as `null` rather than throwing.
  */
-export async function discoverPublicIP(
-  deps: DiscoverDeps = defaultDeps,
-): Promise<PublicIPDiscovery> {
+export async function discoverPublicIP(deps: DiscoverDeps = {}): Promise<PublicIPDiscovery> {
+  const resolved = resolveDiscoverDeps(deps);
   const ip: PublicIP = { v4: null, v6: null };
   const errors: PublicIPDiscovery['errors'] = { v4: null, v6: null };
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
-  }, deps.timeoutMs ?? DEFAULT_IP_TIMEOUT_MS);
+  }, resolved.timeoutMs ?? DEFAULT_IP_TIMEOUT_MS);
 
   try {
     const [v4Result, v6Result] = await Promise.allSettled([
-      discoverFamily('v4', deps, controller.signal),
-      discoverFamily('v6', deps, controller.signal),
+      discoverFamily('v4', resolved, controller.signal),
+      discoverFamily('v6', resolved, controller.signal),
     ]);
 
     if (v4Result.status === 'fulfilled') {
