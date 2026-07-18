@@ -84,8 +84,8 @@ Set `UDDNS_HEALTH=1` to bind the side server (`UDDNS_HEALTH_HOST` /
 `UDDNS_HEALTH_PORT`, defaults `127.0.0.1:3924`):
 
 - `GET /healthz` — liveness
-- `GET /readyz` — readiness + status; returns 503 until every updater is
-  running and has completed a successful cycle (transient
+- `GET /readyz` — readiness probe (`{ ok }`); returns 503 until every updater
+  is running and has completed a successful cycle (transient
   `skipped_no_ip` does not clear readiness)
 - `GET /metrics` — Prometheus text when `UDDNS_METRICS=1`
 - `GET /events` — SSE cycle events (payloads are redacted)

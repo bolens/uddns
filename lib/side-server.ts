@@ -167,7 +167,8 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
     }
     if (req.method === 'GET' && url === '/readyz') {
       const result = readiness(getStatus());
-      writeJson(res, result.ok ? 200 : 503, result);
+      // Keep probe payloads minimal; detailed status is available via MCP tools.
+      writeJson(res, result.ok ? 200 : 503, { ok: result.ok });
       return;
     }
     if (req.method === 'GET' && url === '/metrics') {

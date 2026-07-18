@@ -245,7 +245,7 @@ describe('application entrypoint', () => {
       .find((line) => line.includes('Health server listening'));
     const url = String(healthLine).replace('Health server listening on ', '');
     const ready = await (await fetch(`${url}/readyz`)).json();
-    expect(ready).toMatchObject({ ok: false, status: { accounts: expect.any(Array) } });
+    expect(ready).toEqual({ ok: false });
     const events = fetch(`${url}/events`);
     await new Promise((resolve) => setTimeout(resolve, 20));
     // Closing via shutdown is enough; just ensure the SSE route was hit.

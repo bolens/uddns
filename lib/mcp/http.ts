@@ -15,6 +15,7 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Express, NextFunction, Request, Response } from 'express';
 
 import type { Logger } from '../log.js';
+import { redact } from '../log.js';
 import type { CycleEvent } from '../schemas/cycle.js';
 import { readiness, renderPrometheus, type MetricsSnapshot } from '../side-server.js';
 import type { McpConfig } from './config.js';
@@ -145,7 +146,8 @@ export async function startMcpHttpServer(options: {
         status: account.updater.getStatus(),
       })),
     });
-    res.status(result.ok ? 200 : 503).json(result);
+    // Probe-only payload; full status stays on authenticated MCP tools.
+    res.status(result.ok ? 200 : 503).json({ ok: result.ok });
   });
 
   const requireAuth = requireBearer(mcpConfig.authToken);
@@ -168,7 +170,7 @@ export async function startMcpHttpServer(options: {
     res.write(': ok\n\n');
     sseClients.add(res);
     const listener = (event: CycleEvent): void => {
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      res.write(`data: ${JSON.stringify(redact(event))}\n\n`);
     };
     for (const account of accounts) {
       account.eventListeners?.add(listener);

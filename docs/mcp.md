@@ -102,11 +102,11 @@ UDDNS_MCP_PORT=3923
 Operational endpoints:
 
 - `GET /healthz` — liveness, without bearer auth
-- `GET /readyz` — updater readiness and status, without bearer auth; returns
-  503 until the updater has completed a successful cycle
+- `GET /readyz` — readiness probe (`{ ok }`), without bearer auth; returns 503
+  until the updater has completed a successful cycle
 - `GET /metrics` — Prometheus cycle/update/discovery metrics; requires bearer
   auth when `UDDNS_MCP_AUTH_TOKEN` is set
-- `GET /events` — authenticated SSE cycle events
+- `GET /events` — authenticated SSE cycle events (payloads are redacted)
 
 The `/mcp`, `/events`, and `/metrics` endpoints require bearer authentication
 when `UDDNS_MCP_AUTH_TOKEN` is configured.

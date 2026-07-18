@@ -154,7 +154,7 @@ describe('side server', () => {
       expect(metricsRes.status).toBe(404);
       const ready = await fetch(`${server.url}/readyz`);
       expect(ready.status).toBe(503);
-      expect(await ready.json()).toMatchObject({ ok: false });
+      expect(await ready.json()).toEqual({ ok: false });
     } finally {
       await server.close();
     }
