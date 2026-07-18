@@ -30,6 +30,16 @@ export function shouldRecordHistory(event: CycleEvent): boolean {
   return RECORDABLE.has(event.status);
 }
 
+async function quarantineCorruptFile(resolved: string, reason: string): Promise<void> {
+  const corrupt = `${resolved}.corrupt.${process.pid}.${Date.now()}`;
+  try {
+    await rename(resolved, corrupt);
+    console.warn(`uDDNS: quarantined corrupt history file (${reason}) -> ${corrupt}`);
+  } catch {
+    console.warn(`uDDNS: ignoring corrupt history file (${reason}): ${resolved}`);
+  }
+}
+
 export function createFileHistoryStore(
   file: string,
   options: { maxEvents?: number } = {},
@@ -53,11 +63,13 @@ export function createFileHistoryStore(
       try {
         parsedJson = JSON.parse(raw);
       } catch {
+        await quarantineCorruptFile(resolved, 'invalid JSON');
         return [];
       }
 
       const parsed = historyFileSchema.safeParse(parsedJson);
       if (!parsed.success) {
+        await quarantineCorruptFile(resolved, 'schema validation failed');
         return [];
       }
       return parsed.data.events;
