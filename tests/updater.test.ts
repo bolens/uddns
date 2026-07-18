@@ -57,6 +57,20 @@ describe('createUpdater', () => {
     expect(hostConfig).toMatchObject({ hostname: 'home.example.com' });
   });
 
+  it('normalizes trailing-dot host selectors in checkOnce', async () => {
+    const update = vi.fn(async () => ({ ok: true, message: 'updated' }));
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+    });
+
+    const result = await updater.checkOnce({ hosts: ['home.example.com.'] });
+    expect(result.status).toBe('updated');
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it('updates every configured host with host-bound config and IP payload', async () => {
     const update = vi.fn(async (config: AppConfig, ip: PublicIP) => ({
       ok: true,

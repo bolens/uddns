@@ -12,6 +12,7 @@ import {
   type PublicIPDiscovery,
 } from './ip.js';
 import { createLogger, formatError, type Logger } from './log.js';
+import { normalizeDnsName } from './providers/domain-host.js';
 import { HttpError } from './providers/http.js';
 import { formatResultSummary } from './result.js';
 import { cycleEventFromResult, type CycleEvent } from './schemas/cycle.js';
@@ -221,7 +222,7 @@ export function createUpdater(options: UpdaterOptions) {
     const dryRun = Boolean(checkOptions.dryRun);
     const enabledHosts = config.hosts.filter((host) => !config.disabledHosts.includes(host));
     const targetHosts = checkOptions.hosts
-      ? [...new Set(checkOptions.hosts.map((host) => host.trim().toLowerCase()))]
+      ? [...new Set(checkOptions.hosts.map((host) => normalizeDnsName(host.trim())))]
       : enabledHosts;
     const unknownHosts = targetHosts.filter((host) => !config.hosts.includes(host));
     if (targetHosts.length === 0) {
