@@ -25,6 +25,11 @@ describe('isSensitiveKey', () => {
       'notify_discord_url',
       'updateUrl',
       'update_url',
+      'user',
+      'username',
+      'apiUser',
+      'clientId',
+      'client_id',
     ];
     for (const key of keys) {
       expect(isSensitiveKey(key), key).toBe(true);

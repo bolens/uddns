@@ -4,7 +4,7 @@
 
 /** Matches one complete sensitive key segment, never an arbitrary substring. */
 export const SENSITIVE_KEY_PATTERN =
-  /^(?:pass(?:word)?|token|secret(?:apikey)?|authorization|api[-_]?key|apikey|credential|private|auth|key|webhook)$/i;
+  /^(?:pass(?:word)?|token|secret(?:apikey)?|authorization|api[-_]?key|apikey|credential|private|auth|key|webhook|user(?:name)?|apiuser|client[_-]?id)$/i;
 
 export function isSensitiveKey(key: string): boolean {
   // Notify destinations and DynDNS update URLs often embed tokens/userinfo.
