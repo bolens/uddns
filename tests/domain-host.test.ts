@@ -38,5 +38,7 @@ describe('splitDomainHost', () => {
     expect(splitDomainHost('localhost', null)).toBeNull();
     expect(splitDomainHost('vpn.home.example.com', null)).toBeNull();
     expect(splitDomainHost('home.example.co.uk', null)).toBeNull();
+    // Multi-part public suffixes must not derive "co.uk" as the apex.
+    expect(splitDomainHost('example.co.uk', null)).toBeNull();
   });
 });
