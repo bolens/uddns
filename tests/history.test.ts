@@ -51,7 +51,7 @@ describe('history store', () => {
     await store.append(
       event({
         status: 'partial',
-        message: 'one failed',
+        message: 'one failed: Bearer leaked-on-disk',
         hostResults: [
           {
             host: 'ok.example.com',
@@ -61,7 +61,7 @@ describe('history store', () => {
             host: 'bad.example.com',
             result: {
               ok: false,
-              message: 'denied',
+              message: 'denied Bearer leaked-on-disk',
               details: { authorization: 'Bearer secret-token' },
             },
           },
@@ -70,8 +70,12 @@ describe('history store', () => {
     );
 
     const events = await store.load();
-    expect(events[0]?.failedHosts).toEqual([{ host: 'bad.example.com', message: 'denied' }]);
+    expect(events[0]?.message).toBe('one failed: Bearer [redacted]');
+    expect(events[0]?.failedHosts).toEqual([
+      { host: 'bad.example.com', message: 'denied Bearer [redacted]' },
+    ]);
     expect(JSON.stringify(events)).not.toContain('secret-token');
+    expect(JSON.stringify(events)).not.toContain('leaked-on-disk');
   });
 
   it('skips pure unchanged unless forced', () => {

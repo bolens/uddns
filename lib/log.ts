@@ -272,7 +272,7 @@ export function redact(value: unknown): unknown {
   return value;
 }
 
-function redactString(value: string): string {
+export function redactString(value: string): string {
   if (looksLikeSecret(value)) {
     return '[redacted]';
   }

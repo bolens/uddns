@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { DEFAULT_HISTORY_MAX } from './defaults.js';
 import { hasErrorCode } from './errors.js';
+import { redactString } from './log.js';
 import type { CycleEvent } from './schemas/cycle.js';
 import {
   HISTORY_VERSION,
@@ -68,12 +69,12 @@ export function createFileHistoryStore(
       }
       const failedHosts = event.hostResults
         ?.filter(({ result }) => !result.ok)
-        .map(({ host, result }) => ({ host, message: result.message }));
+        .map(({ host, result }) => ({ host, message: redactString(result.message) }));
       const entry: HistoryEvent = {
         at: event.at,
         status: event.status,
         ip: event.ip,
-        message: event.message,
+        message: redactString(event.message),
         durationMs: event.durationMs,
         cycle: event.cycle,
         ...(event.discoveryErrors !== undefined ? { discoveryErrors: event.discoveryErrors } : {}),

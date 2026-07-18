@@ -59,7 +59,10 @@ describe('notifications', () => {
         discordUrl: 'https://discord.com/api/webhooks/1/2',
         on: ['change'],
       },
-      baseEvent,
+      {
+        ...baseEvent,
+        message: 'updated via https://user:hunter2@provider.example/path?token=sekrit',
+      },
       { log },
     );
 
@@ -68,6 +71,8 @@ describe('notifications', () => {
     expect(typeof slackInit?.body).toBe('string');
     const slackBody = JSON.parse(slackInit?.body as string) as { text: string };
     expect(slackBody.text).toContain('uDDNS updated');
+    expect(slackBody.text).not.toContain('hunter2');
+    expect(slackBody.text).not.toContain('sekrit');
     expect(log.warn).toHaveBeenCalledWith(
       'Discord notification failed',
       expect.objectContaining({ message: expect.stringContaining('discord down') }),

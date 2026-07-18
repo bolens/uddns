@@ -38,7 +38,9 @@ export async function dispatchNotifications(
   }
 
   const log = deps.log;
-  const payload = redact(event);
+  const payload = redact(event) as CycleEvent;
+  const safeMessage = typeof payload.message === 'string' ? payload.message : '[redacted]';
+  const ipLabel = `${payload.ip.v4 ?? '-'}/${payload.ip.v6 ?? '-'}`;
 
   if (config.webhookUrl) {
     try {
@@ -54,8 +56,8 @@ export async function dispatchNotifications(
 
   if (config.ntfyUrl) {
     try {
-      const title = `uDDNS ${event.status}`;
-      const body = `${event.message} (${event.ip.v4 ?? '-'}/${event.ip.v6 ?? '-'})`;
+      const title = `uDDNS ${payload.status}`;
+      const body = `${safeMessage} (${ipLabel})`;
       await request(config.ntfyUrl, {
         method: 'POST',
         headers: {
@@ -69,7 +71,7 @@ export async function dispatchNotifications(
     }
   }
 
-  const summary = `uDDNS ${event.status}: ${event.message} (${event.ip.v4 ?? '-'}/${event.ip.v6 ?? '-'})`;
+  const summary = `uDDNS ${payload.status}: ${safeMessage} (${ipLabel})`;
   if (config.slackUrl) {
     try {
       await request(config.slackUrl, {
