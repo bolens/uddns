@@ -56,10 +56,22 @@ export function loadHealthConfig(
     throw new Error('UDDNS_HEALTH_TLS_CERT and UDDNS_HEALTH_TLS_KEY must be set together');
   }
 
-  if (enabled && !isLoopbackHost(host)) {
-    if (!authToken) {
-      throw new Error('UDDNS_HEALTH_AUTH_TOKEN is required when UDDNS_HEALTH_HOST is not loopback');
+  if (enabled && !authToken) {
+    const allowInsecure = parseBoolean(
+      'UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK',
+      env['UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK'],
+      false,
+    );
+    if (!isLoopbackHost(host) || !allowInsecure) {
+      throw new Error(
+        isLoopbackHost(host)
+          ? 'UDDNS_HEALTH_AUTH_TOKEN is required for health (set UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK=true to allow unauthenticated loopback)'
+          : 'UDDNS_HEALTH_AUTH_TOKEN is required when UDDNS_HEALTH_HOST is not loopback',
+      );
     }
+  }
+
+  if (enabled && !isLoopbackHost(host)) {
     if (!tlsCert || !tlsKey) {
       throw new Error(
         'UDDNS_HEALTH_TLS_CERT and UDDNS_HEALTH_TLS_KEY are required when UDDNS_HEALTH_HOST is not loopback',

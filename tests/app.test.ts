@@ -225,7 +225,12 @@ describe('application entrypoint', () => {
     const updaterB = stubUpdater();
     let calls = 0;
     await main({
-      env: { UDDNS_HEALTH: '1', UDDNS_HEALTH_PORT: '0', UDDNS_METRICS: '1' },
+      env: {
+        UDDNS_HEALTH: '1',
+        UDDNS_HEALTH_PORT: '0',
+        UDDNS_METRICS: '1',
+        UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true',
+      },
       log,
       resolveAccountsFn: () => [
         { id: 'a', config: makeConfig({ hosts: ['a.example.com'] }) },
@@ -263,7 +268,12 @@ describe('application entrypoint', () => {
       .mockReturnValue(makeConfig({ interval: 60_000 }));
 
     await main({
-      env: { UDDNS_HEALTH: '1', UDDNS_HEALTH_PORT: '0', UDDNS_METRICS: '1' },
+      env: {
+        UDDNS_HEALTH: '1',
+        UDDNS_HEALTH_PORT: '0',
+        UDDNS_METRICS: '1',
+        UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true',
+      },
       log,
       loadConfigFn,
       getProviderFn: () => stubProvider,
@@ -315,6 +325,7 @@ describe('application entrypoint', () => {
     const env: Record<string, string | undefined> = {
       UDDNS_HEALTH: '1',
       UDDNS_HEALTH_PORT: '0',
+      UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true',
     };
     const log = silentLog();
     const previous = stubUpdater();
@@ -474,6 +485,7 @@ describe('application entrypoint', () => {
       UDDNS_HEALTH: '1',
       UDDNS_HEALTH_PORT: '0',
       UDDNS_METRICS: '1',
+      UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true',
     };
     const log = silentLog();
 

@@ -15,13 +15,21 @@ describe('loadHealthConfig', () => {
     });
   });
 
-  it('parses enabled health and metrics on loopback without a token', () => {
+  it('requires auth on loopback unless insecure override is set', () => {
+    expect(() =>
+      loadHealthConfig({
+        UDDNS_HEALTH: '1',
+        UDDNS_HEALTH_HOST: '127.0.0.1',
+      }),
+    ).toThrow(/UDDNS_HEALTH_AUTH_TOKEN/);
+
     expect(
       loadHealthConfig({
         UDDNS_HEALTH: '1',
         UDDNS_HEALTH_HOST: '127.0.0.1',
         UDDNS_HEALTH_PORT: '4000',
         UDDNS_METRICS: 'true',
+        UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true',
       }),
     ).toEqual({
       enabled: true,
@@ -31,6 +39,17 @@ describe('loadHealthConfig', () => {
       authToken: null,
       tlsCert: null,
       tlsKey: null,
+    });
+
+    expect(
+      loadHealthConfig({
+        UDDNS_HEALTH: '1',
+        UDDNS_HEALTH_HOST: '127.0.0.1',
+        UDDNS_HEALTH_AUTH_TOKEN: 'health-secret',
+      }),
+    ).toMatchObject({
+      enabled: true,
+      authToken: 'health-secret',
     });
   });
 
