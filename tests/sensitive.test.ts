@@ -23,6 +23,8 @@ describe('isSensitiveKey', () => {
       'notifyWebhookUrl',
       'notifySlackUrl',
       'notify_discord_url',
+      'updateUrl',
+      'update_url',
     ];
     for (const key of keys) {
       expect(isSensitiveKey(key), key).toBe(true);

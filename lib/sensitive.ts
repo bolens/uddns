@@ -7,8 +7,8 @@ export const SENSITIVE_KEY_PATTERN =
   /^(?:pass(?:word)?|token|secret(?:apikey)?|authorization|api[-_]?key|apikey|credential|private|auth|key|webhook)$/i;
 
 export function isSensitiveKey(key: string): boolean {
-  // Notify destination URLs embed tokens (Slack/Discord/ntfy webhooks).
-  if (/notify.*url/i.test(key)) {
+  // Notify destinations and DynDNS update URLs often embed tokens/userinfo.
+  if (/notify.*url/i.test(key) || /^update[_-]?url$/i.test(key)) {
     return true;
   }
 
