@@ -4,6 +4,7 @@
 
 import type { McpSession } from './session.js';
 import { createToolHandlers, jsonText } from './tools.js';
+import { redact } from '../log.js';
 
 export const MCP_RESOURCE_URIS = {
   config: 'uddns://config',
@@ -37,18 +38,22 @@ export async function readMcpResource(
       return {
         mimeType: 'application/json',
         text: jsonText(
-          session.accounts && session.accounts.length > 1
-            ? handlers.getAccountsStatus()
-            : handlers.getStatus(),
+          redact(
+            session.accounts && session.accounts.length > 1
+              ? handlers.getAccountsStatus()
+              : handlers.getStatus(),
+          ),
         ),
       };
     case MCP_RESOURCE_URIS.history:
       return {
         mimeType: 'application/json',
         text: jsonText(
-          session.accounts && session.accounts.length > 1
-            ? await handlers.getAccountsHistory()
-            : await handlers.getHistory(),
+          redact(
+            session.accounts && session.accounts.length > 1
+              ? await handlers.getAccountsHistory()
+              : await handlers.getHistory(),
+          ),
         ),
       };
     default:

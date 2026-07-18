@@ -454,22 +454,29 @@ describe('MCP prompts and resources', () => {
   });
 
   it('builds diagnose_update from live session data', async () => {
+    const update = vi.fn(async () => ({
+      ok: false,
+      message: 'provider rejected',
+      details: { authorization: 'Bearer diagnose-secret-token' },
+    }));
     const config = makeConfig({ cloudflare: { apiToken: 'tok', zoneId: 'z' } });
     const updater = createUpdater({
       config,
-      provider: mockProvider(),
+      provider: mockProvider(update),
       getPublicIP: async () => ({ v4: '8.8.8.8', v6: null }),
       log: silentLog(),
       stateStore: memoryStateStore(),
     });
+    await updater.checkOnce();
     const prompt = await buildDiagnoseUpdatePrompt({
       config,
-      provider: mockProvider(),
+      provider: mockProvider(update),
       updater,
       log: silentLog(),
     });
     expect(prompt.messages[0]?.content.text).toContain('Diagnose a uDDNS update');
-    expect(prompt.messages[0]?.content.text).not.toContain('super-secret');
+    expect(prompt.messages[0]?.content.text).not.toContain('diagnose-secret-token');
+    expect(prompt.messages[0]?.content.text).toContain('[redacted]');
   });
 
   it('includes discovery errors in diagnose_update when IP lookup fails', async () => {
@@ -495,18 +502,27 @@ describe('MCP prompts and resources', () => {
     expect(prompt.messages[0]?.content.text).toContain('dns down');
   });
 
-  it('reads uddns:// resources', async () => {
+  it('reads uddns:// resources and redacts status secrets', async () => {
+    const update = vi.fn(async () => ({
+      ok: false,
+      message: 'provider rejected',
+      details: {
+        authorization: 'Bearer resource-secret-token',
+        http: { bodyPreview: 'Bearer resource-leaked' },
+      },
+    }));
     const config = makeConfig({ cloudflare: { apiToken: 'tok', zoneId: 'z' } });
     const updater = createUpdater({
       config,
-      provider: mockProvider(),
+      provider: mockProvider(update),
       getPublicIP: async () => ({ v4: '8.8.8.8', v6: null }),
       log: silentLog(),
       stateStore: memoryStateStore(),
     });
+    await updater.checkOnce();
     const session = {
       config,
-      provider: mockProvider(),
+      provider: mockProvider(update),
       updater,
       log: silentLog(),
     };
@@ -519,6 +535,9 @@ describe('MCP prompts and resources', () => {
     const history = await readMcpResource(session, MCP_RESOURCE_URIS.history);
     expect(JSON.parse(history.text)).toEqual({ accountId: 'default', events: [] });
     expect(status.text).toContain('"running"');
+    expect(status.text).not.toContain('resource-secret-token');
+    expect(status.text).not.toContain('resource-leaked');
+    expect(status.text).toContain('[redacted]');
 
     const ip = await readMcpResource(session, MCP_RESOURCE_URIS.publicIp, {
       discoverPublicIPFn: async () => ({

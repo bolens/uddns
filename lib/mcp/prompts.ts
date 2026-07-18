@@ -3,6 +3,7 @@
  */
 
 import { PROVIDER_IDS, type ProviderId } from '../schemas/provider.js';
+import { redact } from '../log.js';
 import type { McpSession } from './session.js';
 import { createToolHandlers } from './tools.js';
 
@@ -124,7 +125,7 @@ export async function buildDiagnoseUpdatePrompt(
     '',
     'Current status (JSON):',
     '```json',
-    JSON.stringify(status, null, 2),
+    JSON.stringify(redact(status), null, 2),
     '```',
     '',
     'Redacted config (JSON):',
@@ -134,12 +135,12 @@ export async function buildDiagnoseUpdatePrompt(
     '',
     'Public IP discovery (JSON):',
     '```json',
-    JSON.stringify(publicIp, null, 2),
+    JSON.stringify(redact(publicIp), null, 2),
     '```',
     '',
     'Recent history (JSON):',
     '```json',
-    JSON.stringify(history, null, 2),
+    JSON.stringify(redact(history), null, 2),
     '```',
     '',
     'Use this decision order:',
