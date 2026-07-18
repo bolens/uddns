@@ -70,6 +70,35 @@ describe('discoverPublicIP', () => {
     expect(await getPublicIP(deps)).toEqual({ v4: '203.0.113.10', v6: '2001:db8::10' });
   });
 
+  it('rejects HTTPS echo responses that redirect onto cleartext HTTP', async () => {
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = fetchInputUrl(input);
+      if (url.includes('ipv6') || url.includes('api64')) {
+        const response = new Response('2001:db8::10\n');
+        Object.defineProperty(response, 'url', { value: 'https://ipv6.icanhazip.com/' });
+        return response;
+      }
+      const response = new Response('203.0.113.66\n');
+      Object.defineProperty(response, 'url', { value: 'http://attacker.example/echo' });
+      return response;
+    });
+
+    const deps: DiscoverDeps = {
+      httpsV4: ['https://ipv4.icanhazip.com'],
+      httpsV6: ['https://ipv6.icanhazip.com'],
+      fetch: fetchMock,
+      createResolver: createStubResolver({
+        resolve4: async () => ['203.0.113.20'],
+        resolve6: async () => ['2001:db8::20'],
+      }),
+    };
+
+    const discovered = await discoverPublicIP(deps);
+    // v4 must not accept the cleartext redirect body; DNS fallback supplies it.
+    expect(discovered.ip.v4).toBe('203.0.113.20');
+    expect(discovered.ip.v6).toBe('2001:db8::10');
+  });
+
   it('falls back to OpenDNS when the HTTPS endpoints fail', async () => {
     const fetchMock = vi.fn(async () => {
       throw new Error('https echo services unreachable');

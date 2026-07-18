@@ -152,10 +152,26 @@ async function lookupViaHttps(
   for (const endpoint of endpoints) {
     const endpointLabel = sanitizeUrl(endpoint);
     try {
+      // Follow redirects, but reject cleartext final URLs so a compromised echo
+      // host cannot downgrade TLS and steer DNS to an attacker IP.
       const response = await deps.fetch(endpoint, { signal, redirect: 'follow' });
       if (!response.ok) {
         errors.push(`${endpointLabel} HTTP ${response.status}`);
         continue;
+      }
+      const finalUrl = response.url?.trim();
+      if (finalUrl) {
+        let protocol: string;
+        try {
+          protocol = new URL(finalUrl).protocol;
+        } catch {
+          errors.push(`${endpointLabel} redirected to invalid URL`);
+          continue;
+        }
+        if (protocol !== 'https:') {
+          errors.push(`${endpointLabel} redirected off HTTPS (${sanitizeUrl(finalUrl)})`);
+          continue;
+        }
       }
       const text = await response.text();
       const candidate = parseCandidate(text, family);
