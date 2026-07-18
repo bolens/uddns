@@ -16,6 +16,7 @@ import { errorMessage } from './errors.js';
 import { formatError, type ErrorInfo } from './log.js';
 import { sanitizeUrl } from './providers/http.js';
 import type { PublicIP } from './schemas/provider.js';
+import { assertResolvedHttpsHostSafe, type HostLookupFn } from './url-policy.js';
 
 const OPENDNS_V4 = ['208.67.222.222', '208.67.220.220'];
 const OPENDNS_V6 = ['2620:119:35::35', '2620:119:53::53'];
@@ -42,6 +43,8 @@ export type DnsResolver = {
 export type DiscoverDeps = {
   fetch?: typeof globalThis.fetch;
   createResolver?: () => DnsResolver;
+  /** Optional host lookup used before connecting to HTTPS echo endpoints. */
+  lookupHost?: HostLookupFn;
   timeoutMs?: number;
   httpsV4?: readonly string[];
   httpsV6?: readonly string[];
@@ -162,6 +165,21 @@ async function lookupViaHttps(
   for (const endpoint of endpoints) {
     const endpointLabel = sanitizeUrl(endpoint);
     try {
+      let requested: URL;
+      try {
+        requested = new URL(endpoint);
+      } catch {
+        errors.push(`${endpointLabel} is not a valid URL`);
+        continue;
+      }
+      // Reject hosts that resolve to private/metadata before connecting (nip.io,
+      // DNS rebinding after config load, compromised echo DNS).
+      try {
+        await assertResolvedHttpsHostSafe(requested, endpointLabel, {}, deps.lookupHost);
+      } catch (error) {
+        errors.push(errorMessage(error));
+        continue;
+      }
       // Follow redirects, but reject cleartext final URLs so a compromised echo
       // host cannot downgrade TLS and steer DNS to an attacker IP.
       const response = await deps.fetch(endpoint, { signal, redirect: 'follow' });
@@ -187,17 +205,16 @@ async function lookupViaHttps(
         errors.push(`${endpointLabel} redirected off HTTPS (${sanitizeUrl(finalUrl)})`);
         continue;
       }
-      let requested: URL;
-      try {
-        requested = new URL(endpoint);
-      } catch {
-        errors.push(`${endpointLabel} is not a valid URL`);
-        continue;
-      }
       // Cross-host HTTPS redirects can move the trusted echo answer onto an
       // attacker-controlled host; pin the final host to the configured endpoint.
       if (final.hostname.toLowerCase() !== requested.hostname.toLowerCase()) {
         errors.push(`${endpointLabel} redirected to different host (${sanitizeUrl(finalUrl)})`);
+        continue;
+      }
+      try {
+        await assertResolvedHttpsHostSafe(final, endpointLabel, {}, deps.lookupHost);
+      } catch (error) {
+        errors.push(errorMessage(error));
         continue;
       }
       const text = await response.text();

@@ -1,3 +1,4 @@
+import dns from 'node:dns/promises';
 import { describe, expect, it, vi } from 'vite-plus/test';
 
 import { discoverPublicIP } from '../lib/ip.js';
@@ -11,6 +12,9 @@ function httpsResponse(body: string, requestUrl: string): Response {
 
 describe('configurable IP discovery', () => {
   it('uses custom HTTPS endpoints and can disable DNS fallback', async () => {
+    vi.spyOn(dns, 'lookup').mockImplementation((async () => [
+      { address: '1.1.1.1', family: 4 },
+    ]) as unknown as typeof dns.lookup);
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = fetchInputUrl(input);
       if (url.includes('/v4')) {

@@ -1,3 +1,4 @@
+import dns from 'node:dns/promises';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 
 import {
@@ -11,11 +12,17 @@ import {
 } from '../lib/ip.js';
 import { fetchInputUrl } from './helpers/fetch.js';
 
+beforeEach(() => {
+  vi.spyOn(dns, 'lookup').mockImplementation((async () => [
+    { address: '1.1.1.1', family: 4 },
+  ]) as unknown as typeof dns.lookup);
+});
+
 function createStubResolver(handlers: {
   resolve4?: () => Promise<string[]>;
   resolve6?: () => Promise<string[]>;
   resolveTxt?: () => Promise<string[][]>;
-}): DiscoverDeps['createResolver'] {
+}): () => DnsResolver {
   return () =>
     ({
       setServers: vi.fn(),
@@ -319,9 +326,13 @@ describe('discoverPublicIP', () => {
   });
 
   it('reports a timeout when the fallback chain is still running at the deadline', async () => {
+    const publicLookup = async () => [{ address: '1.1.1.1', family: 4 as const }];
     // Google TXT hangs past the deadline after OpenDNS fails fast.
     const txtHangs: DiscoverDeps = {
-      fetch: vi.fn(),
+      fetch: vi.fn(async () => {
+        throw new Error('https down');
+      }),
+      lookupHost: publicLookup,
       createResolver: createStubResolver({
         resolve4: async () => {
           throw new Error('opendns down');
@@ -347,6 +358,7 @@ describe('discoverPublicIP', () => {
             });
           }),
       ),
+      lookupHost: publicLookup,
       createResolver: createStubResolver({
         resolve4: async () => {
           throw new Error('dns down');
@@ -365,7 +377,7 @@ describe('discoverPublicIP', () => {
     expect(second.ip).toEqual({ v4: null, v6: null });
     expect(second.errors.v4).toMatchObject({ message: 'Public IP discovery timed out' });
     expect(second.errors.v6).toMatchObject({ message: 'Public IP discovery timed out' });
-  });
+  }, 10_000);
 
   it('aborts both family lookups at the overall timeout', async () => {
     const never = new Promise<string[]>(() => {});

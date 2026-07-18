@@ -13,12 +13,30 @@ describe('url policy', () => {
     expect(() => assertHttpsUrl('https://127.0.0.1/x', 'TEST')).toThrow(/loopback, private/);
     expect(() => assertHttpsUrl('https://169.254.169.254/x', 'TEST')).toThrow(/loopback, private/);
     expect(() => assertHttpsUrl('https://10.0.0.1/x', 'TEST')).toThrow(/loopback, private/);
+    expect(() => assertHttpsUrl('https://169.254.169.254.nip.io/x', 'TEST')).toThrow(
+      /loopback, private/,
+    );
+    expect(() => assertHttpsUrl('https://10.0.0.1.sslip.io/x', 'TEST')).toThrow(
+      /loopback, private/,
+    );
   });
 
-  it('can allow private hosts when opted in', () => {
+  it('can allow RFC1918 hosts when opted in, but not metadata or loopback', () => {
     expect(assertHttpsUrl('https://10.0.0.1/ntfy', 'TEST', { allowPrivateHosts: true }).href).toBe(
       'https://10.0.0.1/ntfy',
     );
+    expect(() =>
+      assertHttpsUrl('https://169.254.169.254/x', 'TEST', { allowPrivateHosts: true }),
+    ).toThrow(/loopback, link-local, or cloud-metadata/);
+    expect(() =>
+      assertHttpsUrl('https://127.0.0.1/x', 'TEST', { allowPrivateHosts: true }),
+    ).toThrow(/loopback, link-local, or cloud-metadata/);
+    expect(() =>
+      assertHttpsUrl('https://metadata.google.internal/x', 'TEST', { allowPrivateHosts: true }),
+    ).toThrow(/loopback, link-local, or cloud-metadata/);
+    expect(() =>
+      assertHttpsUrl('https://169.254.169.254.nip.io/x', 'TEST', { allowPrivateHosts: true }),
+    ).toThrow(/loopback, link-local, or cloud-metadata/);
   });
 
   it('classifies blocked outbound hosts', () => {

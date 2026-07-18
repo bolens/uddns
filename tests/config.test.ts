@@ -521,10 +521,22 @@ describe('loadConfig', () => {
         UDDNS_NOTIFY_WEBHOOK_URL: 'https://user:pass@hooks.example/hook',
       }),
     ).toThrow(/must not include credentials/);
-    // Self-hosted notify on LAN remains allowed.
+    // Self-hosted notify on LAN remains allowed; metadata/loopback are not.
     expect(
       loadConfig({ ...base, UDDNS_NOTIFY_NTFY_URL: 'https://10.0.0.5/uddns' }).notifyNtfyUrl,
     ).toBe('https://10.0.0.5/uddns');
+    expect(() =>
+      loadConfig({ ...base, UDDNS_NOTIFY_NTFY_URL: 'https://169.254.169.254/meta' }),
+    ).toThrow(/loopback, link-local, or cloud-metadata/);
+    expect(() => loadConfig({ ...base, UDDNS_NOTIFY_SLACK_URL: 'https://10.0.0.5/slack' })).toThrow(
+      /loopback, private/,
+    );
+    expect(() =>
+      loadConfig({
+        ...base,
+        UDDNS_IP_HTTPS_V4: 'https://169.254.169.254.nip.io/ip',
+      }),
+    ).toThrow(/loopback, private/);
 
     expect(() => loadConfig({ ...base, CLOUDFLARE_PROXIED: 'treu' })).toThrow(
       /CLOUDFLARE_PROXIED must be one of/,

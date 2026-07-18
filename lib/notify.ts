@@ -5,6 +5,7 @@
 import { formatError, redact, type Logger } from './log.js';
 import { request } from './providers/http.js';
 import type { CycleEvent } from './schemas/cycle.js';
+import { assertResolvedHttpsHostSafe } from './url-policy.js';
 
 export type NotifyConfig = {
   webhookUrl: string | null;
@@ -16,6 +17,7 @@ export type NotifyConfig = {
 
 export type NotifyDeps = {
   log?: Logger;
+  lookupHost?: import('./url-policy.js').HostLookupFn;
 };
 
 export function matchesNotifyFilter(event: CycleEvent, on: NotifyConfig['on']): boolean {
@@ -44,6 +46,12 @@ export async function dispatchNotifications(
 
   if (config.webhookUrl) {
     try {
+      await assertResolvedHttpsHostSafe(
+        new URL(config.webhookUrl),
+        'webhook',
+        { allowPrivateHosts: true },
+        deps.lookupHost,
+      );
       await request(config.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,6 +64,12 @@ export async function dispatchNotifications(
 
   if (config.ntfyUrl) {
     try {
+      await assertResolvedHttpsHostSafe(
+        new URL(config.ntfyUrl),
+        'ntfy',
+        { allowPrivateHosts: true },
+        deps.lookupHost,
+      );
       const title = `uDDNS ${payload.status}`;
       const body = `${safeMessage} (${ipLabel})`;
       await request(config.ntfyUrl, {
@@ -74,6 +88,12 @@ export async function dispatchNotifications(
   const summary = `uDDNS ${payload.status}: ${safeMessage} (${ipLabel})`;
   if (config.slackUrl) {
     try {
+      await assertResolvedHttpsHostSafe(
+        new URL(config.slackUrl),
+        'Slack webhook',
+        {},
+        deps.lookupHost,
+      );
       await request(config.slackUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,6 +106,12 @@ export async function dispatchNotifications(
 
   if (config.discordUrl) {
     try {
+      await assertResolvedHttpsHostSafe(
+        new URL(config.discordUrl),
+        'Discord webhook',
+        {},
+        deps.lookupHost,
+      );
       await request(config.discordUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

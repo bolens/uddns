@@ -18,6 +18,7 @@ import {
   DEFAULT_ROUTE53_TTL,
   DEFAULT_STATE_FILE,
   MAX_INTERVAL_MS,
+  MIN_INTERVAL_MS,
 } from '../defaults.js';
 import { resolveDataFilePath } from '../data-path.js';
 import { parseHostList, resolveHosts } from '../hosts.js';
@@ -187,9 +188,9 @@ export function loadConfig(
 
   const interval = Number(parsedEnv['UDDNS_INTERVAL'] ?? DEFAULT_INTERVAL_MS);
 
-  if (!Number.isFinite(interval) || interval < 1_000 || interval > MAX_INTERVAL_MS) {
+  if (!Number.isFinite(interval) || interval < MIN_INTERVAL_MS || interval > MAX_INTERVAL_MS) {
     throw new Error(
-      `UDDNS_INTERVAL must be a number of milliseconds from 1000 to ${MAX_INTERVAL_MS}`,
+      `UDDNS_INTERVAL must be a number of milliseconds from ${MIN_INTERVAL_MS} to ${MAX_INTERVAL_MS}`,
     );
   }
 
@@ -272,11 +273,12 @@ export function loadConfig(
   }
   const slackUrl = parsedEnv['UDDNS_NOTIFY_SLACK_URL']?.trim() || null;
   if (slackUrl) {
-    assertHttpsUrl(slackUrl, 'UDDNS_NOTIFY_SLACK_URL', { allowPrivateHosts: true });
+    // Slack hooks are cloud-hosted; never allow private/metadata targets.
+    assertHttpsUrl(slackUrl, 'UDDNS_NOTIFY_SLACK_URL');
   }
   const discordUrl = parsedEnv['UDDNS_NOTIFY_DISCORD_URL']?.trim() || null;
   if (discordUrl) {
-    assertHttpsUrl(discordUrl, 'UDDNS_NOTIFY_DISCORD_URL', { allowPrivateHosts: true });
+    assertHttpsUrl(discordUrl, 'UDDNS_NOTIFY_DISCORD_URL');
   }
 
   const config = {

@@ -37,7 +37,10 @@ describe('notifications', () => {
         on: ['change'],
       },
       baseEvent,
-      { log },
+      {
+        log,
+        lookupHost: async () => [{ address: '1.1.1.1', family: 4 }],
+      },
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -63,7 +66,10 @@ describe('notifications', () => {
         ...baseEvent,
         message: 'updated via https://user:hunter2@provider.example/path?token=sekrit',
       },
-      { log },
+      {
+        log,
+        lookupHost: async () => [{ address: '1.1.1.1', family: 4 }],
+      },
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);

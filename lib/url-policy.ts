@@ -2,12 +2,24 @@
  * Shared outbound HTTPS URL policy (scheme, userinfo, and host safety).
  */
 
+import dns from 'node:dns/promises';
+import type { LookupAddress } from 'node:dns';
 import { isIP } from 'node:net';
 
 export type HttpsUrlPolicy = {
-  /** When true, allow RFC1918 / loopback / link-local (e.g. self-hosted ntfy). */
+  /**
+   * When true, allow RFC1918 private hosts (e.g. self-hosted ntfy on LAN).
+   * Loopback, link-local, cloud-metadata, and IP-embedding of those are still blocked.
+   */
   allowPrivateHosts?: boolean;
 };
+
+export type HostLookupFn = (
+  hostname: string,
+  options: { all: true; verbatim: true },
+) => Promise<LookupAddress[]>;
+
+const defaultHostLookup: HostLookupFn = (hostname, options) => dns.lookup(hostname, options);
 
 /**
  * Parse and validate an https URL. Rejects cleartext, embedded userinfo, and
@@ -28,9 +40,11 @@ export function assertHttpsUrl(value: string, label: string, policy: HttpsUrlPol
   if (url.username || url.password) {
     throw new Error(`${label} must not include credentials in the URL`);
   }
-  if (!policy.allowPrivateHosts && isBlockedOutboundHost(url.hostname)) {
+  if (isBlockedOutboundHost(url.hostname, policy)) {
     throw new Error(
-      `${label} must not target loopback, private, link-local, or cloud-metadata hosts`,
+      policy.allowPrivateHosts
+        ? `${label} must not target loopback, link-local, or cloud-metadata hosts`
+        : `${label} must not target loopback, private, link-local, or cloud-metadata hosts`,
     );
   }
   return url;
@@ -54,9 +68,80 @@ export function assertHttpsUrlHostAllowed(
   }
 }
 
-export function isBlockedOutboundHost(hostname: string): boolean {
+/**
+ * Resolve hostname and reject if any A/AAAA address is blocked under `policy`.
+ * No-op for IP literals (already checked by {@link assertHttpsUrl} / {@link isBlockedOutboundHost}).
+ */
+export async function assertResolvedHttpsHostSafe(
+  url: URL,
+  label: string,
+  policy: HttpsUrlPolicy = {},
+  lookup: HostLookupFn = defaultHostLookup,
+): Promise<void> {
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (isIP(host)) {
+    if (isBlockedOutboundHost(host, policy)) {
+      throw new Error(`${label} targets a blocked address`);
+    }
+    return;
+  }
+  let addresses: LookupAddress[];
+  try {
+    addresses = await lookup(host, { all: true, verbatim: true });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} host "${host}" could not be resolved (${reason})`);
+  }
+  if (addresses.length === 0) {
+    throw new Error(`${label} host "${host}" resolved to no addresses`);
+  }
+  for (const { address } of addresses) {
+    if (isBlockedOutboundHost(address, policy)) {
+      throw new Error(`${label} resolves to blocked address ${address}`);
+    }
+  }
+}
+
+export function isBlockedOutboundHost(hostname: string, policy: HttpsUrlPolicy = {}): boolean {
   const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (
+  if (isAlwaysBlockedHostname(host)) {
+    return true;
+  }
+
+  const version = isIP(host);
+  if (version === 4) {
+    if (isAlwaysBlockedIpv4(host)) {
+      return true;
+    }
+    if (!policy.allowPrivateHosts && isPrivateOrCgnatIpv4(host)) {
+      return true;
+    }
+    return false;
+  }
+  if (version === 6) {
+    if (isAlwaysBlockedIpv6(host)) {
+      return true;
+    }
+    if (!policy.allowPrivateHosts && isPrivateIpv6(host)) {
+      return true;
+    }
+    return false;
+  }
+
+  // nip.io / sslip.io style embeds (only on non-literal hostnames)
+  const embedded = extractEmbeddedIpv4FromHostname(host);
+  if (embedded) {
+    if (isAlwaysBlockedIpv4(embedded)) {
+      return true;
+    }
+    return !policy.allowPrivateHosts;
+  }
+
+  return false;
+}
+
+function isAlwaysBlockedHostname(host: string): boolean {
+  return (
     host === 'localhost' ||
     host.endsWith('.localhost') ||
     host === 'metadata.google.internal' ||
@@ -64,21 +149,45 @@ export function isBlockedOutboundHost(hostname: string): boolean {
     host === '0.0.0.0' ||
     host === '::' ||
     host === '::1'
+  );
+}
+
+/** Detect a.b.c.d embedded as DNS labels (nip.io, sslip.io, xip.io, …). */
+function extractEmbeddedIpv4FromHostname(host: string): string | null {
+  const match = host.match(/(?:^|\.)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\.|$)/);
+  if (!match) {
+    return null;
+  }
+  const candidate = `${match[1]}.${match[2]}.${match[3]}.${match[4]}`;
+  if (!isIpv4Literal(candidate)) {
+    return null;
+  }
+  return candidate;
+}
+
+function isIpv4Literal(host: string): boolean {
+  const parts = host.split('.').map((part) => Number(part));
+  return (
+    parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
+  );
+}
+
+function isAlwaysBlockedIpv4(host: string): boolean {
+  const parts = host.split('.').map((part) => Number(part));
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
   ) {
     return true;
   }
-
-  const version = isIP(host);
-  if (version === 4) {
-    return isBlockedIpv4(host);
-  }
-  if (version === 6) {
-    return isBlockedIpv6(host);
-  }
+  const [a, b] = parts as [number, number, number, number];
+  if (a === 127) return true; // loopback
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true; // link-local / cloud metadata
   return false;
 }
 
-function isBlockedIpv4(host: string): boolean {
+function isPrivateOrCgnatIpv4(host: string): boolean {
   const parts = host.split('.').map((part) => Number(part));
   if (
     parts.length !== 4 ||
@@ -88,32 +197,33 @@ function isBlockedIpv4(host: string): boolean {
   }
   const [a, b] = parts as [number, number, number, number];
   if (a === 10) return true;
-  if (a === 127) return true;
-  if (a === 0) return true;
-  if (a === 169 && b === 254) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
   return false;
 }
 
-/**
- * Block loopback / ULA / link-local IPv6, and IPv4-mapped forms that Node may
- * normalize to hex (`::ffff:a9fe:a9fe` for 169.254.169.254).
- */
-function isBlockedIpv6(host: string): boolean {
+function isAlwaysBlockedIpv6(host: string): boolean {
   const normalized = host.toLowerCase();
   if (normalized === '::1') return true;
 
   const mappedIpv4 = extractIpv4MappedAddress(normalized);
   if (mappedIpv4) {
-    return isBlockedIpv4(mappedIpv4);
+    return isAlwaysBlockedIpv4(mappedIpv4);
   }
 
-  // Expand leading compressed forms enough for prefix checks.
   if (normalized.startsWith('fe80:')) return true; // link-local
-  if (/^f[cd][0-9a-f]{0,2}:/i.test(normalized)) return true; // ULA fc00::/7
   return false;
+}
+
+function isPrivateIpv6(host: string): boolean {
+  const normalized = host.toLowerCase();
+  const mappedIpv4 = extractIpv4MappedAddress(normalized);
+  if (mappedIpv4) {
+    return isPrivateOrCgnatIpv4(mappedIpv4);
+  }
+  // ULA fc00::/7
+  return /^f[cd][0-9a-f]{0,2}:/i.test(normalized);
 }
 
 /** Extract embedded IPv4 from ::ffff:dotted or ::ffff:hhhh:hhhh (Node URL form). */

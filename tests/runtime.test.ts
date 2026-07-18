@@ -1,4 +1,5 @@
 import { tmpdir } from 'node:os';
+import dns from 'node:dns/promises';
 
 import { describe, expect, it, vi } from 'vite-plus/test';
 
@@ -14,6 +15,9 @@ afterEachRestoreMocks();
 
 describe('createRuntimeBundle', () => {
   it('wires IP policy, notify, and metrics on cycle complete', async () => {
+    vi.spyOn(dns, 'lookup').mockImplementation((async () => [
+      { address: '1.1.1.1', family: 4 },
+    ]) as unknown as typeof dns.lookup);
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
     const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
     const bundle = createRuntimeBundle({
@@ -84,6 +88,9 @@ describe('createRuntimeBundle', () => {
   });
 
   it('uses the default discovery resolver when not overridden', async () => {
+    vi.spyOn(dns, 'lookup').mockImplementation((async () => [
+      { address: '1.1.1.1', family: 4 },
+    ]) as unknown as typeof dns.lookup);
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
       if (url.includes('ipv6') || url.includes('api64')) {
@@ -203,8 +210,17 @@ describe('createRuntimeBundle', () => {
   });
 
   it('does not block a completed cycle on slow notification delivery', async () => {
+    vi.spyOn(dns, 'lookup').mockImplementation((async () => [
+      { address: '1.1.1.1', family: 4 },
+    ]) as unknown as typeof dns.lookup);
     const response = deferred<Response>();
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(response.promise);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
+      if (url.includes('/hook')) {
+        return response.promise;
+      }
+      return Promise.resolve(new Response('ok'));
+    });
     const bundle = createRuntimeBundle({
       log: silentLog(),
       config: makeConfig({
@@ -231,7 +247,20 @@ describe('createRuntimeBundle', () => {
     ]);
     expect(outcome).toBe('completed');
     response.resolve(new Response('ok'));
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    await vi.waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some((call) => {
+          const input = call[0];
+          const url =
+            typeof input === 'string' || input instanceof URL
+              ? String(input)
+              : input && typeof input === 'object' && 'url' in input
+                ? String((input as Request).url)
+                : '';
+          return url.includes('/hook');
+        }),
+      ).toBe(true),
+    );
     fetchMock.mockRestore();
   });
 });
