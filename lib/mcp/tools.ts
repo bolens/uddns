@@ -201,6 +201,11 @@ export function createToolHandlers(
             : cycle.status === 'dry_run'
               ? ['Review host results', 'Run update_hosts or check_once to apply changes']
               : ['No action required'];
+      const failedHosts =
+        liveCycle?.hostResults
+          ?.filter(({ result }) => !result.ok)
+          .map(({ host, result }) => ({ host, message: result.message })) ??
+        ('failedHosts' in cycle && Array.isArray(cycle.failedHosts) ? cycle.failedHosts : []);
       return {
         accountId: account.id,
         summary: cycle.message,
@@ -213,10 +218,7 @@ export function createToolHandlers(
         status: cycle.status,
         at: cycle.at,
         discoveryErrors: cycle.discoveryErrors ?? null,
-        failedHosts:
-          liveCycle?.hostResults
-            ?.filter(({ result }) => !result.ok)
-            .map(({ host, result }) => ({ host, message: result.message })) ?? [],
+        failedHosts,
         nextSteps,
       };
     },

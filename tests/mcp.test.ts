@@ -423,6 +423,37 @@ describe('MCP tool handlers', () => {
       severity: 'error',
       failedHosts: [{ host: 'home.example.com', message: 'denied' }],
     });
+
+    const historyExplain = createToolHandlers({
+      config: makeConfig(),
+      provider: mockProvider(),
+      updater: createUpdater({
+        config: makeConfig(),
+        provider: mockProvider(),
+        getPublicIP: async () => ({ v4: null, v6: null }),
+        log: silentLog(),
+        stateStore: memoryStateStore(),
+      }),
+      log: silentLog(),
+      history: {
+        load: async () => [
+          {
+            at: '2026-01-01T00:00:00.000Z',
+            status: 'error',
+            ip: { v4: '1.2.3.4', v6: null },
+            message: 'denied',
+            durationMs: 1,
+            cycle: 1,
+            failedHosts: [{ host: 'home.example.com', message: 'denied' }],
+          },
+        ],
+        append: async (event) => [event],
+      },
+    });
+    expect(await historyExplain.explainLastCycle()).toMatchObject({
+      severity: 'error',
+      failedHosts: [{ host: 'home.example.com', message: 'denied' }],
+    });
   });
 });
 

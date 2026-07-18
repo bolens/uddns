@@ -19,6 +19,15 @@ export const historyEventSchema = z.object({
   durationMs: z.number(),
   accountId: z.string().optional(),
   cycle: z.number().int(),
+  /** Compact failure list for post-restart diagnose (no provider detail blobs). */
+  failedHosts: z
+    .array(
+      z.object({
+        host: z.string(),
+        message: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 export const historyFileSchema = z.object({

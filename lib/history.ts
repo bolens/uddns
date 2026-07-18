@@ -66,6 +66,9 @@ export function createFileHistoryStore(
       if (!shouldRecordHistory(event)) {
         return await this.load();
       }
+      const failedHosts = event.hostResults
+        ?.filter(({ result }) => !result.ok)
+        .map(({ host, result }) => ({ host, message: result.message }));
       const entry: HistoryEvent = {
         at: event.at,
         status: event.status,
@@ -77,6 +80,7 @@ export function createFileHistoryStore(
         ...(event.forced !== undefined ? { forced: event.forced } : {}),
         ...(event.dryRun !== undefined ? { dryRun: event.dryRun } : {}),
         ...(event.accountId !== undefined ? { accountId: event.accountId } : {}),
+        ...(failedHosts && failedHosts.length > 0 ? { failedHosts } : {}),
       };
       const existing = await this.load();
       const events = [...existing, entry].slice(-maxEvents);

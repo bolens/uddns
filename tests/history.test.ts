@@ -43,6 +43,37 @@ describe('history store', () => {
     expect(JSON.parse(await readFile(file, 'utf8')).version).toBe(1);
   });
 
+  it('persists compact failedHosts without host result details', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-history-'));
+    const file = path.join(dir, 'history.json');
+    const store = createFileHistoryStore(file);
+
+    await store.append(
+      event({
+        status: 'partial',
+        message: 'one failed',
+        hostResults: [
+          {
+            host: 'ok.example.com',
+            result: { ok: true, message: 'updated' },
+          },
+          {
+            host: 'bad.example.com',
+            result: {
+              ok: false,
+              message: 'denied',
+              details: { authorization: 'Bearer secret-token' },
+            },
+          },
+        ],
+      }),
+    );
+
+    const events = await store.load();
+    expect(events[0]?.failedHosts).toEqual([{ host: 'bad.example.com', message: 'denied' }]);
+    expect(JSON.stringify(events)).not.toContain('secret-token');
+  });
+
   it('skips pure unchanged unless forced', () => {
     expect(shouldRecordHistory(event({ status: 'unchanged' }))).toBe(false);
     expect(shouldRecordHistory(event({ status: 'unchanged', forced: true }))).toBe(true);
