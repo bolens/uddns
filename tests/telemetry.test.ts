@@ -37,6 +37,15 @@ describe('telemetry', () => {
     expect(setStatus).toHaveBeenCalledWith({ code: api.SpanStatusCode.OK });
     expect(end).toHaveBeenCalled();
 
+    setStatus.mockClear();
+    await expect(
+      telemetry.trace('soft-fail', {}, async () => ({ ok: false, message: 'provider failed' })),
+    ).resolves.toMatchObject({ ok: false });
+    expect(setStatus).toHaveBeenCalledWith({
+      code: api.SpanStatusCode.ERROR,
+      message: 'provider failed',
+    });
+
     await expect(
       telemetry.trace('err-span', {}, async () => {
         throw new Error('boom');

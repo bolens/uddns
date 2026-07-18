@@ -117,6 +117,7 @@ function accountToEnv(
     set('ROUTE53_REGION', r53['region']);
     set('ROUTE53_HOSTED_ZONE_ID', r53['hostedZoneId'] ?? r53['hosted_zone_id']);
     set('ROUTE53_TTL', r53['ttl']);
+    set('ROUTE53_CREATE_IF_MISSING', r53['createIfMissing'] ?? r53['create_if_missing']);
   }
 
   const porkbun = account['porkbun'];

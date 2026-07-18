@@ -102,14 +102,14 @@ describe('bindNamecheapHost', () => {
     });
   });
 
-  it('maps the apex host to @ and keeps unrelated FQDNs as-is', () => {
+  it('maps the apex host to @ and rejects FQDNs outside NAMECHEAP_DOMAIN', () => {
     expect(
       bindNamecheapHost({ host: '@', domain: 'Example.com', password: null }, 'EXAMPLE.com'),
     ).toEqual({ host: '@', domain: 'example.com', password: null });
 
-    expect(
+    expect(() =>
       bindNamecheapHost({ host: '@', domain: 'example.com', password: null }, 'other.net'),
-    ).toEqual({ host: 'other.net', domain: 'example.com', password: null });
+    ).toThrow(/outside NAMECHEAP_DOMAIN/);
   });
 
   it('keeps single-label hosts when no domain is configured', () => {

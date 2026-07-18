@@ -116,7 +116,12 @@ export function bindNamecheapHost(namecheap: NamecheapConfig, host: string): Nam
       return { ...namecheap, host: sub, domain };
     }
 
-    return { ...namecheap, host: normalized, domain };
+    // Bare labels map to NAMECHEAP_HOST; dotted names outside the domain are rejected.
+    if (!normalized.includes('.')) {
+      return { ...namecheap, host: normalized || '@', domain };
+    }
+
+    throw new Error(`Host ${host} is outside NAMECHEAP_DOMAIN ${domain}`);
   }
 
   const parts = host.toLowerCase().split('.').filter(Boolean);

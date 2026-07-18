@@ -25,7 +25,14 @@ export function createTelemetry(enabled: boolean): Telemetry {
       return await tracer.startActiveSpan(name, { attributes }, async (span) => {
         try {
           const result = await operation();
-          span.setStatus({ code: SpanStatusCode.OK });
+          if (isSoftFailure(result)) {
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: softFailureMessage(result),
+            });
+          } else {
+            span.setStatus({ code: SpanStatusCode.OK });
+          }
           return result;
         } catch (error) {
           span.recordException(error instanceof Error ? error : new Error(String(error)));
@@ -40,4 +47,23 @@ export function createTelemetry(enabled: boolean): Telemetry {
       });
     },
   };
+}
+
+function isSoftFailure(result: unknown): boolean {
+  return (
+    !!result &&
+    typeof result === 'object' &&
+    'ok' in result &&
+    (result as { ok: unknown }).ok === false
+  );
+}
+
+function softFailureMessage(result: unknown): string {
+  if (result && typeof result === 'object' && 'message' in result) {
+    const message = (result as { message: unknown }).message;
+    if (typeof message === 'string' && message.length > 0) {
+      return message;
+    }
+  }
+  return 'operation failed';
 }

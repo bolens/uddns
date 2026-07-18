@@ -39,6 +39,7 @@ accounts:
       hosted_zone_id: Z123
       region: us-west-2
       ttl: 300
+      create_if_missing: false
   - id: pb
     provider: porkbun
     hosts: [home.example.com]
@@ -136,6 +137,9 @@ accounts:
     expect(accounts.find((account) => account.id === 'gandi')?.config.disabledHosts).toEqual([
       'vpn.example.com',
     ]);
+    expect(accounts.find((account) => account.id === 'r53')?.config.route53.createIfMissing).toBe(
+      false,
+    );
   });
 
   it('resolveAccounts falls back to single-env config', () => {

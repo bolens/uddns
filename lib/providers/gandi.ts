@@ -51,7 +51,9 @@ async function upsert(
     } catch {
       return fail(`Gandi returned invalid ${type} record data`, { http: current.meta });
     }
-    if (!parsed.success) return fail(`Gandi returned invalid ${type} record data`);
+    if (!parsed.success) {
+      return fail(`Gandi returned invalid ${type} record data`, { http: current.meta });
+    }
     if (
       parsed.data.rrset_values.length === 1 &&
       parsed.data.rrset_values[0] === value &&
