@@ -115,7 +115,7 @@ accounts:
     user: user
     pass: pass
     dyndns:
-      update_url: https://example.com/nic/update
+      update_url: https://members.dyndns.org/nic/update
 `,
     );
 
@@ -276,7 +276,9 @@ accounts:
       domains: b
 `,
     );
-    await expect(loadAccountsFromFile(file)).rejects.toThrow(/share stateFile/);
+    await expect(loadAccountsFromFile(file, { UDDNS_DATA_DIR: '/tmp' })).rejects.toThrow(
+      /share stateFile/,
+    );
   });
 
   it('rejects aliased absolute and relative state paths as duplicates', async () => {
@@ -298,13 +300,15 @@ accounts:
   - id: b
     provider: duckdns
     hosts: [b]
-    state_file: ${path.relative(process.cwd(), shared)}
+    state_file: shared-state.json
     duckdns:
       token: t
       domains: b
 `,
     );
-    await expect(loadAccountsFromFile(file)).rejects.toThrow(/share stateFile/);
+    await expect(loadAccountsFromFile(file, { UDDNS_DATA_DIR: dir })).rejects.toThrow(
+      /share stateFile/,
+    );
   });
 
   it('rejects duplicate account ids', async () => {

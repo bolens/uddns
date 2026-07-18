@@ -10,6 +10,7 @@ import {
   DEFAULT_NAMECHEAP_HOST,
   DEFAULT_PROVIDER,
   DEFAULT_STATE_FILE,
+  MAX_INTERVAL_MS,
 } from '../lib/defaults.js';
 import { PROVIDER_IDS } from '../lib/schemas/provider.js';
 
@@ -18,6 +19,7 @@ describe('runtime defaults', () => {
     expect(DEFAULT_PROVIDER).toBe('cloudflare');
     expect(PROVIDER_IDS).toContain(DEFAULT_PROVIDER);
     expect(DEFAULT_INTERVAL_MS).toBe(900_000);
+    expect(MAX_INTERVAL_MS).toBe(86_400_000);
     expect(DEFAULT_STATE_FILE).toBe('.uddns-state.json');
     expect(DEFAULT_DYNDNS_UPDATE_URL).toBe('https://members.dyndns.org/nic/update');
     expect(DEFAULT_CLOUDFLARE_TTL).toBe(1);

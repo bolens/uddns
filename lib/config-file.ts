@@ -28,13 +28,19 @@ export type LoadedAccount = {
   config: AppConfig;
 };
 
+/** Process-level knobs that should apply to every YAML account. */
+const PASSTHROUGH_ENV_KEYS = new Set(['UDDNS_DATA_DIR', 'DYNDNS_UPDATE_URL_ALLOW_HOSTS']);
+
 /** Drop managed uDDNS/provider keys so YAML accounts cannot inherit process env bleed. */
 function scrubManagedEnv(
   baseEnv: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(baseEnv)) {
-    if (!MANAGED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+    if (
+      PASSTHROUGH_ENV_KEYS.has(key) ||
+      !MANAGED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))
+    ) {
       env[key] = value;
     }
   }
@@ -272,6 +278,7 @@ export async function loadAccountsFromFile(
   const raw = await readFile(filePath, 'utf8');
   const parsed = configFileSchema.parse(parseYaml(raw));
   assertUniqueAccountIds(parsed.accounts);
+  const configDir = path.dirname(path.resolve(filePath));
   const accounts = parsed.accounts.map((account) => {
     const { id, ...rest } = account;
     const env = accountToEnv(
@@ -281,6 +288,10 @@ export async function loadAccountsFromFile(
     );
     // Avoid recursive multi-file loading.
     delete env['UDDNS_CONFIG_FILE'];
+    // Default data root to the YAML directory so relative state/history stay local.
+    if (env['UDDNS_DATA_DIR'] == null || env['UDDNS_DATA_DIR'] === '') {
+      env['UDDNS_DATA_DIR'] = configDir;
+    }
     return { id, config: loadConfig(env) };
   });
   assertUniqueAccountPaths(accounts);

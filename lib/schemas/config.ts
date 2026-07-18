@@ -4,6 +4,7 @@ import {
   DEFAULT_CLOUDFLARE_TTL,
   DEFAULT_DNS_TTL,
   DEFAULT_DYNDNS_UPDATE_URL,
+  DEFAULT_DYNDNS_UPDATE_URL_ALLOW_HOSTS,
   DEFAULT_HISTORY_FILE,
   DEFAULT_INTERVAL_MS,
   DEFAULT_IP_DNS_FALLBACK,
@@ -18,10 +19,11 @@ import {
   DEFAULT_STATE_FILE,
   MAX_INTERVAL_MS,
 } from '../defaults.js';
+import { resolveDataFilePath } from '../data-path.js';
 import { parseHostList, resolveHosts } from '../hosts.js';
 import { parseIpFamily, parseIpMissing } from '../ip-policy.js';
 import { requiresExplicitDomain } from '../providers/domain-host.js';
-import { assertHttpsUrl } from '../url-policy.js';
+import { assertHttpsUrl, assertHttpsUrlHostAllowed } from '../url-policy.js';
 import { appConfigSchema, PROVIDER_IDS, providerIdSchema, type AppConfig } from './provider.js';
 
 const optionalEnv = z.string().optional();
@@ -31,6 +33,7 @@ const envSchema = z
     UDDNS_INTERVAL: optionalEnv,
     UDDNS_STATE_FILE: optionalEnv,
     UDDNS_HISTORY_FILE: optionalEnv,
+    UDDNS_DATA_DIR: optionalEnv,
     UDDNS_LOG_LEVEL: optionalEnv,
     UDDNS_LOG_FORMAT: optionalEnv,
     UDDNS_HOST: optionalEnv,
@@ -81,6 +84,7 @@ const envSchema = z
     NAMECHEAP_DOMAIN: optionalEnv,
     NAMECHEAP_PASSWORD: optionalEnv,
     DYNDNS_UPDATE_URL: optionalEnv,
+    DYNDNS_UPDATE_URL_ALLOW_HOSTS: optionalEnv,
     ROUTE53_ACCESS_KEY_ID: optionalEnv,
     ROUTE53_SECRET_ACCESS_KEY: optionalEnv,
     ROUTE53_REGION: optionalEnv,
@@ -221,7 +225,28 @@ export function loadConfig(
   }
 
   const dyndnsUpdateUrl = parsedEnv['DYNDNS_UPDATE_URL'] ?? DEFAULT_DYNDNS_UPDATE_URL;
-  assertHttpsUrl(dyndnsUpdateUrl, 'DYNDNS_UPDATE_URL');
+  const dyndnsUrl = assertHttpsUrl(dyndnsUpdateUrl, 'DYNDNS_UPDATE_URL');
+  const dyndnsAllowHosts = [
+    ...DEFAULT_DYNDNS_UPDATE_URL_ALLOW_HOSTS,
+    ...parseHostList(parsedEnv['DYNDNS_UPDATE_URL_ALLOW_HOSTS']),
+  ];
+  assertHttpsUrlHostAllowed(dyndnsUrl, 'DYNDNS_UPDATE_URL', dyndnsAllowHosts);
+
+  const dataDir = parsedEnv['UDDNS_DATA_DIR']?.trim() || process.cwd();
+  const stateFileRaw =
+    parsedEnv['UDDNS_STATE_FILE'] === ''
+      ? null
+      : (parsedEnv['UDDNS_STATE_FILE'] ?? DEFAULT_STATE_FILE);
+  const historyFileRaw =
+    parsedEnv['UDDNS_HISTORY_FILE'] === ''
+      ? null
+      : (parsedEnv['UDDNS_HISTORY_FILE'] ?? DEFAULT_HISTORY_FILE);
+  const stateFile =
+    stateFileRaw == null ? null : resolveDataFilePath(stateFileRaw, 'UDDNS_STATE_FILE', dataDir);
+  const historyFile =
+    historyFileRaw == null
+      ? null
+      : resolveDataFilePath(historyFileRaw, 'UDDNS_HISTORY_FILE', dataDir);
 
   const ipTimeoutMs = Number(parsedEnv['UDDNS_IP_TIMEOUT_MS'] ?? DEFAULT_IP_TIMEOUT_MS);
   if (!Number.isFinite(ipTimeoutMs) || ipTimeoutMs < 100 || ipTimeoutMs > 120_000) {
@@ -257,14 +282,8 @@ export function loadConfig(
   const config = {
     provider: providerResult.data,
     interval,
-    stateFile:
-      parsedEnv['UDDNS_STATE_FILE'] === ''
-        ? null
-        : (parsedEnv['UDDNS_STATE_FILE'] ?? DEFAULT_STATE_FILE),
-    historyFile:
-      parsedEnv['UDDNS_HISTORY_FILE'] === ''
-        ? null
-        : (parsedEnv['UDDNS_HISTORY_FILE'] ?? DEFAULT_HISTORY_FILE),
+    stateFile,
+    historyFile,
     hosts,
     disabledHosts,
     hostname: firstHost,

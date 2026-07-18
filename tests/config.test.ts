@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { describe, expect, it } from 'vite-plus/test';
 
 import { loadConfig } from '../lib/config.js';
@@ -12,7 +14,7 @@ describe('loadConfig', () => {
     });
     expect(config.provider).toBe('cloudflare');
     expect(config.interval).toBe(900_000);
-    expect(config.stateFile).toBe('.uddns-state.json');
+    expect(config.stateFile).toBe(path.resolve('.uddns-state.json'));
     expect(config.hosts).toEqual(['home.example.com']);
     expect(config.hostname).toBe('home.example.com');
   });
@@ -96,10 +98,10 @@ describe('loadConfig', () => {
       UDDNS_HOST: 'home.example.com',
       UDDNS_USER: 'user',
       UDDNS_PASS: 'pass',
-      DYNDNS_UPDATE_URL: 'https://ddns.example/nic/update',
+      DYNDNS_UPDATE_URL: 'https://members.dyndns.org/nic/update',
     });
     expect(dyndns.dyndns).toEqual({
-      updateUrl: 'https://ddns.example/nic/update',
+      updateUrl: 'https://members.dyndns.org/nic/update',
       username: 'user',
       password: 'pass',
       hostname: 'home.example.com',
@@ -227,10 +229,26 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://169.254.169.254/latest/meta-data' }),
     ).toThrow(/must not target loopback, private/);
+    expect(() =>
+      loadConfig({
+        ...base,
+        DYNDNS_UPDATE_URL: 'https://[::ffff:169.254.169.254]/latest/meta-data',
+      }),
+    ).toThrow(/must not target loopback, private/);
+    expect(() =>
+      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://ddns.example/nic/update' }),
+    ).toThrow(/not allowed/);
     expect(
-      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://ddns.example/nic/update' }).dyndns
-        .updateUrl,
+      loadConfig({
+        ...base,
+        DYNDNS_UPDATE_URL: 'https://ddns.example/nic/update',
+        DYNDNS_UPDATE_URL_ALLOW_HOSTS: 'ddns.example',
+      }).dyndns.updateUrl,
     ).toBe('https://ddns.example/nic/update');
+    expect(
+      loadConfig({ ...base, DYNDNS_UPDATE_URL: 'https://members.dyndns.org/nic/update' }).dyndns
+        .updateUrl,
+    ).toBe('https://members.dyndns.org/nic/update');
   });
 
   it('rejects unknown providers, tiny intervals, and missing hosts', () => {
@@ -539,5 +557,24 @@ describe('loadConfig', () => {
       UDDNS_STATE_FILE: '',
     });
     expect(config.stateFile).toBeNull();
+  });
+
+  it('rejects state/history paths that escape the data directory', () => {
+    expect(() =>
+      loadConfig({
+        UDDNS_HOST: 'home.example.com',
+        CLOUDFLARE_API_TOKEN: 'token',
+        UDDNS_DATA_DIR: '/tmp/uddns-data',
+        UDDNS_STATE_FILE: '/etc/passwd',
+      }),
+    ).toThrow(/UDDNS_STATE_FILE must resolve under data directory/);
+    expect(() =>
+      loadConfig({
+        UDDNS_HOST: 'home.example.com',
+        CLOUDFLARE_API_TOKEN: 'token',
+        UDDNS_DATA_DIR: '/tmp/uddns-data',
+        UDDNS_HISTORY_FILE: '../escape.json',
+      }),
+    ).toThrow(/UDDNS_HISTORY_FILE must resolve under data directory/);
   });
 });

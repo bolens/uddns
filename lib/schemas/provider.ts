@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isIPv4, isIPv6 } from 'node:net';
 
+import { MAX_INTERVAL_MS } from '../defaults.js';
 import type { JsonObject } from './json.js';
 
 export const PROVIDER_IDS = [
@@ -168,7 +169,7 @@ const notifyOnSchema = z.enum(['change', 'error']);
 
 export const appConfigSchema = z.object({
   provider: providerIdSchema,
-  interval: z.number().int().min(1_000).max(2_147_483_647),
+  interval: z.number().int().min(1_000).max(MAX_INTERVAL_MS),
   stateFile: z.string().min(1).nullable(),
   historyFile: z.string().min(1).nullable(),
   hosts: z.array(z.string()).min(1),

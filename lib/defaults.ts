@@ -6,10 +6,18 @@ import type { ProviderId } from './schemas/provider.js';
 
 export const DEFAULT_PROVIDER: ProviderId = 'cloudflare';
 export const DEFAULT_INTERVAL_MS = 900_000;
-/** Node timers overflow above 2^31-1 and clamp to ~1ms — never allow that. */
-export const MAX_INTERVAL_MS = 2_147_483_647;
+/** Cap check intervals at 24h (also stays below Node's 2^31-1 timer overflow). */
+export const MAX_INTERVAL_MS = 86_400_000;
 export const DEFAULT_STATE_FILE = '.uddns-state.json';
 export const DEFAULT_DYNDNS_UPDATE_URL = 'https://members.dyndns.org/nic/update';
+/** Hosts allowed for DYNDNS_UPDATE_URL (extend via DYNDNS_UPDATE_URL_ALLOW_HOSTS). */
+export const DEFAULT_DYNDNS_UPDATE_URL_ALLOW_HOSTS = [
+  'members.dyndns.org',
+  'members.dyndns.com',
+  'update.dyndns.org',
+  'dynupdate.no-ip.com',
+  'dynupdate.no-ip.org',
+] as const;
 export const DEFAULT_CLOUDFLARE_TTL = 1;
 export const DEFAULT_NAMECHEAP_HOST = '@';
 export const DEFAULT_ROUTE53_REGION = 'us-east-1';

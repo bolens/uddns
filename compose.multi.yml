@@ -12,9 +12,11 @@ services:
     environment:
       UDDNS_STATE_FILE: /data/state.json
       UDDNS_HISTORY_FILE: /data/history.json
+      UDDNS_DATA_DIR: /data
       UDDNS_HEALTH: '1'
       UDDNS_HEALTH_HOST: 127.0.0.1
       UDDNS_HEALTH_PORT: '3924'
+      UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true'
     volumes:
       - uddns-cf-state:/data
     read_only: true
@@ -43,9 +45,11 @@ services:
     environment:
       UDDNS_STATE_FILE: /data/state.json
       UDDNS_HISTORY_FILE: /data/history.json
+      UDDNS_DATA_DIR: /data
       UDDNS_HEALTH: '1'
       UDDNS_HEALTH_HOST: 127.0.0.1
       UDDNS_HEALTH_PORT: '3924'
+      UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true'
     volumes:
       - uddns-duck-state:/data
     read_only: true
