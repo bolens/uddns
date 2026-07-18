@@ -45,7 +45,8 @@ stdio reserves stdout for MCP JSON-RPC. uDDNS routes all diagnostics to stderr
 in this mode.
 
 Agents should call `validate_config` and `dry_run` before `check_once`,
-`force_update`, or `update_hosts`. Prefer scoped `update_hosts` over account-wide
+`force_update`, or `update_hosts`, and pass `confirm: true` on those live
+tools (and on `start_loop`). Prefer scoped `update_hosts` over account-wide
 updates. See `.cursor/rules/uddns-safe-operations.mdc`.
 
 ## Tools
@@ -56,16 +57,16 @@ Tool results include both JSON text `content` and `structuredContent`.
 - `list_accounts` — list loaded MCP accounts
 - `get_public_ip` — discover the current public IPv4 and IPv6 addresses
 - `get_config` — return the active configuration with secrets redacted
-- `check_once` — run one overlap-safe update cycle
-- `force_update` — force updates for all hosts ignoring checkpoints
+- `check_once` — run one overlap-safe update cycle (`confirm: true` required)
+- `force_update` — force updates for all hosts ignoring checkpoints (`confirm: true` required)
 - `dry_run` — show which hosts would update without calling the provider
-- `update_hosts` — force or dry-run only selected configured hosts
+- `update_hosts` — force or dry-run only selected configured hosts (live updates need `confirm: true`)
 - `get_status` — inspect loop, interval, cycle, IP, and host checkpoint state
 - `get_history` — return recent cycle history
 - `validate_config` — field-level configuration validation
 - `explain_last_cycle` — summarize the last cycle with next steps
-- `set_interval` — change the live interval (minimum 1000 ms; multi-account without `accountId` updates every account)
-- `start_loop` — run an immediate check and start interval scheduling (all accounts when `accountId` is omitted)
+- `set_interval` — change the live interval (1000 ms–24 h; multi-account without `accountId` updates every account)
+- `start_loop` — run an immediate check and start interval scheduling (`confirm: true`; all accounts when `accountId` is omitted)
 - `stop_loop` — stop scheduling and wait for an active cycle (all accounts when `accountId` is omitted)
 - `init_config` — elicit non-secret init values and return a `.env` template
 

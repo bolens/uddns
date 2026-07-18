@@ -7,6 +7,7 @@ alwaysApply: true
 
 - Call `validate_config` before suggesting configuration changes.
 - Use `dry_run` before `check_once`, `force_update`, or `update_hosts`.
+- Pass `confirm: true` on live destructive MCP tools (`check_once`, `force_update`, live `update_hosts`, `start_loop`).
 - Prefer `update_hosts` with an explicit host list over account-wide updates.
 - Explain the intended DNS changes and affected hosts before destructive tools.
 - Never print, infer, or place real credentials in patches or tool output.

@@ -752,10 +752,14 @@ describe('createUddnsMcpServer', () => {
     expect(
       await registered._registeredTools['set_interval']!.handler({ intervalMs: 5000 }, extra),
     ).toMatchObject({ content: [{ type: 'text' }] });
-    expect(await registered._registeredTools['check_once']!.handler(extra)).toMatchObject({
+    expect(
+      await registered._registeredTools['check_once']!.handler({ confirm: true }, extra),
+    ).toMatchObject({
       content: [{ type: 'text' }],
     });
-    expect(await registered._registeredTools['force_update']!.handler(extra)).toMatchObject({
+    expect(
+      await registered._registeredTools['force_update']!.handler({ confirm: true }, extra),
+    ).toMatchObject({
       content: [{ type: 'text' }],
     });
     expect(await registered._registeredTools['dry_run']!.handler(extra)).toMatchObject({
@@ -784,6 +788,9 @@ describe('createUddnsMcpServer', () => {
         result: expect.objectContaining({ dryRun: true, status: 'unchanged' }),
       },
     });
+    await expect(
+      registered._registeredTools['update_hosts']!.handler({ hosts: ['home.example.com'] }, extra),
+    ).rejects.toThrow(/confirm=true/);
     expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
       structuredContent: {
         result: expect.objectContaining({
@@ -824,7 +831,7 @@ describe('createUddnsMcpServer', () => {
     const sendNotification = vi.fn(async () => {});
     expect(
       await registered._registeredTools['check_once']!.handler(
-        {},
+        { confirm: true },
         { _meta: { progressToken: 'tok-1' }, sendNotification },
       ),
     ).toMatchObject({ structuredContent: { result: expect.any(Object) } });
@@ -832,7 +839,9 @@ describe('createUddnsMcpServer', () => {
       expect.objectContaining({ method: 'notifications/progress' }),
     );
 
-    expect(await registered._registeredTools['start_loop']!.handler(extra)).toMatchObject({
+    expect(
+      await registered._registeredTools['start_loop']!.handler({ confirm: true }, extra),
+    ).toMatchObject({
       content: [{ type: 'text' }],
     });
     expect(await registered._registeredTools['stop_loop']!.handler(extra)).toMatchObject({

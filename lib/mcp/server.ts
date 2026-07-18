@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 
 import packageJson from '../../package.json' with { type: 'json' };
+import { MAX_INTERVAL_MS } from '../defaults.js';
 import { buildEnvContents } from '../init.js';
 import { PROVIDER_IDS_LIST } from '../init-defaults.js';
 import { redact } from '../log.js';
@@ -52,6 +53,10 @@ const accountIdSchema = z
   .min(1)
   .optional()
   .describe('Account id from list_accounts; defaults to the primary account');
+/** Required on live DNS / loop mutations so agents cannot fire updates by accident. */
+const confirmSchema = z
+  .literal(true)
+  .describe('Must be true to perform this live action (use dry_run first)');
 
 function toolResult(value: unknown) {
   const safe = redact(value);
@@ -181,10 +186,11 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
     MCP_TOOL_NAMES[2],
     {
       description: 'Discover the current public IPv4/IPv6 addresses',
+      inputSchema: { accountId: accountIdSchema },
       annotations: { readOnlyHint: true, openWorldHint: true },
       outputSchema,
     },
-    async () => toolResult(await handlers.getPublicIp()),
+    async ({ accountId }) => toolResult(await handlers.getPublicIp(accountId)),
   );
 
   server.registerTool(
@@ -206,8 +212,9 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
   server.registerTool(
     MCP_TOOL_NAMES[4],
     {
-      description: 'Run one guarded IP check / DNS update cycle on the shared updater session',
-      inputSchema: { accountId: accountIdSchema },
+      description:
+        'Run one guarded IP check / DNS update cycle on the shared updater session. Requires confirm=true; prefer dry_run first.',
+      inputSchema: { accountId: accountIdSchema, confirm: confirmSchema },
       annotations: { destructiveHint: true, openWorldHint: true },
       outputSchema,
     },
@@ -222,8 +229,9 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
   server.registerTool(
     MCP_TOOL_NAMES[5],
     {
-      description: 'Force a DNS update for all hosts regardless of checkpoint state',
-      inputSchema: { accountId: accountIdSchema },
+      description:
+        'Force a DNS update for all hosts regardless of checkpoint state. Requires confirm=true; prefer dry_run first.',
+      inputSchema: { accountId: accountIdSchema, confirm: confirmSchema },
       annotations: { destructiveHint: true, openWorldHint: true },
       outputSchema,
     },
@@ -249,17 +257,22 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
   server.registerTool(
     MCP_TOOL_NAMES[7],
     {
-      description: 'Update only selected configured hosts, optionally as a force or dry run',
+      description:
+        'Update only selected configured hosts. Live updates require confirm=true; set dryRun=true to preview without confirm.',
       inputSchema: {
         hosts: z.array(z.string().min(1)).min(1).describe('Configured hosts to target'),
         force: z.boolean().optional().describe('Ignore host checkpoints'),
         dryRun: z.boolean().optional().describe('Preview without provider calls'),
         accountId: accountIdSchema,
+        confirm: z.literal(true).optional().describe('Required when dryRun is not true'),
       },
       annotations: { destructiveHint: true, openWorldHint: true },
       outputSchema,
     },
-    async ({ hosts, force, dryRun, accountId }, extra) => {
+    async ({ hosts, force, dryRun, accountId, confirm }, extra) => {
+      if (dryRun !== true && confirm !== true) {
+        throw new Error('update_hosts requires confirm=true unless dryRun=true');
+      }
       await reportProgress(extra, 1, 2, `Updating ${hosts.length} host(s)`);
       const result = await handlers.updateHosts(hosts, {
         ...(force !== undefined ? { force } : {}),
@@ -329,13 +342,13 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
     MCP_TOOL_NAMES[12],
     {
       description:
-        'Set the updater check interval in milliseconds (>= 1000). With multiple accounts and no accountId, updates every account.',
+        'Set the updater check interval in milliseconds (1000–86400000). With multiple accounts and no accountId, updates every account.',
       inputSchema: {
         intervalMs: z
           .number()
           .int()
           .min(1000)
-          .max(2_147_483_647)
+          .max(MAX_INTERVAL_MS)
           .describe('Check interval in milliseconds'),
         accountId: accountIdSchema,
       },
@@ -349,9 +362,9 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
     MCP_TOOL_NAMES[13],
     {
       description:
-        'Start the updater interval loop (runs one immediate check, then schedules ticks). Without accountId, starts every loaded account.',
-      inputSchema: { accountId: accountIdSchema },
-      annotations: { idempotentHint: true, openWorldHint: true },
+        'Start the updater interval loop (runs one immediate check, then schedules ticks). Requires confirm=true. Without accountId, starts every loaded account.',
+      inputSchema: { accountId: accountIdSchema, confirm: confirmSchema },
+      annotations: { destructiveHint: true, openWorldHint: true },
       outputSchema,
     },
     async ({ accountId }) => toolResult(await handlers.startLoop(accountId)),
