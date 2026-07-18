@@ -10,6 +10,8 @@ export type HealthConfig = {
   port: number;
   metricsEnabled: boolean;
   authToken: string | null;
+  tlsCert: string | null;
+  tlsKey: string | null;
 };
 
 function parseBoolean(name: string, value: string | undefined, fallback: boolean): boolean {
@@ -46,15 +48,32 @@ export function loadHealthConfig(
   }
   const host = env['UDDNS_HEALTH_HOST']?.trim() || DEFAULT_HEALTH_HOST;
   const authToken = env['UDDNS_HEALTH_AUTH_TOKEN']?.trim() || null;
+  const tlsCert = env['UDDNS_HEALTH_TLS_CERT']?.trim() || null;
+  const tlsKey = env['UDDNS_HEALTH_TLS_KEY']?.trim() || null;
   const enabled = parseBoolean('UDDNS_HEALTH', env['UDDNS_HEALTH'], false);
-  if (enabled && !isLoopbackHost(host) && !authToken) {
-    throw new Error('UDDNS_HEALTH_AUTH_TOKEN is required when UDDNS_HEALTH_HOST is not loopback');
+
+  if ((tlsCert == null) !== (tlsKey == null)) {
+    throw new Error('UDDNS_HEALTH_TLS_CERT and UDDNS_HEALTH_TLS_KEY must be set together');
   }
+
+  if (enabled && !isLoopbackHost(host)) {
+    if (!authToken) {
+      throw new Error('UDDNS_HEALTH_AUTH_TOKEN is required when UDDNS_HEALTH_HOST is not loopback');
+    }
+    if (!tlsCert || !tlsKey) {
+      throw new Error(
+        'UDDNS_HEALTH_TLS_CERT and UDDNS_HEALTH_TLS_KEY are required when UDDNS_HEALTH_HOST is not loopback',
+      );
+    }
+  }
+
   return {
     enabled,
     host,
     port,
     metricsEnabled: parseBoolean('UDDNS_METRICS', env['UDDNS_METRICS'], false),
     authToken,
+    tlsCert,
+    tlsKey,
   };
 }

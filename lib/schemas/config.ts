@@ -53,6 +53,8 @@ const envSchema = z
     UDDNS_HEALTH_HOST: optionalEnv,
     UDDNS_HEALTH_PORT: optionalEnv,
     UDDNS_HEALTH_AUTH_TOKEN: optionalEnv,
+    UDDNS_HEALTH_TLS_CERT: optionalEnv,
+    UDDNS_HEALTH_TLS_KEY: optionalEnv,
     UDDNS_METRICS: optionalEnv,
     UDDNS_CONFIG_FILE: optionalEnv,
     UDDNS_MCP_TRANSPORT: optionalEnv,

@@ -1,8 +1,15 @@
 /**
- * Lightweight health / metrics / SSE side server (node:http).
+ * Lightweight health / metrics / SSE side server (node:http / node:https).
  */
 
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { timingSafeEqual } from 'node:crypto';
 
 import { redact } from './log.js';
@@ -14,6 +21,8 @@ export type SideServerConfig = {
   port: number;
   metricsEnabled: boolean;
   authToken?: string | null;
+  tlsCert?: string | null;
+  tlsKey?: string | null;
 };
 
 export type MetricsSnapshot = {
@@ -159,7 +168,7 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
     }
   });
 
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  const handler = (req: IncomingMessage, res: ServerResponse) => {
     const url = req.url?.split('?')[0] ?? '/';
     if (req.method === 'GET' && url === '/healthz') {
       writeJson(res, 200, { ok: true });
@@ -201,7 +210,18 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
       return;
     }
     writeJson(res, 404, { error: 'not found' });
-  });
+  };
+
+  const useTls = Boolean(config.tlsCert && config.tlsKey);
+  const server = useTls
+    ? createHttpsServer(
+        {
+          cert: await readFile(config.tlsCert!),
+          key: await readFile(config.tlsKey!),
+        },
+        handler,
+      )
+    : createHttpServer(handler);
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -213,10 +233,11 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
 
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : config.port;
+  const scheme = useTls ? 'https' : 'http';
 
   return {
     server,
-    url: `http://${config.host}:${port}`,
+    url: `${scheme}://${config.host}:${port}`,
     async close() {
       unsubscribe?.();
       for (const client of sseClients) {

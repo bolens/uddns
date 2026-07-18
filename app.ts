@@ -113,7 +113,9 @@ export async function main(options: AppOptions = {}): Promise<void> {
       left.host === right.host &&
       left.port === right.port &&
       left.metricsEnabled === right.metricsEnabled &&
-      left.authToken === right.authToken
+      left.authToken === right.authToken &&
+      left.tlsCert === right.tlsCert &&
+      left.tlsKey === right.tlsKey
     );
   }
 
@@ -137,6 +139,8 @@ export async function main(options: AppOptions = {}): Promise<void> {
         port: health.port,
         metricsEnabled: health.metricsEnabled,
         authToken: health.authToken,
+        tlsCert: health.tlsCert,
+        tlsKey: health.tlsKey,
       },
       getStatus: () => {
         if (bundles.length === 1) {
