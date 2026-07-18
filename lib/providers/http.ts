@@ -65,18 +65,30 @@ export type RequestInitWithTimeout = RequestInit & {
   /** Overall deadline for the request; combined with any caller-provided signal. */
   timeoutMs?: number;
   /**
-   * When set, dial via pin-on-connect HTTPS (resolve once, connect only to
-   * verified addresses). Used for notify webhooks and other untrusted URLs.
+   * Pin-on-connect HTTPS (default). Resolves DNS once and dials only verified
+   * addresses so credentials cannot follow a rebinding race onto a private host.
+   * Pass `false` only for test stubs that replace the transport (see stubFetch).
    */
-  pin?: {
-    policy?: import('../url-policy.js').HttpsUrlPolicy;
-    lookupHost?: import('../url-policy.js').HostLookupFn;
-  };
+  pin?:
+    | false
+    | {
+        policy?: import('../url-policy.js').HttpsUrlPolicy;
+        lookupHost?: import('../url-policy.js').HostLookupFn;
+      };
 };
+
+/** Test-only transport override installed by `stubFetch`. */
+let requestFetchOverride: typeof globalThis.fetch | null = null;
+
+/** Install/clear the fetch used by {@link request} in unit tests. */
+export function setRequestFetchOverride(fetchImpl: typeof globalThis.fetch | null): void {
+  requestFetchOverride = fetchImpl;
+}
 
 /**
  * Fetch a URL and return the Response, text body, and debug metadata.
  * Every request carries a timeout so providers can never hang a cycle.
+ * Production dials via pin-on-connect HTTPS unless `pin: false` or a test override.
  */
 export async function request(
   url: string | URL,
@@ -99,30 +111,35 @@ export async function request(
   // Providers send Bearer/Basic/query tokens; never follow redirects that could
   // move those credentials (or a forged "good" body) onto another host.
   const redirect = fetchInit.redirect ?? 'error';
+  const body =
+    typeof fetchInit.body === 'string'
+      ? fetchInit.body
+      : fetchInit.body instanceof Uint8Array
+        ? Buffer.from(fetchInit.body)
+        : null;
 
   try {
-    const response = pin
-      ? await pinnedHttpsFetch(url, {
-          method,
-          headers,
-          body: typeof fetchInit.body === 'string' ? fetchInit.body : null,
-          signal,
-          redirect: redirect === 'follow' ? 'follow' : 'error',
-          ...pin,
-        })
-      : await fetch(url, { ...fetchInit, headers, signal, redirect });
-    const body = await response.text();
+    const response = await dispatchRequest(url, {
+      method,
+      headers,
+      body,
+      signal,
+      redirect,
+      pin,
+      fetchInit,
+    });
+    const text = await response.text();
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
     return {
       response,
-      body,
+      body: text,
       meta: {
         method,
         url: safeUrl,
         status: response.status,
         statusText: response.statusText,
         durationMs: Date.now() - started,
-        bodyPreview: scrubBodyPreview(body),
+        bodyPreview: scrubBodyPreview(text),
         ...(retryAfterMs !== null ? { retryAfterMs } : {}),
       },
     };
@@ -136,6 +153,45 @@ export async function request(
       ...network,
     });
   }
+}
+
+async function dispatchRequest(
+  url: string | URL,
+  options: {
+    method: string;
+    headers: Headers;
+    body: string | Buffer | null;
+    signal: AbortSignal;
+    redirect: 'error' | 'follow' | 'manual';
+    pin: RequestInitWithTimeout['pin'];
+    fetchInit: RequestInit;
+  },
+): Promise<Response> {
+  const { method, headers, body, signal, redirect, pin, fetchInit } = options;
+  const fetchArgs: RequestInit = {
+    ...fetchInit,
+    headers,
+    signal,
+    redirect,
+  };
+  if (body != null) {
+    fetchArgs.body = body;
+  }
+  if (requestFetchOverride) {
+    return await requestFetchOverride(url, fetchArgs);
+  }
+  if (pin === false) {
+    return await fetch(url, fetchArgs);
+  }
+  const pinOpts = pin ?? {};
+  return await pinnedHttpsFetch(url, {
+    method,
+    headers,
+    body,
+    signal,
+    redirect: redirect === 'follow' ? 'follow' : 'error',
+    ...pinOpts,
+  });
 }
 
 export function parseRetryAfter(value: string | null, now = Date.now()): number | null {

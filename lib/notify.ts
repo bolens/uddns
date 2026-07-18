@@ -35,7 +35,10 @@ export function matchesNotifyFilter(event: CycleEvent, on: NotifyConfig['on']): 
 function notifyPin(
   policy: HttpsUrlPolicy,
   lookupHost?: HostLookupFn,
-): NonNullable<import('./providers/http.js').RequestInitWithTimeout['pin']> {
+): {
+  policy: HttpsUrlPolicy;
+  lookupHost?: HostLookupFn;
+} {
   return lookupHost ? { policy, lookupHost } : { policy };
 }
 

@@ -1,15 +1,14 @@
-import { describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
 
 import { getQuery, ipDetails } from '../../lib/providers/query.js';
 import { afterEachResetFetch } from '../helpers/cleanup.js';
-import { getCall, textResponse } from '../helpers/fetch.js';
+import { getCall, stubFetch, textResponse } from '../helpers/fetch.js';
 
 afterEachResetFetch();
 
 describe('getQuery', () => {
   it('builds a GET URL from params and returns the trimmed body', async () => {
-    const fetchMock = vi.fn(async () => textResponse('  OK  '));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch(async () => textResponse('  OK  '));
 
     const result = await getQuery('https://example.com/update', {
       hostname: 'home.example.com',
@@ -26,8 +25,7 @@ describe('getQuery', () => {
   });
 
   it('forwards request init headers', async () => {
-    const fetchMock = vi.fn(async () => textResponse('good'));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch(async () => textResponse('good'));
 
     await getQuery(
       'https://example.com/nic/update',

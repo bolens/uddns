@@ -195,4 +195,17 @@ describe('request', () => {
       message: expect.stringContaining('socket exploded'),
     });
   });
+
+  it('pins by default and refuses DNS that resolves to blocked addresses', async () => {
+    await expect(
+      request('https://api.example/v1', {
+        pin: {
+          lookupHost: async () => [{ address: '169.254.169.254', family: 4 }],
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: 'HttpError',
+      message: expect.stringMatching(/blocked address 169\.254\.169\.254/),
+    });
+  });
 });

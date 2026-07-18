@@ -1,5 +1,7 @@
 import { vi, type Mock } from 'vite-plus/test';
 
+import { setRequestFetchOverride } from '../../lib/providers/http.js';
+
 export function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -21,6 +23,7 @@ export function stubFetch(
     Promise.resolve(impl(input, init)),
   );
   vi.stubGlobal('fetch', fetchMock);
+  setRequestFetchOverride(fetchMock);
   return fetchMock;
 }
 
