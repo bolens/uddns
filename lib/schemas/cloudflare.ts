@@ -13,6 +13,7 @@ const cloudflareZoneSchema = z.object({
 export const cloudflareDnsRecordSchema = z.object({
   id: z.string(),
   type: z.string().optional(),
+  name: z.string().optional(),
   content: z.string(),
   proxied: z.boolean(),
   ttl: z.number().int().optional(),

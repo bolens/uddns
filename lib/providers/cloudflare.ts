@@ -184,7 +184,14 @@ async function upsertRecord(options: UpsertOptions): Promise<UpdateResult> {
 
   const record = recordId
     ? await getRecord(apiToken, zoneId, recordId).then(async (pinned) => {
-        if (pinned && pinned.type && pinned.type !== type) {
+        if (!pinned) {
+          return null;
+        }
+        const typeMismatch = pinned.type !== undefined && pinned.type !== type;
+        const nameMismatch =
+          pinned.name !== undefined && normalizeDnsLabel(pinned.name) !== normalizeDnsLabel(name);
+        // Stale/wrong CLOUDFLARE_RECORD_ID must not PATCH another hostname onto `name`.
+        if (typeMismatch || nameMismatch) {
           return await findRecord(apiToken, zoneId, name, type);
         }
         return pinned;

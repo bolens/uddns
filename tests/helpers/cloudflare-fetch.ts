@@ -13,7 +13,14 @@ export function cfZones(zones: Array<{ id: string; name: string }>): Response {
 }
 
 export function cfRecords(
-  records: Array<{ id: string; content: string; proxied?: boolean; ttl?: number }>,
+  records: Array<{
+    id: string;
+    content: string;
+    proxied?: boolean;
+    ttl?: number;
+    type?: string;
+    name?: string;
+  }>,
 ): Response {
   return cfOk(
     records.map((record) => ({

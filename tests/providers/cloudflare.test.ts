@@ -549,6 +549,80 @@ describe('cloudflare provider', () => {
     });
   });
 
+  it('falls back to name lookup when pinned record hostname mismatches', async () => {
+    const fetchMock = stubCloudflareFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/dns_records/wrong-pin'),
+        response: cfOk({
+          id: 'wrong-pin',
+          type: 'A',
+          name: 'other.example.com',
+          content: '1.1.1.1',
+          proxied: false,
+        }),
+      },
+      {
+        match: (url) => url.includes('/dns_records?') && url.includes('type=A'),
+        response: cfRecords([
+          {
+            id: 'correct',
+            type: 'A',
+            name: 'home.example.com',
+            content: '1.1.1.1',
+            proxied: false,
+          },
+        ]),
+      },
+      {
+        match: (url, method) => method === 'PATCH' && url.endsWith('/dns_records/correct'),
+        response: cfOk({
+          id: 'correct',
+          type: 'A',
+          name: 'home.example.com',
+          content: '9.9.9.9',
+          proxied: false,
+        }),
+      },
+    ]);
+
+    const result = await cloudflareProvider.update(
+      makeConfig({
+        cloudflare: {
+          apiToken: 'token',
+          zoneId: 'zone1',
+          recordName: 'home.example.com',
+          recordId: 'wrong-pin',
+          createIfMissing: false,
+        },
+      }),
+      { v4: '9.9.9.9', v6: null },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('A home.example.com -> 9.9.9.9'),
+    });
+    expect(
+      fetchMock.mock.calls.some(([input, init = {}]) => {
+        const url = fetchInputUrl(input);
+        return url.endsWith('/dns_records/wrong-pin') && (init.method ?? 'GET') === 'PATCH';
+      }),
+    ).toBe(false);
+    const patch = getCall(
+      fetchMock,
+      fetchMock.mock.calls.findIndex(
+        ([input, init = {}]) =>
+          fetchInputUrl(input).endsWith('/dns_records/correct') &&
+          (init.method ?? 'GET') === 'PATCH',
+      ),
+    );
+    expect(JSON.parse(patch.body ?? '{}')).toMatchObject({
+      type: 'A',
+      name: 'home.example.com',
+      content: '9.9.9.9',
+    });
+  });
+
   it('treats a null pinned-record lookup as missing and creates the record', async () => {
     stubCloudflareFetch([
       {
