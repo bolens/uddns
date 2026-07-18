@@ -486,8 +486,8 @@ export function createUpdater(options: UpdaterOptions) {
   }
 
   function setIntervalMs(ms: number): void {
-    if (!Number.isFinite(ms) || ms < 1_000) {
-      throw new Error('intervalMs must be a number of milliseconds >= 1000');
+    if (!Number.isFinite(ms) || ms < 1_000 || ms > 2_147_483_647) {
+      throw new Error('intervalMs must be a number of milliseconds from 1000 to 2147483647');
     }
     intervalMs = ms;
     if (timer != null) {

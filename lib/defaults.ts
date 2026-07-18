@@ -6,6 +6,8 @@ import type { ProviderId } from './schemas/provider.js';
 
 export const DEFAULT_PROVIDER: ProviderId = 'cloudflare';
 export const DEFAULT_INTERVAL_MS = 900_000;
+/** Node timers overflow above 2^31-1 and clamp to ~1ms — never allow that. */
+export const MAX_INTERVAL_MS = 2_147_483_647;
 export const DEFAULT_STATE_FILE = '.uddns-state.json';
 export const DEFAULT_DYNDNS_UPDATE_URL = 'https://members.dyndns.org/nic/update';
 export const DEFAULT_CLOUDFLARE_TTL = 1;

@@ -168,7 +168,7 @@ const notifyOnSchema = z.enum(['change', 'error']);
 
 export const appConfigSchema = z.object({
   provider: providerIdSchema,
-  interval: z.number().int().min(1_000),
+  interval: z.number().int().min(1_000).max(2_147_483_647),
   stateFile: z.string().min(1).nullable(),
   historyFile: z.string().min(1).nullable(),
   hosts: z.array(z.string()).min(1),

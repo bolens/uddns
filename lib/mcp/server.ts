@@ -331,7 +331,12 @@ export function createUddnsMcpServer(sessionInput: McpSession): UddnsMcpServer {
       description:
         'Set the updater check interval in milliseconds (>= 1000). With multiple accounts and no accountId, updates every account.',
       inputSchema: {
-        intervalMs: z.number().int().min(1000).describe('Check interval in milliseconds'),
+        intervalMs: z
+          .number()
+          .int()
+          .min(1000)
+          .max(2_147_483_647)
+          .describe('Check interval in milliseconds'),
         accountId: accountIdSchema,
       },
       annotations: { idempotentHint: true },

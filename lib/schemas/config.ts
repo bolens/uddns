@@ -16,9 +16,11 @@ import {
   DEFAULT_ROUTE53_REGION,
   DEFAULT_ROUTE53_TTL,
   DEFAULT_STATE_FILE,
+  MAX_INTERVAL_MS,
 } from '../defaults.js';
 import { parseHostList, resolveHosts } from '../hosts.js';
 import { parseIpFamily, parseIpMissing } from '../ip-policy.js';
+import { requiresExplicitDomain } from '../providers/domain-host.js';
 import { assertHttpsUrl } from '../url-policy.js';
 import { appConfigSchema, PROVIDER_IDS, providerIdSchema, type AppConfig } from './provider.js';
 
@@ -64,6 +66,7 @@ const envSchema = z
     UDDNS_MCP_AUTH_TOKEN: optionalEnv,
     UDDNS_MCP_TLS_CERT: optionalEnv,
     UDDNS_MCP_TLS_KEY: optionalEnv,
+    UDDNS_MCP_ALLOW_INSECURE_LOOPBACK: optionalEnv,
     CLOUDFLARE_API_TOKEN: optionalEnv,
     CLOUDFLARE_ZONE_ID: optionalEnv,
     CLOUDFLARE_ZONE_NAME: optionalEnv,
@@ -180,8 +183,10 @@ export function loadConfig(
 
   const interval = Number(parsedEnv['UDDNS_INTERVAL'] ?? DEFAULT_INTERVAL_MS);
 
-  if (!Number.isFinite(interval) || interval < 1_000) {
-    throw new Error('UDDNS_INTERVAL must be a number of milliseconds >= 1000');
+  if (!Number.isFinite(interval) || interval < 1_000 || interval > MAX_INTERVAL_MS) {
+    throw new Error(
+      `UDDNS_INTERVAL must be a number of milliseconds from 1000 to ${MAX_INTERVAL_MS}`,
+    );
   }
 
   const hostname = parsedEnv['UDDNS_HOST'] ?? parsedEnv['UDDNS_HOSTNAME'] ?? null;
@@ -481,13 +486,7 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
       break;
     case 'namecheap':
       if (!config.namecheap.password) missing.push('NAMECHEAP_PASSWORD');
-      if (
-        !config.namecheap.domain &&
-        config.hosts.some((host) => {
-          const labels = host.split('.').filter(Boolean).length;
-          return labels < 2 || labels > 3;
-        })
-      ) {
+      if (!config.namecheap.domain && config.hosts.some((host) => requiresExplicitDomain(host))) {
         missing.push(
           'NAMECHEAP_DOMAIN (required for bare labels and multi-label domains like example.co.uk)',
         );
@@ -514,13 +513,7 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
     case 'porkbun':
       if (!config.porkbun.apiKey) missing.push('PORKBUN_API_KEY');
       if (!config.porkbun.secretKey) missing.push('PORKBUN_SECRET_KEY');
-      if (
-        !config.porkbun.domain &&
-        config.hosts.some((host) => {
-          const labels = host.split('.').filter(Boolean).length;
-          return labels < 2 || labels > 3;
-        })
-      ) {
+      if (!config.porkbun.domain && config.hosts.some((host) => requiresExplicitDomain(host))) {
         missing.push(
           'PORKBUN_DOMAIN (required for bare labels and multi-label domains like example.co.uk)',
         );
@@ -533,10 +526,7 @@ export function getProviderConfigIssues(config: AppConfig): ConfigIssue[] {
       if (!config.digitalocean.apiToken) missing.push('DIGITALOCEAN_API_TOKEN');
       if (
         !config.digitalocean.domain &&
-        config.hosts.some((host) => {
-          const labels = host.split('.').filter(Boolean).length;
-          return labels < 2 || labels > 3;
-        })
+        config.hosts.some((host) => requiresExplicitDomain(host))
       ) {
         missing.push(
           'DIGITALOCEAN_DOMAIN (required for bare labels and multi-label domains like example.co.uk)',

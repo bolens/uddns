@@ -198,6 +198,13 @@ describe('loadConfig', () => {
         DIGITALOCEAN_API_TOKEN: 'token',
       }),
     ).toThrow(/DIGITALOCEAN_DOMAIN \(required for bare labels/);
+    expect(() =>
+      loadConfig({
+        UDDNS_PROVIDER: 'digitalocean',
+        UDDNS_HOST: 'example.co.uk',
+        DIGITALOCEAN_API_TOKEN: 'token',
+      }),
+    ).toThrow(/DIGITALOCEAN_DOMAIN \(required for bare labels/);
   });
 
   it('rejects non-https DYNDNS_UPDATE_URL values', () => {
@@ -231,6 +238,9 @@ describe('loadConfig', () => {
       /Unsupported[\s\S]*cloudflare/,
     );
     expect(() => loadConfig({ UDDNS_HOST: 'x.com', UDDNS_INTERVAL: '10' })).toThrow(
+      /UDDNS_INTERVAL/,
+    );
+    expect(() => loadConfig({ UDDNS_HOST: 'x.com', UDDNS_INTERVAL: '2147483648' })).toThrow(
       /UDDNS_INTERVAL/,
     );
     expect(() => loadConfig({})).toThrow(/No hosts configured/);
