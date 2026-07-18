@@ -65,8 +65,36 @@ describe('loadMcpConfig', () => {
     ).toThrow(/UDDNS_MCP_TLS_CERT/);
   });
 
+  it('requires auth on loopback HTTP unless insecure opt-in is set', () => {
+    expect(() =>
+      loadMcpConfig({
+        UDDNS_MCP_TRANSPORT: 'http',
+        UDDNS_MCP_HOST: '127.0.0.1',
+      }),
+    ).toThrow(/UDDNS_MCP_AUTH_TOKEN/);
+
+    expect(
+      loadMcpConfig({
+        UDDNS_MCP_TRANSPORT: 'http',
+        UDDNS_MCP_HOST: '127.0.0.1',
+        UDDNS_MCP_ALLOW_INSECURE_LOOPBACK: 'true',
+      }).authToken,
+    ).toBeNull();
+
+    expect(
+      loadMcpConfig({
+        UDDNS_MCP_TRANSPORT: 'http',
+        UDDNS_MCP_HOST: '127.0.0.1',
+        UDDNS_MCP_AUTH_TOKEN: 'local-secret',
+      }).authToken,
+    ).toBe('local-secret');
+  });
+
   it('accepts transport overrides', () => {
-    expect(loadMcpConfig({}, { transportOverride: 'http' }).transport).toBe('http');
+    expect(
+      loadMcpConfig({ UDDNS_MCP_ALLOW_INSECURE_LOOPBACK: '1' }, { transportOverride: 'http' })
+        .transport,
+    ).toBe('http');
   });
 
   it('rejects invalid transport, port, and half-specified TLS', () => {

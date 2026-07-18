@@ -131,7 +131,7 @@ export async function startMcpHttpServer(options: {
 
   if (!mcpConfig.authToken && isLoopbackMcpHost(mcpConfig.host)) {
     log.warn(
-      'MCP HTTP auth token unset; loopback only — set UDDNS_MCP_AUTH_TOKEN for safer local use',
+      'MCP HTTP running with UDDNS_MCP_ALLOW_INSECURE_LOOPBACK; set UDDNS_MCP_AUTH_TOKEN for safer local use',
     );
   }
 

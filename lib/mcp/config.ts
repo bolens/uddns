@@ -1,7 +1,3 @@
-/**
- * MCP server transport / bind configuration (separate from AppConfig).
- */
-
 import { DEFAULT_MCP_HOST, DEFAULT_MCP_PORT, DEFAULT_MCP_TRANSPORT } from '../defaults.js';
 
 export type McpTransport = 'stdio' | 'http';
@@ -23,6 +19,20 @@ function isLoopbackHost(host: string): boolean {
     normalized === '::1' ||
     normalized === '[::1]'
   );
+}
+
+function parseBoolean(name: string, value: string | undefined, fallback: boolean): boolean {
+  if (value == null || value === '') {
+    return fallback;
+  }
+  const normalized = value.toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`${name} must be one of: true, false, 1, 0, yes, no, on, off`);
 }
 
 /**
@@ -52,18 +62,29 @@ export function loadMcpConfig(
   const authToken = env['UDDNS_MCP_AUTH_TOKEN']?.trim() || null;
   const tlsCert = env['UDDNS_MCP_TLS_CERT']?.trim() || null;
   const tlsKey = env['UDDNS_MCP_TLS_KEY']?.trim() || null;
+  const allowInsecureLoopback = parseBoolean(
+    'UDDNS_MCP_ALLOW_INSECURE_LOOPBACK',
+    env['UDDNS_MCP_ALLOW_INSECURE_LOOPBACK'],
+    false,
+  );
 
   if ((tlsCert == null) !== (tlsKey == null)) {
     throw new Error('UDDNS_MCP_TLS_CERT and UDDNS_MCP_TLS_KEY must be set together');
   }
 
-  if (transportRaw === 'http' && !isLoopbackHost(host)) {
-    if (!authToken) {
-      throw new Error('UDDNS_MCP_AUTH_TOKEN is required when UDDNS_MCP_HOST is not loopback');
-    }
-    if (!tlsCert || !tlsKey) {
+  if (transportRaw === 'http') {
+    if (!isLoopbackHost(host)) {
+      if (!authToken) {
+        throw new Error('UDDNS_MCP_AUTH_TOKEN is required when UDDNS_MCP_HOST is not loopback');
+      }
+      if (!tlsCert || !tlsKey) {
+        throw new Error(
+          'UDDNS_MCP_TLS_CERT and UDDNS_MCP_TLS_KEY are required when UDDNS_MCP_HOST is not loopback',
+        );
+      }
+    } else if (!authToken && !allowInsecureLoopback) {
       throw new Error(
-        'UDDNS_MCP_TLS_CERT and UDDNS_MCP_TLS_KEY are required when UDDNS_MCP_HOST is not loopback',
+        'UDDNS_MCP_AUTH_TOKEN is required for HTTP MCP (set UDDNS_MCP_ALLOW_INSECURE_LOOPBACK=true to allow unauthenticated loopback)',
       );
     }
   }

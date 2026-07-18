@@ -114,7 +114,7 @@ describe('MCP entrypoint', () => {
 
     await main({
       argv: ['--transport', 'http'],
-      env: {},
+      env: { UDDNS_MCP_ALLOW_INSECURE_LOOPBACK: 'true' },
       log: silentLog(),
       loadConfigFn: () => makeConfig(),
       getProviderFn: () => stubProvider,
@@ -219,7 +219,7 @@ describe('MCP entrypoint', () => {
 
     await main({
       argv: ['--transport=http'],
-      env: {},
+      env: { UDDNS_MCP_ALLOW_INSECURE_LOOPBACK: 'true' },
       log,
       loadConfigFn: () => makeConfig(),
       getProviderFn: () => stubProvider,
