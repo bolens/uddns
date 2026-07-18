@@ -143,11 +143,7 @@ export function createUpdater(options: UpdaterOptions) {
     }
     const event = cycleEventFromResult(result, meta);
     lastCycle = event;
-    if (
-      result.status === 'updated' ||
-      result.status === 'unchanged' ||
-      result.status === 'dry_run'
-    ) {
+    if (result.status === 'updated' || result.status === 'unchanged') {
       lastSuccessAt = event.at;
       lastError = null;
     }
@@ -585,7 +581,9 @@ export function createUpdater(options: UpdaterOptions) {
       delayMs,
       reason,
     });
-    await sleep(delayMs);
+    if (!stopping) {
+      await sleep(delayMs);
+    }
   }
 
   return {

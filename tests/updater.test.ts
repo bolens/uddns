@@ -802,6 +802,28 @@ describe('createUpdater', () => {
     expect(updater.getStatus().lastError).toBeNull();
     expect(updater.getStatus().lastSuccessAt).not.toBeNull();
   });
+
+  it('does not clear lastError or advance lastSuccessAt on dry_run', async () => {
+    const update = vi.fn(async () => ({ ok: false, message: 'provider down' }));
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(update),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async () => {},
+      retryAttempts: 1,
+    });
+
+    await updater.checkOnce();
+    expect(updater.getStatus().lastError).toMatch(/provider down/);
+    const failedAt = updater.getStatus().lastSuccessAt;
+
+    await updater.checkOnce({ dryRun: true });
+    expect(updater.getStatus().lastCycle?.status).toBe('dry_run');
+    expect(updater.getStatus().lastError).toMatch(/provider down/);
+    expect(updater.getStatus().lastSuccessAt).toBe(failedAt);
+    expect(update).toHaveBeenCalledOnce();
+  });
 });
 
 describe('isRetryableHttpStatus', () => {
