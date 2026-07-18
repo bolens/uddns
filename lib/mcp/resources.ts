@@ -33,7 +33,10 @@ export async function readMcpResource(
         ),
       };
     case MCP_RESOURCE_URIS.publicIp:
-      return { mimeType: 'application/json', text: jsonText(await handlers.getPublicIp()) };
+      return {
+        mimeType: 'application/json',
+        text: jsonText(redact(await handlers.getPublicIp())),
+      };
     case MCP_RESOURCE_URIS.status:
       return {
         mimeType: 'application/json',

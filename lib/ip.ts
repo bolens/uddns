@@ -14,6 +14,7 @@ import { isIPv4, isIPv6 } from 'node:net';
 import { DEFAULT_IP_TIMEOUT_MS } from './defaults.js';
 import { errorMessage } from './errors.js';
 import { formatError, type ErrorInfo } from './log.js';
+import { sanitizeUrl } from './providers/http.js';
 import type { PublicIP } from './schemas/provider.js';
 
 const OPENDNS_V4 = ['208.67.222.222', '208.67.220.220'];
@@ -149,10 +150,11 @@ async function lookupViaHttps(
       : (deps.httpsV6 ?? DEFAULT_HTTPS_ENDPOINTS.v6);
 
   for (const endpoint of endpoints) {
+    const endpointLabel = sanitizeUrl(endpoint);
     try {
       const response = await deps.fetch(endpoint, { signal, redirect: 'follow' });
       if (!response.ok) {
-        errors.push(`${endpoint} HTTP ${response.status}`);
+        errors.push(`${endpointLabel} HTTP ${response.status}`);
         continue;
       }
       const text = await response.text();
@@ -160,12 +162,12 @@ async function lookupViaHttps(
       if (candidate) {
         return candidate;
       }
-      errors.push(`${endpoint} invalid body`);
+      errors.push(`${endpointLabel} invalid body`);
     } catch (error) {
       if (signal.aborted) {
         throw timeoutError();
       }
-      errors.push(`${endpoint}: ${errorMessage(error)}`);
+      errors.push(`${endpointLabel}: ${errorMessage(error)}`);
     }
   }
 

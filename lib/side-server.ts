@@ -112,7 +112,7 @@ export function createMetricsTracker(): {
         updatesTotal += 1;
         lastSuccessAt = event.at;
       }
-      if (event.status === 'unchanged') {
+      if (event.status === 'unchanged' && !event.dryRun) {
         lastSuccessAt = event.at;
       }
       if (event.discoveryErrors?.v4 || event.discoveryErrors?.v6) {

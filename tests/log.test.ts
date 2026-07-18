@@ -48,6 +48,12 @@ describe('redact', () => {
     expect(redact('Bearer abc.def')).toBe('[redacted]');
     expect(redact('Basic dXNlcjpwYXNz')).toBe('[redacted]');
     expect(redact(['Bearer abc', 'plain'])).toEqual(['[redacted]', 'plain']);
+    expect(redact('https://user:hunter2@example.com/v4?token=sekrit')).toBe(
+      'https://***:***@example.com/v4?token=%5Bredacted%5D',
+    );
+    expect(redact('HTTPS v4 lookup failed (https://user:pass@echo.test/ HTTP 500)')).toContain(
+      'https://***:***@echo.test/',
+    );
   });
 
   it('scrubs credentials embedded mid-string (echoed headers, response bodies)', () => {

@@ -1,4 +1,5 @@
 import { DEFAULT_LOG_FORMAT } from './defaults.js';
+import { sanitizeUrl } from './providers/http.js';
 import type { JsonObject, JsonValue } from './schemas/json.js';
 import { isSensitiveKey } from './sensitive.js';
 
@@ -275,8 +276,10 @@ function redactString(value: string): string {
   if (looksLikeSecret(value)) {
     return '[redacted]';
   }
-  // Also scrub credentials embedded mid-string (e.g. echoed request headers).
-  return value.replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+/gi, '$1 [redacted]');
+  // Scrub credentials embedded mid-string (e.g. echoed request headers / URLs).
+  return value
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+/gi, '$1 [redacted]')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => sanitizeUrl(url));
 }
 
 function looksLikeSecret(value: string): boolean {

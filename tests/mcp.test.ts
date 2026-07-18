@@ -108,6 +108,7 @@ describe('MCP tool handlers', () => {
       notifySlackUrl: slackUrl,
       notifyWebhookUrl: 'https://example.com/hooks/secret-path',
       dyndns: { updateUrl },
+      ipHttpsV4: ['https://user:echo-secret@echo.example/v4?token=echo-secret'],
     });
     const updater = createUpdater({
       config,
@@ -136,6 +137,7 @@ describe('MCP tool handlers', () => {
       notifySlackUrl: unknown;
       notifyWebhookUrl: unknown;
       dyndns: { updateUrl: unknown };
+      ipHttpsV4: unknown;
     };
     const serialized = JSON.stringify(redacted);
     expect(serialized).not.toContain('super-secret-token');
@@ -143,10 +145,12 @@ describe('MCP tool handlers', () => {
     expect(serialized).not.toContain('secret-path');
     expect(serialized).not.toContain('hunter2');
     expect(serialized).not.toContain('token=abc');
+    expect(serialized).not.toContain('echo-secret');
     expect(redacted.cloudflare.apiToken).toBe('[redacted]');
     expect(redacted.notifySlackUrl).toBe('[redacted]');
     expect(redacted.notifyWebhookUrl).toBe('[redacted]');
     expect(redacted.dyndns.updateUrl).toBe('[redacted]');
+    expect(redacted.ipHttpsV4).toEqual(['https://***:***@echo.example/v4?token=%5Bredacted%5D']);
 
     expect(handlers.listProviders().some((provider) => provider.id === 'cloudflare')).toBe(true);
     expect(await handlers.getPublicIp()).toMatchObject({ ip: { v4: '9.9.9.9' } });
