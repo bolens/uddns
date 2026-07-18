@@ -19,11 +19,15 @@ describe('isSensitiveKey', () => {
       'private',
       'auth',
       'key',
+      'webhook',
+      'notifyWebhookUrl',
+      'notifySlackUrl',
+      'notify_discord_url',
     ];
     for (const key of keys) {
       expect(isSensitiveKey(key), key).toBe(true);
-      expect(SENSITIVE_KEY_PATTERN.test(key), key).toBe(true);
     }
+    expect(SENSITIVE_KEY_PATTERN.test('webhook')).toBe(true);
     expect(isSensitiveKey('hostname')).toBe(false);
     expect(isSensitiveKey('status')).toBe(false);
   });

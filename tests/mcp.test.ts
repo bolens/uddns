@@ -101,8 +101,11 @@ describe('createStderrLogger', () => {
 describe('MCP tool handlers', () => {
   it('redacts secrets from get_config and runs guarded check_once', async () => {
     const update = vi.fn(async () => ({ ok: true, message: 'ok' }));
+    const slackUrl = 'https://hooks.slack.com/services/T000/B000/XXXX';
     const config = makeConfig({
       cloudflare: { apiToken: 'super-secret-token', zoneId: 'zone' },
+      notifySlackUrl: slackUrl,
+      notifyWebhookUrl: 'https://example.com/hooks/secret-path',
     });
     const updater = createUpdater({
       config,
@@ -126,9 +129,18 @@ describe('MCP tool handlers', () => {
       },
     );
 
-    const redacted = handlers.getConfig() as { cloudflare: { apiToken: unknown } };
-    expect(JSON.stringify(redacted)).not.toContain('super-secret-token');
+    const redacted = handlers.getConfig() as {
+      cloudflare: { apiToken: unknown };
+      notifySlackUrl: unknown;
+      notifyWebhookUrl: unknown;
+    };
+    const serialized = JSON.stringify(redacted);
+    expect(serialized).not.toContain('super-secret-token');
+    expect(serialized).not.toContain(slackUrl);
+    expect(serialized).not.toContain('secret-path');
     expect(redacted.cloudflare.apiToken).toBe('[redacted]');
+    expect(redacted.notifySlackUrl).toBe('[redacted]');
+    expect(redacted.notifyWebhookUrl).toBe('[redacted]');
 
     expect(handlers.listProviders().some((provider) => provider.id === 'cloudflare')).toBe(true);
     expect(await handlers.getPublicIp()).toMatchObject({ ip: { v4: '9.9.9.9' } });

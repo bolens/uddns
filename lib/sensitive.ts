@@ -4,9 +4,14 @@
 
 /** Matches one complete sensitive key segment, never an arbitrary substring. */
 export const SENSITIVE_KEY_PATTERN =
-  /^(?:pass(?:word)?|token|secret(?:apikey)?|authorization|api[-_]?key|apikey|credential|private|auth|key)$/i;
+  /^(?:pass(?:word)?|token|secret(?:apikey)?|authorization|api[-_]?key|apikey|credential|private|auth|key|webhook)$/i;
 
 export function isSensitiveKey(key: string): boolean {
+  // Notify destination URLs embed tokens (Slack/Discord/ntfy webhooks).
+  if (/notify.*url/i.test(key)) {
+    return true;
+  }
+
   if (SENSITIVE_KEY_PATTERN.test(key)) {
     return true;
   }
