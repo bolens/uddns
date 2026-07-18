@@ -7,6 +7,7 @@ import { combineRecordResults, requireFields } from './guards.js';
 import { request } from './http.js';
 
 const zoneSchema = z.object({
+  Domain: z.string(),
   Records: z.array(
     z.object({
       Id: z.number(),
@@ -30,8 +31,7 @@ export const bunnyProvider: Provider = {
     ]);
     if (missing) return missing;
     if (!config.hostname) return fail('bunny requires UDDNS_HOST or UDDNS_HOSTS');
-    const host = splitDomainHost(config.hostname, auth.domain);
-    if (!host) return fail(`Host ${config.hostname} is outside BUNNY_DOMAIN`);
+    if (!ip.v4 && !ip.v6) return fail('No public IP available');
     const headers = { AccessKey: auth.apiKey!, 'Content-Type': 'application/json' };
     const zone = await request(`https://api.bunny.net/dnszone/${auth.zoneId}`, { headers });
     if (!zone.response.ok) {
@@ -46,6 +46,21 @@ export const bunnyProvider: Provider = {
     if (!parsed.success) {
       return fail('Bunny DNS zone lookup failed', { http: zone.meta });
     }
+    const zoneDomain = normalizeDnsName(parsed.data.Domain);
+    const configuredDomain = normalizeDnsName(auth.domain!);
+    // Zone ID is authoritative for writes; refuse when BUNNY_DOMAIN points elsewhere.
+    if (zoneDomain !== configuredDomain) {
+      return fail(
+        `Bunny zone ${auth.zoneId} is "${zoneDomain}", not BUNNY_DOMAIN "${configuredDomain}"`,
+        {
+          zoneId: auth.zoneId,
+          domain: configuredDomain,
+          zoneDomain,
+        },
+      );
+    }
+    const host = splitDomainHost(config.hostname, zoneDomain);
+    if (!host) return fail(`Host ${config.hostname} is outside BUNNY_DOMAIN`);
     const results: UpdateResult[] = [];
     if (ip.v4)
       results.push(

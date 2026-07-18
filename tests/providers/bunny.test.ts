@@ -15,8 +15,8 @@ type BunnyRecord = {
   Ttl: number;
 };
 
-function zoneWith(records: BunnyRecord[]): Response {
-  return jsonResponse({ Records: records });
+function zoneWith(records: BunnyRecord[], domain = 'example.com'): Response {
+  return jsonResponse({ Domain: domain, Records: records });
 }
 
 function bunnyConfig(overrides: Parameters<typeof makeConfig>[0] = {}) {
@@ -136,6 +136,22 @@ describe('bunny provider', () => {
     ).resolves.toMatchObject({
       ok: true,
       skipped: true,
+    });
+  });
+
+  it('fails when BUNNY_DOMAIN does not match the zone Domain', async () => {
+    stubRoutedFetch([
+      {
+        match: (url, method) => method === 'GET' && url.endsWith('/dnszone/7'),
+        response: zoneWith([], 'other.com'),
+      },
+    ]);
+
+    await expect(
+      bunnyProvider.update(bunnyConfig(), { v4: '9.9.9.9', v6: null }),
+    ).resolves.toMatchObject({
+      ok: false,
+      message: expect.stringContaining('not BUNNY_DOMAIN'),
     });
   });
 
