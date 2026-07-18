@@ -160,18 +160,22 @@ async function lookupViaHttps(
         continue;
       }
       const finalUrl = response.url?.trim();
-      if (finalUrl) {
-        let protocol: string;
-        try {
-          protocol = new URL(finalUrl).protocol;
-        } catch {
-          errors.push(`${endpointLabel} redirected to invalid URL`);
-          continue;
-        }
-        if (protocol !== 'https:') {
-          errors.push(`${endpointLabel} redirected off HTTPS (${sanitizeUrl(finalUrl)})`);
-          continue;
-        }
+      if (!finalUrl) {
+        // Undici always sets response.url; treat a missing final URL as unsafe when
+        // redirects were followed so we cannot confirm the answer stayed on HTTPS.
+        errors.push(`${endpointLabel} missing final URL after redirect follow`);
+        continue;
+      }
+      let protocol: string;
+      try {
+        protocol = new URL(finalUrl).protocol;
+      } catch {
+        errors.push(`${endpointLabel} redirected to invalid URL`);
+        continue;
+      }
+      if (protocol !== 'https:') {
+        errors.push(`${endpointLabel} redirected off HTTPS (${sanitizeUrl(finalUrl)})`);
+        continue;
       }
       const text = await response.text();
       const candidate = parseCandidate(text, family);

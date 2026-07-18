@@ -69,7 +69,7 @@ Set `UDDNS_LOG_FORMAT` to `text` (default) or `json`.
 
 ### Public IP discovery
 
-Public addresses are discovered without a third-party IP package: HTTPS echo services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer), with DNS fallbacks (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) for networks where the HTTPS services are unreachable. The plain-DNS fallback can be spoofed by an on-path attacker; restrict outbound DNS or disable it (`UDDNS_IP_DNS_FALLBACK=false`) in a hardened deployment. Override endpoints with `UDDNS_IP_HTTPS_V4` / `UDDNS_IP_HTTPS_V6`.
+Public addresses are discovered without a third-party IP package: HTTPS echo services first (icanhazip, ipify, ifconfig.co — TLS authenticates the answer). Optional DNS fallbacks (OpenDNS `myip.opendns.com`, then Google `o-o.myaddr.l.google.com` TXT) are **off by default** because plain DNS can be spoofed on-path; enable with `UDDNS_IP_DNS_FALLBACK=true` only on networks where HTTPS echo is unreachable and you trust the DNS path. Override endpoints with `UDDNS_IP_HTTPS_V4` / `UDDNS_IP_HTTPS_V6`.
 
 ## Configuration
 

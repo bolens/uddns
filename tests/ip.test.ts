@@ -37,6 +37,13 @@ function createStubResolver(handlers: {
     }) satisfies DnsResolver;
 }
 
+/** Undici always sets Response.url; tests must too when redirect:'follow' is used. */
+function httpsResponse(body: string, requestUrl: string): Response {
+  const response = new Response(body);
+  Object.defineProperty(response, 'url', { value: requestUrl });
+  return response;
+}
+
 describe('discoverPublicIP', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -47,9 +54,9 @@ describe('discoverPublicIP', () => {
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = fetchInputUrl(input);
       if (url.includes('ipv6') || url.includes('api64')) {
-        return new Response('2001:db8::10\n');
+        return httpsResponse('2001:db8::10\n', url);
       }
-      return new Response('203.0.113.10\n');
+      return httpsResponse('203.0.113.10\n', url);
     });
 
     const deps: DiscoverDeps = {
@@ -74,13 +81,9 @@ describe('discoverPublicIP', () => {
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = fetchInputUrl(input);
       if (url.includes('ipv6') || url.includes('api64')) {
-        const response = new Response('2001:db8::10\n');
-        Object.defineProperty(response, 'url', { value: 'https://ipv6.icanhazip.com/' });
-        return response;
+        return httpsResponse('2001:db8::10\n', 'https://ipv6.icanhazip.com/');
       }
-      const response = new Response('203.0.113.66\n');
-      Object.defineProperty(response, 'url', { value: 'http://attacker.example/echo' });
-      return response;
+      return httpsResponse('203.0.113.66\n', 'http://attacker.example/echo');
     });
 
     const deps: DiscoverDeps = {
@@ -97,6 +100,24 @@ describe('discoverPublicIP', () => {
     // v4 must not accept the cleartext redirect body; DNS fallback supplies it.
     expect(discovered.ip.v4).toBe('203.0.113.20');
     expect(discovered.ip.v6).toBe('2001:db8::10');
+  });
+
+  it('rejects HTTPS echo responses that omit Response.url after redirect follow', async () => {
+    const fetchMock = vi.fn(async () => new Response('203.0.113.66\n'));
+
+    const deps: DiscoverDeps = {
+      httpsV4: ['https://ipv4.icanhazip.com'],
+      httpsV6: ['https://ipv6.icanhazip.com'],
+      fetch: fetchMock,
+      dnsFallback: false,
+      createResolver: () => {
+        throw new Error('dns should not run');
+      },
+    };
+
+    const discovered = await discoverPublicIP(deps);
+    expect(discovered.ip.v4).toBeNull();
+    expect(discovered.errors.v4?.message).toMatch(/DNS fallback is disabled|missing final URL/);
   });
 
   it('falls back to OpenDNS when the HTTPS endpoints fail', async () => {
@@ -205,7 +226,7 @@ describe('discoverPublicIP', () => {
       if (url.includes('icanhazip')) {
         return new Response('rate limited', { status: 429 });
       }
-      return new Response('198.51.100.9');
+      return httpsResponse('198.51.100.9', url);
     });
 
     const deps: DiscoverDeps = {
@@ -248,9 +269,9 @@ describe('discoverPublicIP', () => {
       }
       v4Calls.push(url);
       if (v4Calls.length === 1) {
-        return new Response('not-an-ip');
+        return httpsResponse('not-an-ip', url);
       }
-      return new Response('198.51.100.7');
+      return httpsResponse('198.51.100.7', url);
     });
 
     const deps: DiscoverDeps = {
