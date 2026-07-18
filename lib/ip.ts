@@ -66,9 +66,9 @@ const defaultCreateResolver = (): DnsResolver => {
 
 /** Resolve optional deps against library defaults (DNS resolver). Fetch stays
  * unset in production so discovery uses pin-on-connect HTTPS. */
-export type ResolvedDiscoverDeps = Required<Pick<DiscoverDeps, 'createResolver'>> & DiscoverDeps;
+type ResolvedDiscoverDeps = Required<Pick<DiscoverDeps, 'createResolver'>> & DiscoverDeps;
 
-export function resolveDiscoverDeps(deps: DiscoverDeps = {}): ResolvedDiscoverDeps {
+function resolveDiscoverDeps(deps: DiscoverDeps = {}): ResolvedDiscoverDeps {
   return {
     ...deps,
     createResolver: deps.createResolver ?? defaultCreateResolver,

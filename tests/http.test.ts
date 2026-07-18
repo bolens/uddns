@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vite-plus/test';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { afterEachResetFetch } from './helpers/cleanup.js';
 
 import {
@@ -196,6 +196,19 @@ describe('request', () => {
     });
   });
 
+  it('scrubs URLs embedded in bodyPreview metadata', async () => {
+    stubFetch(
+      async () =>
+        new Response('see https://user:pass@provider.example/path?token=sekrit for details', {
+          status: 200,
+        }),
+    );
+    const result = await request('https://example.com/x');
+    expect(result.meta.bodyPreview).toContain('https://***:***@provider.example/path');
+    expect(result.meta.bodyPreview).not.toContain('sekrit');
+    expect(result.meta.bodyPreview).not.toContain('pass@');
+  });
+
   it('pins by default and refuses DNS that resolves to blocked addresses', async () => {
     await expect(
       request('https://api.example/v1', {
@@ -207,5 +220,28 @@ describe('request', () => {
       name: 'HttpError',
       message: expect.stringMatching(/blocked address 169\.254\.169\.254/),
     });
+  });
+
+  it('uses global fetch when pin is explicitly disabled', async () => {
+    const fetchMock = vi.fn(async () => new Response('plain', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await request('https://example.com/x', {
+      pin: false,
+      headers: { 'User-Agent': 'custom-agent/1.0' },
+      body: new Uint8Array([1, 2, 3]),
+      method: 'POST',
+    });
+    expect(result.body).toBe('plain');
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const call = getCall(fetchMock);
+    expect(call.headers.get('User-Agent')).toBe('custom-agent/1.0');
+    expect(call.init.body).toBeInstanceOf(Buffer);
+  });
+
+  it('follows redirects when explicitly requested', async () => {
+    const fetchMock = stubFetch(async () => new Response('ok', { status: 200 }));
+    await request('https://example.com/x', { pin: false, redirect: 'manual' });
+    expect(getCall(fetchMock).init.redirect).toBe('manual');
   });
 });

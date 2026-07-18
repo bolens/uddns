@@ -7,7 +7,7 @@ export function normalizeDnsName(value: string): string {
  * Common multi-part public suffixes where the last two labels are NOT the
  * registrable domain (e.g. example.co.uk → not "co.uk").
  */
-export const MULTI_PART_PUBLIC_SUFFIXES = new Set([
+const MULTI_PART_PUBLIC_SUFFIXES = new Set([
   'co.uk',
   'org.uk',
   'me.uk',

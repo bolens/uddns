@@ -253,7 +253,7 @@ export function truncateBody(body: string, max = 800): string {
 }
 
 /** Truncate response bodies and scrub common auth tokens before they hit logs/meta. */
-export function scrubBodyPreview(body: string, max = 800): string {
+function scrubBodyPreview(body: string, max = 800): string {
   return truncateBody(body, max)
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+/gi, '$1 [redacted]')
     .replace(/"([A-Za-z0-9_-]+)"\s*:\s*"((?:\\.|[^"\\])*)"/g, (match, key: string) =>

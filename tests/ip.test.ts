@@ -402,6 +402,33 @@ describe('discoverPublicIP', () => {
       message: 'Public IP discovery timed out',
     });
   });
+  it('uses the built-in DNS resolver when createResolver is omitted', async () => {
+    const setServers = vi.fn();
+    const resolve4 = vi.fn(async () => ['198.51.100.20']);
+    const resolve6 = vi.fn(async () => ['2001:db8::20']);
+    const resolveTxt = vi.fn(async () => [['unused']]);
+    vi.spyOn(dns, 'Resolver').mockImplementation(function MockResolver(this: DnsResolver) {
+      this.setServers = setServers;
+      this.resolve4 = resolve4;
+      this.resolve6 = resolve6;
+      this.resolveTxt = resolveTxt;
+      return this;
+    } as unknown as typeof dns.Resolver);
+
+    const discovered = await discoverPublicIP({
+      fetch: async () => {
+        throw new Error('https down');
+      },
+      httpsV4: ['https://echo.example/v4'],
+      httpsV6: ['https://echo.example/v6'],
+      lookupHost: async () => [{ address: '203.0.113.10', family: 4 }],
+    });
+
+    expect(discovered.ip).toEqual({ v4: '198.51.100.20', v6: '2001:db8::20' });
+    expect(setServers).toHaveBeenCalled();
+    expect(resolve4).toHaveBeenCalledWith('myip.opendns.com');
+    expect(resolve6).toHaveBeenCalledWith('myip.opendns.com');
+  });
 });
 
 describe('ipChanged', () => {

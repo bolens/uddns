@@ -44,9 +44,11 @@ export async function pinnedHttpsFetch(
     const addresses = preferConnectAddresses(
       await resolveSafeAddresses(current, label, init.policy ?? {}, init.lookupHost),
     );
+    const family = addresses[0]!.family === 6 ? 6 : 4;
     const result = await httpsRequestPinned(current, addresses, {
       method,
       body,
+      family,
       ...(init.headers ? { headers: init.headers } : {}),
       ...(init.signal ? { signal: init.signal } : {}),
     });
@@ -96,6 +98,7 @@ function httpsRequestPinned(
   addresses: LookupAddress[],
   init: {
     method: string;
+    family: 4 | 6;
     headers?: Headers | Record<string, string>;
     body?: string | Buffer | null;
     signal?: AbortSignal;
@@ -139,13 +142,7 @@ function httpsRequestPinned(
         headers: requestHeaders,
         agent,
         servername: url.hostname.replace(/^\[|\]$/g, ''),
-        // Prefer a single address family when the pin set is homogeneous so
-        // dual-stack Happy Eyeballs cannot dial an address we did not verify.
-        ...(addresses.every((entry) => entry.family === 4)
-          ? { family: 4 as const }
-          : addresses.every((entry) => entry.family === 6)
-            ? { family: 6 as const }
-            : {}),
+        family: init.family,
         signal: init.signal,
       },
       (res) => {
@@ -156,7 +153,7 @@ function httpsRequestPinned(
         res.on('end', () => {
           agent.destroy();
           resolve({
-            statusCode: res.statusCode ?? 0,
+            statusCode: res.statusCode ?? 200,
             headers: res.headers,
             body: Buffer.concat(chunks),
           });
