@@ -4,6 +4,7 @@
 
 import { errorMessage, getErrorProp } from './errors.js';
 import { MAX_INTERVAL_MS, MIN_INTERVAL_MS } from './defaults.js';
+import type { FailoverTarget } from './config-file.js';
 import { configForHost } from './hosts.js';
 import {
   discoverPublicIP,
@@ -57,6 +58,8 @@ export type UpdaterOptions = {
   retryMaxDelayMs?: number;
   onCycleComplete?: (event: CycleEvent) => void | Promise<void>;
   accountId?: string;
+  /** Ordered secondary providers tried after the primary exhausts retries. */
+  failoverTargets?: FailoverTarget[];
   /** Apply IP family / missing-family policy after discovery. */
   applyIpPolicy?: (discovered: PublicIP, previous: PublicIP) => PublicIP;
   now?: () => number;
@@ -72,11 +75,12 @@ export function createUpdater(options: UpdaterOptions) {
     clearIntervalFn = clearInterval,
     sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     random = Math.random,
-    retryAttempts = 3,
-    retryBaseDelayMs = 1_000,
-    retryMaxDelayMs = 30_000,
+    retryAttempts = config.retryAttempts,
+    retryBaseDelayMs = config.retryBaseDelayMs,
+    retryMaxDelayMs = config.retryMaxDelayMs,
     onCycleComplete,
     accountId,
+    failoverTargets = [],
     applyIpPolicy,
     now = Date.now,
     telemetry,
@@ -344,51 +348,37 @@ export function createUpdater(options: UpdaterOptions) {
 
     for (const host of pendingHosts) {
       const hostStarted = now();
-      const hostConfig = configForHost(config, host);
+      const hostResult = await updateHostWithFailover(host, ip);
+      hostResult.durationMs = now() - hostStarted;
+      hostResults.push(hostResult);
+      if (hostResult.result.ok) {
+        hostState[host] = mergePresentFamilies(hostState[host] ?? { v4: null, v6: null }, ip);
+        stateChanged = true;
+      }
 
-      try {
-        log.debug(`Updating host ${host}`, {
-          hostname: hostConfig.hostname,
-          cloudflareRecord: hostConfig.cloudflare.recordName,
-          duckdnsDomain: hostConfig.duckdns.domains,
-          namecheap: {
-            host: hostConfig.namecheap.host,
-            domain: hostConfig.namecheap.domain,
-          },
-          dyndnsHostname: hostConfig.dyndns.hostname,
-        });
-
-        const result = await updateWithRetry(hostConfig, ip, host);
-        const durationMs = now() - hostStarted;
-        hostResults.push({ host, result, durationMs });
-        if (result.ok) {
-          hostState[host] = mergePresentFamilies(hostState[host] ?? { v4: null, v6: null }, ip);
-          stateChanged = true;
-        }
-
-        const summary = `${formatResultSummary(result)} (${durationMs}ms)`;
-        if (result.ok) {
-          if (result.skipped) {
-            log.info(`[${host}] ${summary}`, result.details);
-          } else {
-            log.success(`[${host}] ${summary}`, result.details);
-          }
+      const summary = `${formatResultSummary(hostResult.result)} (${hostResult.durationMs}ms)`;
+      if (hostResult.result.ok) {
+        if (hostResult.result.skipped) {
+          log.info(`[${host}] ${summary}`, hostResult.result.details);
         } else {
-          log.error(`[${host}] ${summary}`, result.details);
+          log.success(`[${host}] ${summary}`, {
+            ...hostResult.result.details,
+            providerId: hostResult.providerId,
+            failoverUsed: hostResult.failoverUsed,
+            failoverAccountId: hostResult.failoverAccountId,
+          });
         }
-      } catch (error) {
-        const durationMs = now() - hostStarted;
-        const message = errorMessage(error);
-        const result: UpdateResult = {
-          ok: false,
-          message,
-          details: {
-            durationMs,
-            error: formatError(error),
-          },
-        };
-        hostResults.push({ host, result, durationMs });
-        log.error(`[${host}] [error] ${message} (${durationMs}ms)`, formatError(error));
+      } else {
+        const details = hostResult.result.details;
+        const nestedError =
+          details &&
+          typeof details === 'object' &&
+          'error' in details &&
+          details['error'] &&
+          typeof details['error'] === 'object'
+            ? details['error']
+            : details;
+        log.error(`[${host}] ${summary}`, nestedError);
       }
     }
 
@@ -531,20 +521,107 @@ export function createUpdater(options: UpdaterOptions) {
     }
   }
 
+  async function updateHostWithFailover(host: string, ip: PublicIP): Promise<HostUpdateResult> {
+    const chain: Array<{
+      accountId: string | undefined;
+      provider: Provider;
+      config: AppConfig;
+      failover: boolean;
+    }> = [
+      {
+        accountId,
+        provider,
+        config,
+        failover: false,
+      },
+      ...failoverTargets
+        .filter((target) =>
+          target.config.hosts.some((entry) => normalizeDnsName(entry) === normalizeDnsName(host)),
+        )
+        .map((target) => ({
+          accountId: target.accountId,
+          provider: target.provider,
+          config: target.config,
+          failover: true,
+        })),
+    ];
+
+    let lastResult: UpdateResult = {
+      ok: false,
+      message: 'No provider attempted',
+    };
+    let lastProviderId = provider.id;
+
+    for (const target of chain) {
+      const hostConfig = configForHost(target.config, host);
+      if (!target.failover) {
+        log.debug(`Updating host ${host}`, {
+          hostname: hostConfig.hostname,
+          provider: target.provider.id,
+          cloudflareRecord: hostConfig.cloudflare.recordName,
+          duckdnsDomain: hostConfig.duckdns.domains,
+          namecheap: {
+            host: hostConfig.namecheap.host,
+            domain: hostConfig.namecheap.domain,
+          },
+          dyndnsHostname: hostConfig.dyndns.hostname,
+        });
+      } else {
+        log.warn(`Primary update failed for ${host}; trying failover ${target.accountId}`, {
+          provider: target.provider.id,
+          previousMessage: lastResult.message,
+        });
+      }
+
+      try {
+        const result = await updateWithRetry(hostConfig, ip, host, target.provider);
+        lastResult = result;
+        lastProviderId = target.provider.id;
+        if (result.ok) {
+          return {
+            host,
+            result,
+            providerId: target.provider.id,
+            ...(target.failover && target.accountId
+              ? { failoverUsed: true as const, failoverAccountId: target.accountId }
+              : { failoverUsed: false as const }),
+          };
+        }
+      } catch (error) {
+        lastResult = {
+          ok: false,
+          message: errorMessage(error),
+          details: {
+            error: formatError(error),
+          },
+        };
+        lastProviderId = target.provider.id;
+      }
+    }
+
+    return {
+      host,
+      result: lastResult,
+      providerId: lastProviderId,
+      ...(chain.length > 1 ? { failoverUsed: false } : {}),
+    };
+  }
+
   async function updateWithRetry(
     hostConfig: AppConfig,
     ip: PublicIP,
     host: string,
+    updateProvider: Provider = provider,
   ): Promise<UpdateResult> {
     const attempts = Math.max(1, Math.floor(retryAttempts));
     for (let attempt = 1; ; attempt += 1) {
       try {
-        const update = () => provider.update(hostConfig, ip);
+        const update = () => updateProvider.update(hostConfig, ip);
         const result = telemetry
           ? await telemetry.trace(
               'uddns.provider.update',
               {
-                'uddns.provider': provider.id,
+                'uddns.provider': updateProvider.id,
                 'uddns.host': host,
                 'uddns.attempt': attempt,
               },
@@ -696,7 +773,10 @@ export function summarizeHostResults(
   hostResults: HostUpdateResult[],
   commitIP: (ip: PublicIP) => void,
 ): CheckResult {
-  const messages = hostResults.map(({ host, result }) => `${host}: ${result.message}`);
+  const messages = hostResults.map(({ host, result, failoverUsed, failoverAccountId }) => {
+    const via = failoverUsed && failoverAccountId ? ` (via failover ${failoverAccountId})` : '';
+    return `${host}: ${result.message}${via}`;
+  });
   const message = messages.join('; ');
   const allOk = hostResults.length > 0 && hostResults.every(({ result }) => result.ok);
   const anyOk = hostResults.some(({ result }) => result.ok);

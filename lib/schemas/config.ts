@@ -16,9 +16,17 @@ import {
   DEFAULT_PROVIDER,
   DEFAULT_ROUTE53_REGION,
   DEFAULT_ROUTE53_TTL,
+  DEFAULT_RETRY_ATTEMPTS,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  DEFAULT_RETRY_MAX_DELAY_MS,
   DEFAULT_STATE_FILE,
   MAX_INTERVAL_MS,
+  MAX_RETRY_ATTEMPTS,
+  MAX_RETRY_BASE_DELAY_MS,
+  MAX_RETRY_MAX_DELAY_MS,
   MIN_INTERVAL_MS,
+  MIN_RETRY_ATTEMPTS,
+  MIN_RETRY_BASE_DELAY_MS,
 } from '../defaults.js';
 import { resolveDataFilePath } from '../data-path.js';
 import { parseHostList, resolveHosts } from '../hosts.js';
@@ -50,6 +58,9 @@ const envSchema = z
     UDDNS_IP_HTTPS_V6: optionalEnv,
     UDDNS_IP_DNS_FALLBACK: optionalEnv,
     UDDNS_IP_TIMEOUT_MS: optionalEnv,
+    UDDNS_RETRY_ATTEMPTS: optionalEnv,
+    UDDNS_RETRY_BASE_DELAY_MS: optionalEnv,
+    UDDNS_RETRY_MAX_DELAY_MS: optionalEnv,
     UDDNS_OTEL: optionalEnv,
     UDDNS_NOTIFY_WEBHOOK_URL: optionalEnv,
     UDDNS_NOTIFY_NTFY_URL: optionalEnv,
@@ -254,6 +265,49 @@ export function loadConfig(
     throw new Error('UDDNS_IP_TIMEOUT_MS must be an integer from 100 to 120000');
   }
 
+  const retryAttempts = Number(parsedEnv['UDDNS_RETRY_ATTEMPTS'] ?? DEFAULT_RETRY_ATTEMPTS);
+  if (
+    !Number.isFinite(retryAttempts) ||
+    !Number.isInteger(retryAttempts) ||
+    retryAttempts < MIN_RETRY_ATTEMPTS ||
+    retryAttempts > MAX_RETRY_ATTEMPTS
+  ) {
+    throw new Error(
+      `UDDNS_RETRY_ATTEMPTS must be an integer from ${MIN_RETRY_ATTEMPTS} to ${MAX_RETRY_ATTEMPTS}`,
+    );
+  }
+  const retryBaseDelayMs = Number(
+    parsedEnv['UDDNS_RETRY_BASE_DELAY_MS'] ?? DEFAULT_RETRY_BASE_DELAY_MS,
+  );
+  if (
+    !Number.isFinite(retryBaseDelayMs) ||
+    !Number.isInteger(retryBaseDelayMs) ||
+    retryBaseDelayMs < MIN_RETRY_BASE_DELAY_MS ||
+    retryBaseDelayMs > MAX_RETRY_BASE_DELAY_MS
+  ) {
+    throw new Error(
+      `UDDNS_RETRY_BASE_DELAY_MS must be an integer from ${MIN_RETRY_BASE_DELAY_MS} to ${MAX_RETRY_BASE_DELAY_MS}`,
+    );
+  }
+  const retryMaxDelayMs = Number(
+    parsedEnv['UDDNS_RETRY_MAX_DELAY_MS'] ?? DEFAULT_RETRY_MAX_DELAY_MS,
+  );
+  if (
+    !Number.isFinite(retryMaxDelayMs) ||
+    !Number.isInteger(retryMaxDelayMs) ||
+    retryMaxDelayMs < 0 ||
+    retryMaxDelayMs > MAX_RETRY_MAX_DELAY_MS
+  ) {
+    throw new Error(
+      `UDDNS_RETRY_MAX_DELAY_MS must be an integer from 0 to ${MAX_RETRY_MAX_DELAY_MS}`,
+    );
+  }
+  if (retryMaxDelayMs < retryBaseDelayMs) {
+    throw new Error(
+      'UDDNS_RETRY_MAX_DELAY_MS must be greater than or equal to UDDNS_RETRY_BASE_DELAY_MS',
+    );
+  }
+
   const notifyOnRaw = (parsedEnv['UDDNS_NOTIFY_ON'] ?? DEFAULT_NOTIFY_ON.join(',')).trim();
   const notifyOn = notifyOnRaw
     .split(/[,\s]+/)
@@ -302,6 +356,9 @@ export function loadConfig(
       DEFAULT_IP_DNS_FALLBACK,
     ),
     ipTimeoutMs,
+    retryAttempts,
+    retryBaseDelayMs,
+    retryMaxDelayMs,
     telemetryEnabled: parseBoolean('UDDNS_OTEL', parsedEnv['UDDNS_OTEL'], false),
     notifyWebhookUrl: webhookUrl,
     notifyNtfyUrl: ntfyUrl,

@@ -9,7 +9,8 @@ import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
 import { loadConfig, MANAGED_ENV_PREFIXES } from './config.js';
-import type { AppConfig } from './schemas/provider.js';
+import { normalizeDnsName } from './providers/domain-host.js';
+import type { AppConfig, Provider } from './schemas/provider.js';
 
 const accountYamlSchema = z
   .object({
@@ -23,8 +24,18 @@ const configFileSchema = z.object({
   accounts: z.array(accountYamlSchema).min(1),
 });
 
+export type AccountRole = 'primary' | 'failover';
+
 export type LoadedAccount = {
   id: string;
+  config: AppConfig;
+  role: AccountRole;
+  failoverAccountIds: string[];
+};
+
+export type FailoverTarget = {
+  accountId: string;
+  provider: Provider;
   config: AppConfig;
 };
 
@@ -45,6 +56,39 @@ function scrubManagedEnv(
     }
   }
   return env;
+}
+
+function parseAccountRole(value: unknown): AccountRole {
+  if (value == null || value === '') {
+    return 'primary';
+  }
+  if (value === 'primary' || value === 'failover') {
+    return value;
+  }
+  throw new Error(
+    `Account role must be "primary" or "failover" (got ${typeof value === 'string' ? value : JSON.stringify(value)})`,
+  );
+}
+
+function parseFailoverIds(value: unknown): string[] {
+  if (value == null) {
+    return [];
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[,\s]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => {
+      if (typeof entry !== 'string' || entry.trim() === '') {
+        throw new Error('failover entries must be non-empty account id strings');
+      }
+      return entry.trim();
+    });
+  }
+  throw new Error('failover must be a list of account ids or a comma-separated string');
 }
 
 function accountToEnv(
@@ -91,6 +135,14 @@ function accountToEnv(
   set('UDDNS_IP_TIMEOUT_MS', account['ipTimeoutMs'] ?? account['ip_timeout_ms']);
   set('UDDNS_IP_DNS_FALLBACK', account['ipDnsFallback'] ?? account['ip_dns_fallback']);
   set('UDDNS_OTEL', account['telemetryEnabled'] ?? account['telemetry_enabled']);
+
+  const retry = account['retry'];
+  if (retry && typeof retry === 'object') {
+    const value = retry as Record<string, unknown>;
+    set('UDDNS_RETRY_ATTEMPTS', value['attempts']);
+    set('UDDNS_RETRY_BASE_DELAY_MS', value['baseDelayMs'] ?? value['base_delay_ms']);
+    set('UDDNS_RETRY_MAX_DELAY_MS', value['maxDelayMs'] ?? value['max_delay_ms']);
+  }
 
   const notify = account['notify'];
   if (notify && typeof notify === 'object') {
@@ -271,6 +323,64 @@ function assertUniqueAccountPaths(accounts: LoadedAccount[]): void {
   }
 }
 
+function assertFailoverGraph(accounts: LoadedAccount[]): void {
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  for (const account of accounts) {
+    if (account.role === 'failover') {
+      if (account.failoverAccountIds.length > 0) {
+        throw new Error(
+          `Failover account "${account.id}" cannot declare failover targets (flat chains only)`,
+        );
+      }
+      continue;
+    }
+    const primaryHosts = new Set(account.config.hosts.map(normalizeDnsName));
+    for (const targetId of account.failoverAccountIds) {
+      const target = byId.get(targetId);
+      if (!target) {
+        throw new Error(
+          `Account "${account.id}" references unknown failover account "${targetId}"`,
+        );
+      }
+      if (target.role !== 'failover') {
+        throw new Error(
+          `Account "${account.id}" failover target "${targetId}" must have role: failover`,
+        );
+      }
+      const shared = target.config.hosts.some((host) => primaryHosts.has(normalizeDnsName(host)));
+      if (!shared) {
+        throw new Error(
+          `Account "${account.id}" and failover "${targetId}" must share at least one host`,
+        );
+      }
+    }
+  }
+}
+
+/** Accounts that run their own updater loop (excludes standby failover targets). */
+export function runnableAccounts(accounts: LoadedAccount[]): LoadedAccount[] {
+  return accounts.filter((account) => account.role !== 'failover');
+}
+
+export function resolveFailoverTargets(
+  account: LoadedAccount,
+  allAccounts: LoadedAccount[],
+  getProviderFn: (id: string) => Provider,
+): FailoverTarget[] {
+  const byId = new Map(allAccounts.map((entry) => [entry.id, entry]));
+  return account.failoverAccountIds.map((targetId) => {
+    const target = byId.get(targetId);
+    if (!target) {
+      throw new Error(`Unknown failover account "${targetId}" for "${account.id}"`);
+    }
+    return {
+      accountId: target.id,
+      provider: getProviderFn(target.config.provider),
+      config: target.config,
+    };
+  });
+}
+
 export async function loadAccountsFromFile(
   filePath: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
@@ -281,6 +391,8 @@ export async function loadAccountsFromFile(
   const configDir = path.dirname(path.resolve(filePath));
   const accounts = parsed.accounts.map((account) => {
     const { id, ...rest } = account;
+    const role = parseAccountRole(rest['role']);
+    const failoverAccountIds = parseFailoverIds(rest['failover']);
     const env = accountToEnv(
       id,
       rest as Record<string, unknown>,
@@ -292,9 +404,10 @@ export async function loadAccountsFromFile(
     if (env['UDDNS_DATA_DIR'] == null || env['UDDNS_DATA_DIR'] === '') {
       env['UDDNS_DATA_DIR'] = configDir;
     }
-    return { id, config: loadConfig(env) };
+    return { id, config: loadConfig(env), role, failoverAccountIds };
   });
   assertUniqueAccountPaths(accounts);
+  assertFailoverGraph(accounts);
   return accounts;
 }
 
@@ -305,5 +418,5 @@ export function resolveAccounts(
   if (file) {
     return loadAccountsFromFile(file, env);
   }
-  return [{ id: 'default', config: loadConfig(env) }];
+  return [{ id: 'default', config: loadConfig(env), role: 'primary', failoverAccountIds: [] }];
 }

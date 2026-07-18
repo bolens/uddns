@@ -6,6 +6,7 @@ import dns from 'node:dns/promises';
 
 import { applyIpPolicy } from './ip-policy.js';
 import { discoverPublicIP } from './ip.js';
+import type { FailoverTarget } from './config-file.js';
 import { createFileHistoryStore, type HistoryStore } from './history.js';
 import { createLogger, formatError, type Logger } from './log.js';
 import { dispatchNotifications } from './notify.js';
@@ -44,6 +45,7 @@ export function createRuntimeBundle(options: {
   config: AppConfig;
   log?: Logger;
   accountId?: string;
+  failoverTargets?: FailoverTarget[];
   createUpdaterFn?: (options: UpdaterOptions) => Updater;
   getProviderFn?: (id: string) => Provider;
   /** Test override for IP discovery HTTP (skips pin dial). */
@@ -124,6 +126,9 @@ export function createRuntimeBundle(options: {
   };
   if (options.accountId !== undefined) {
     updaterOptions.accountId = options.accountId;
+  }
+  if (options.failoverTargets !== undefined) {
+    updaterOptions.failoverTargets = options.failoverTargets;
   }
   const updater = createUpdaterFn(updaterOptions);
 

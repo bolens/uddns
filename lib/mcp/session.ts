@@ -2,7 +2,12 @@
  * Shared updater session(s) for MCP tools / resources / HTTP and stdio servers.
  */
 
-import { resolveAccounts } from '../config-file.js';
+import {
+  resolveAccounts,
+  runnableAccounts,
+  resolveFailoverTargets,
+  type LoadedAccount,
+} from '../config-file.js';
 import type { HistoryStore } from '../history.js';
 import type { Logger } from '../log.js';
 import { getProvider } from '../providers/index.js';
@@ -11,6 +16,13 @@ import type { CycleEvent } from '../schemas/cycle.js';
 import type { AppConfig, Provider } from '../schemas/provider.js';
 import type { createMetricsTracker } from '../side-server.js';
 import type { Updater, UpdaterOptions } from '../updater.js';
+
+export type McpStandbyAccount = {
+  id: string;
+  config: AppConfig;
+  provider: Provider;
+  role: 'failover';
+};
 
 export type McpAccount = {
   id: string;
@@ -21,10 +33,11 @@ export type McpAccount = {
   metrics?: ReturnType<typeof createMetricsTracker> | undefined;
   eventListeners?: Set<(event: CycleEvent) => void> | undefined;
   flushNotifications?: (() => Promise<void>) | undefined;
+  role?: 'primary';
 };
 
 export type McpSession = {
-  /** Default/active account (first loaded account). */
+  /** Default/active account (first loaded primary account). */
   accountId?: string | undefined;
   config: AppConfig;
   provider: Provider;
@@ -34,6 +47,8 @@ export type McpSession = {
   metrics?: ReturnType<typeof createMetricsTracker> | undefined;
   eventListeners?: Set<(event: CycleEvent) => void> | undefined;
   accounts?: McpAccount[] | undefined;
+  /** Failover standby accounts (validated, not started as updater loops). */
+  standbyAccounts?: McpStandbyAccount[] | undefined;
 };
 
 export type CreateMcpSessionOptions = {
@@ -42,13 +57,17 @@ export type CreateMcpSessionOptions = {
   loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
   resolveAccountsFn?: (
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
-  ) => Array<{ id: string; config: AppConfig }> | Promise<Array<{ id: string; config: AppConfig }>>;
+  ) => LoadedAccount[] | Promise<LoadedAccount[]>;
   getProviderFn?: (id: string) => Provider;
   /** When set, replaces the default updater factory inside createRuntimeBundle. */
   createUpdaterFn?: (options: UpdaterOptions) => Updater;
 };
 
-function toSession(log: Logger, accounts: McpAccount[]): McpSession {
+function toSession(
+  log: Logger,
+  accounts: McpAccount[],
+  standbyAccounts: McpStandbyAccount[] = [],
+): McpSession {
   const primary = accounts[0];
   if (!primary) {
     throw new Error('No MCP accounts configured');
@@ -63,10 +82,19 @@ function toSession(log: Logger, accounts: McpAccount[]): McpSession {
     metrics: primary.metrics,
     eventListeners: primary.eventListeners,
     accounts,
+    ...(standbyAccounts.length > 0 ? { standbyAccounts } : {}),
   };
 }
 
 export function getMcpAccount(session: McpSession, accountId?: string | null): McpAccount {
+  if (accountId) {
+    const standby = session.standbyAccounts?.find((entry) => entry.id === accountId);
+    if (standby) {
+      throw new Error(
+        `Account "${accountId}" is a failover standby; use the primary account that references it`,
+      );
+    }
+  }
   const accounts =
     session.accounts ??
     ([
@@ -78,10 +106,10 @@ export function getMcpAccount(session: McpSession, accountId?: string | null): M
         history: session.history,
         metrics: session.metrics,
         eventListeners: session.eventListeners,
+        role: 'primary',
       },
     ] satisfies McpAccount[]);
-  const primaryId = session.accountId ?? accounts[0]?.id ?? 'default';
-  if (!accountId || accountId === primaryId) {
+  if (!accountId || accounts.length <= 1) {
     return accounts[0]!;
   }
   const account = accounts.find((entry) => entry.id === accountId);
@@ -99,17 +127,32 @@ export async function createMcpSession(options: CreateMcpSessionOptions): Promis
   const resolveAccountsFn =
     options.resolveAccountsFn ??
     (options.loadConfigFn
-      ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>) => [
-          { id: 'default', config: options.loadConfigFn!(resolveEnv) },
+      ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>): LoadedAccount[] => [
+          {
+            id: 'default',
+            config: options.loadConfigFn!(resolveEnv),
+            role: 'primary',
+            failoverAccountIds: [],
+          },
         ]
       : resolveAccounts);
 
   const accountsLoaded = await Promise.resolve(resolveAccountsFn(env));
-  const accounts = accountsLoaded.map((account) => {
+  const primaryLoaded = runnableAccounts(accountsLoaded);
+  if (primaryLoaded.length === 0) {
+    throw new Error(
+      accountsLoaded.length === 0
+        ? 'No MCP accounts configured'
+        : 'No primary accounts configured (all accounts are failover standbys)',
+    );
+  }
+
+  const accounts = primaryLoaded.map((account) => {
     const bundle = createRuntimeBundle({
       config: account.config,
       log: options.log,
       accountId: account.id,
+      failoverTargets: resolveFailoverTargets(account, accountsLoaded, getProviderFn),
       getProviderFn,
       ...(options.createUpdaterFn ? { createUpdaterFn: options.createUpdaterFn } : {}),
     });
@@ -122,8 +165,21 @@ export async function createMcpSession(options: CreateMcpSessionOptions): Promis
       metrics: bundle.metrics,
       eventListeners: bundle.eventListeners,
       flushNotifications: () => bundle.flushNotifications(),
+      role: 'primary' as const,
     } satisfies McpAccount;
   });
 
-  return toSession(options.log, accounts);
+  const standbyAccounts = accountsLoaded
+    .filter((account) => account.role === 'failover')
+    .map(
+      (account) =>
+        ({
+          id: account.id,
+          config: account.config,
+          provider: getProviderFn(account.config.provider),
+          role: 'failover' as const,
+        }) satisfies McpStandbyAccount,
+    );
+
+  return toSession(options.log, accounts, standbyAccounts);
 }

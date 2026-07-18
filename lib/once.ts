@@ -2,7 +2,12 @@
  * One-shot update cycle for `uddns once`.
  */
 
-import { resolveAccounts } from './config-file.js';
+import {
+  resolveAccounts,
+  runnableAccounts,
+  resolveFailoverTargets,
+  type LoadedAccount,
+} from './config-file.js';
 import { createLogger, formatError, type Logger } from './log.js';
 import { getProvider } from './providers/index.js';
 import { createRuntimeBundle } from './runtime.js';
@@ -18,7 +23,7 @@ export type OnceOptions = {
   loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
   resolveAccountsFn?: (
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
-  ) => Array<{ id: string; config: AppConfig }> | Promise<Array<{ id: string; config: AppConfig }>>;
+  ) => LoadedAccount[] | Promise<LoadedAccount[]>;
   getProviderFn?: (id: string) => Provider;
   createUpdaterFn?: (options: UpdaterOptions) => Updater;
   exit?: (code: number) => void;
@@ -34,8 +39,13 @@ export async function runOnce(options: OnceOptions = {}): Promise<void> {
     const resolveAccountsFn =
       options.resolveAccountsFn ??
       (options.loadConfigFn
-        ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>) => [
-            { id: 'default', config: options.loadConfigFn!(resolveEnv) },
+        ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>): LoadedAccount[] => [
+            {
+              id: 'default',
+              config: options.loadConfigFn!(resolveEnv),
+              role: 'primary',
+              failoverAccountIds: [],
+            },
           ]
         : resolveAccounts);
     const accounts = await Promise.resolve(resolveAccountsFn(env));
@@ -43,12 +53,18 @@ export async function runOnce(options: OnceOptions = {}): Promise<void> {
       throw new Error('No accounts configured');
     }
 
+    const primaryAccounts = runnableAccounts(accounts);
+    if (primaryAccounts.length === 0) {
+      throw new Error('No primary accounts configured (all accounts are failover standbys)');
+    }
+
     let exitCode = 0;
-    for (const account of accounts) {
+    for (const account of primaryAccounts) {
       const bundle = createRuntimeBundle({
         config: account.config,
         log,
         accountId: account.id,
+        failoverTargets: resolveFailoverTargets(account, accounts, getProviderFn),
         getProviderFn,
         ...(options.createUpdaterFn ? { createUpdaterFn: options.createUpdaterFn } : {}),
       });
@@ -56,7 +72,7 @@ export async function runOnce(options: OnceOptions = {}): Promise<void> {
         ...(options.force ? { force: true } : {}),
         ...(options.dryRun ? { dryRun: true } : {}),
       });
-      const prefix = accounts.length > 1 ? `[${account.id}] ` : '';
+      const prefix = primaryAccounts.length > 1 ? `[${account.id}] ` : '';
       if (result.status === 'error' || result.status === 'skipped_no_ip') {
         log.error(`${prefix}${result.message}`, result);
         exitCode = 1;

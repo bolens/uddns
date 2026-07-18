@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { resolveAccounts } from './lib/config-file.js';
+import { resolveAccounts, type LoadedAccount } from './lib/config-file.js';
 import type { McpConfig, McpTransport } from './lib/mcp/config.js';
 import { loadMcpConfig } from './lib/mcp/config.js';
 import { startMcpHttpServer, type McpHttpServer } from './lib/mcp/http.js';
@@ -25,7 +25,7 @@ export type AppOptions = {
   loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
   resolveAccountsFn?: (
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
-  ) => Array<{ id: string; config: AppConfig }> | Promise<Array<{ id: string; config: AppConfig }>>;
+  ) => LoadedAccount[] | Promise<LoadedAccount[]>;
   loadMcpConfigFn?: (
     env: NodeJS.ProcessEnv | Record<string, string | undefined>,
     options?: { transportOverride?: McpTransport | null },
@@ -38,9 +38,7 @@ export type AppOptions = {
     loadConfigFn?: (env: NodeJS.ProcessEnv | Record<string, string | undefined>) => AppConfig;
     resolveAccountsFn?: (
       env: NodeJS.ProcessEnv | Record<string, string | undefined>,
-    ) =>
-      | Array<{ id: string; config: AppConfig }>
-      | Promise<Array<{ id: string; config: AppConfig }>>;
+    ) => LoadedAccount[] | Promise<LoadedAccount[]>;
     getProviderFn?: (id: string) => Provider;
     createUpdaterFn?: (options: UpdaterOptions) => Updater;
   }) => McpSession | Promise<McpSession>;
@@ -140,8 +138,15 @@ export async function main(options: AppOptions = {}): Promise<void> {
       const resolveAccountsFn =
         options.resolveAccountsFn ??
         (options.loadConfigFn
-          ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>) => [
-              { id: 'default', config: options.loadConfigFn!(resolveEnv) },
+          ? (
+              resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
+            ): LoadedAccount[] => [
+              {
+                id: 'default',
+                config: options.loadConfigFn!(resolveEnv),
+                role: 'primary',
+                failoverAccountIds: [],
+              },
             ]
           : resolveAccounts);
       const accounts = await Promise.resolve(resolveAccountsFn(env));

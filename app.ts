@@ -4,7 +4,12 @@
 
 import { pathToFileURL } from 'node:url';
 
-import { resolveAccounts, type LoadedAccount } from './lib/config-file.js';
+import {
+  resolveAccounts,
+  runnableAccounts,
+  resolveFailoverTargets,
+  type LoadedAccount,
+} from './lib/config-file.js';
 import { loadHealthConfig, type HealthConfig } from './lib/health-config.js';
 import { createLogger, formatError, type Logger } from './lib/log.js';
 import { getProvider } from './lib/providers/index.js';
@@ -43,8 +48,13 @@ export async function main(options: AppOptions = {}): Promise<void> {
   const resolveAccountsFn =
     options.resolveAccountsFn ??
     (options.loadConfigFn
-      ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>) => [
-          { id: 'default', config: options.loadConfigFn!(resolveEnv) },
+      ? (resolveEnv: NodeJS.ProcessEnv | Record<string, string | undefined>): LoadedAccount[] => [
+          {
+            id: 'default',
+            config: options.loadConfigFn!(resolveEnv),
+            role: 'primary',
+            failoverAccountIds: [],
+          },
         ]
       : resolveAccounts);
 
@@ -84,11 +94,13 @@ export async function main(options: AppOptions = {}): Promise<void> {
   }
 
   function buildBundles(accounts: LoadedAccount[]): RuntimeBundle[] {
-    return accounts.map((account) => {
+    const primary = runnableAccounts(accounts);
+    return primary.map((account) => {
       const bundle = createRuntimeBundle({
         config: account.config,
         log,
         accountId: account.id,
+        failoverTargets: resolveFailoverTargets(account, accounts, getProviderFn),
         getProviderFn,
         createUpdaterFn: options.createUpdaterFn ?? createUpdater,
       });
@@ -206,7 +218,13 @@ export async function main(options: AppOptions = {}): Promise<void> {
       if (!wasRunning) {
         await Promise.all(bundles.map((bundle) => bundle.updater.stop()));
       }
-      log.success(`Reloaded ${accounts.length} account(s)`);
+      const primaryCount = runnableAccounts(accounts).length;
+      log.success(
+        `Reloaded ${primaryCount} primary account(s)` +
+          (accounts.length > primaryCount
+            ? ` (${accounts.length - primaryCount} failover standby)`
+            : ''),
+      );
     } catch (error) {
       const orphaned = bundles;
       bundles = previous;

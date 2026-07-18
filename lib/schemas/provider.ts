@@ -1,7 +1,15 @@
 import { z } from 'zod';
 import { isIPv4, isIPv6 } from 'node:net';
 
-import { MAX_INTERVAL_MS, MIN_INTERVAL_MS } from '../defaults.js';
+import {
+  MAX_INTERVAL_MS,
+  MAX_RETRY_ATTEMPTS,
+  MAX_RETRY_BASE_DELAY_MS,
+  MAX_RETRY_MAX_DELAY_MS,
+  MIN_INTERVAL_MS,
+  MIN_RETRY_ATTEMPTS,
+  MIN_RETRY_BASE_DELAY_MS,
+} from '../defaults.js';
 import type { JsonObject } from './json.js';
 
 export const PROVIDER_IDS = [
@@ -184,6 +192,9 @@ export const appConfigSchema = z.object({
   ipHttpsV6: z.array(z.string().url()).nullable(),
   ipDnsFallback: z.boolean(),
   ipTimeoutMs: z.number().int().min(100).max(120_000),
+  retryAttempts: z.number().int().min(MIN_RETRY_ATTEMPTS).max(MAX_RETRY_ATTEMPTS),
+  retryBaseDelayMs: z.number().int().min(MIN_RETRY_BASE_DELAY_MS).max(MAX_RETRY_BASE_DELAY_MS),
+  retryMaxDelayMs: z.number().int().min(0).max(MAX_RETRY_MAX_DELAY_MS),
   telemetryEnabled: z.boolean(),
   notifyWebhookUrl: z.string().nullable(),
   notifyNtfyUrl: z.string().nullable(),
@@ -216,6 +227,9 @@ export type HostUpdateResult = {
   host: string;
   result: UpdateResult;
   durationMs?: number;
+  providerId?: ProviderId;
+  failoverUsed?: boolean;
+  failoverAccountId?: string;
 };
 
 export type CheckResultStatus =

@@ -29,6 +29,7 @@ function normalizeSession(session: McpSession): McpSession & {
       ...session,
       accountId: session.accountId ?? session.accounts[0]!.id,
       accounts: session.accounts,
+      ...(session.standbyAccounts ? { standbyAccounts: session.standbyAccounts } : {}),
     };
   }
   const account: McpAccount = {
@@ -97,11 +98,19 @@ export function createToolHandlers(
     },
 
     listAccounts() {
-      return normalized.accounts.map((account) => ({
+      const primary = normalized.accounts.map((account) => ({
         id: account.id,
         provider: account.provider.id,
         hosts: account.config.hosts,
+        role: 'primary' as const,
       }));
+      const standby = (normalized.standbyAccounts ?? []).map((account) => ({
+        id: account.id,
+        provider: account.provider.id,
+        hosts: account.config.hosts,
+        role: 'failover' as const,
+      }));
+      return [...primary, ...standby];
     },
 
     async getPublicIp(accountId) {

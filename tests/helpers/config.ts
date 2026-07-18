@@ -12,7 +12,11 @@ import {
   DEFAULT_PROVIDER,
   DEFAULT_ROUTE53_REGION,
   DEFAULT_ROUTE53_TTL,
+  DEFAULT_RETRY_ATTEMPTS,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  DEFAULT_RETRY_MAX_DELAY_MS,
 } from '../../lib/defaults.js';
+import type { AccountRole, LoadedAccount } from '../../lib/config-file.js';
 import type {
   AppConfig,
   CloudflareConfig,
@@ -103,6 +107,9 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
     ipHttpsV6: null,
     ipDnsFallback: DEFAULT_IP_DNS_FALLBACK,
     ipTimeoutMs: DEFAULT_IP_TIMEOUT_MS,
+    retryAttempts: DEFAULT_RETRY_ATTEMPTS,
+    retryBaseDelayMs: DEFAULT_RETRY_BASE_DELAY_MS,
+    retryMaxDelayMs: DEFAULT_RETRY_MAX_DELAY_MS,
     telemetryEnabled: false,
     notifyWebhookUrl: null,
     notifyNtfyUrl: null,
@@ -206,5 +213,22 @@ export function makeConfig(overrides: MakeConfigOverrides = {}): AppConfig {
       ttl: DEFAULT_DNS_TTL,
       ...contaboOverrides,
     },
+  };
+}
+
+/** Build a LoadedAccount for multi-account / failover tests. */
+export function makeLoadedAccount(
+  id: string,
+  overrides: MakeConfigOverrides & {
+    role?: AccountRole;
+    failoverAccountIds?: string[];
+  } = {},
+): LoadedAccount {
+  const { role = 'primary', failoverAccountIds = [], ...configOverrides } = overrides;
+  return {
+    id,
+    config: makeConfig(configOverrides),
+    role,
+    failoverAccountIds,
   };
 }
