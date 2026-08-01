@@ -33,7 +33,7 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opentelemetry/api": "^1.9.1",
     "express": "^5.2.1",
     "yaml": "^2.9.0",
