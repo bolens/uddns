@@ -3,7 +3,7 @@ FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a5
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN VITE_GIT_HOOKS=0 pnpm install --frozen-lockfile
+RUN VP_GIT_HOOKS=0 pnpm install --frozen-lockfile
 
 FROM dependencies AS build
 COPY app.ts mcp.ts cli.ts package.json tsconfig.json tsconfig.build.json ./
