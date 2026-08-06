@@ -106,7 +106,11 @@ export async function main(options: AppOptions = {}): Promise<void> {
       });
       bundle.eventListeners.add((event) => {
         for (const listener of eventListeners) {
-          listener(event);
+          try {
+            listener(event);
+          } catch (error) {
+            log.warn('Event subscriber failed', formatError(error));
+          }
         }
       });
       return bundle;
@@ -137,6 +141,7 @@ export async function main(options: AppOptions = {}): Promise<void> {
       return;
     }
     const previousHealthConfig = activeHealthConfig;
+    activeHealthConfig = null;
     if (sideServer) {
       await sideServer.close();
       sideServer = null;
@@ -145,13 +150,16 @@ export async function main(options: AppOptions = {}): Promise<void> {
       sideServer = await startHealthServer(health);
       activeHealthConfig = health;
     } catch (error) {
-      activeHealthConfig = previousHealthConfig;
       if (previousHealthConfig?.enabled) {
         try {
           sideServer = await startHealthServer(previousHealthConfig);
+          activeHealthConfig = previousHealthConfig;
         } catch (restoreError) {
+          sideServer = null;
           log.error('Failed to restore previous health server', formatError(restoreError));
         }
+      } else if (previousHealthConfig) {
+        activeHealthConfig = previousHealthConfig;
       }
       throw error;
     }

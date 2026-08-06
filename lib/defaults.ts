@@ -40,6 +40,7 @@ export const DEFAULT_IP_DNS_FALLBACK = false;
 export const DEFAULT_HEALTH_HOST = '127.0.0.1';
 export const DEFAULT_HEALTH_PORT = 3924;
 export const DEFAULT_NOTIFY_ON = ['change', 'error'] as const;
+export const DEFAULT_MAX_PENDING_NOTIFICATIONS = 10;
 export const DEFAULT_LOG_FORMAT = 'text' as const;
 export const DEFAULT_RETRY_ATTEMPTS = 3;
 export const MIN_RETRY_ATTEMPTS = 1;

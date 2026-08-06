@@ -286,4 +286,52 @@ describe('createRuntimeBundle', () => {
       ).toBe(true),
     );
   });
+
+  it('isolates cycle event listeners and bounds the notification backlog', async () => {
+    vi.spyOn(dns, 'lookup').mockImplementation((async () => [
+      { address: '1.1.1.1', family: 4 },
+    ]) as unknown as typeof dns.lookup);
+    const response = deferred<ReturnType<typeof okRequestResult>>();
+    const log = silentLog();
+    const bundle = createRuntimeBundle({
+      log,
+      config: makeConfig({
+        hosts: ['home.example.com'],
+        historyFile: null,
+        notifyWebhookUrl: 'https://example.com/hook',
+        notifyOn: ['change'],
+      }),
+      notifyRequestFn: vi.fn(() => response.promise),
+      maxPendingNotifications: 1,
+      getProviderFn: () => mockProvider(async () => ({ ok: true, message: 'ok' })),
+      createUpdaterFn: (options) =>
+        createUpdater({
+          ...options,
+          discoverPublicIP: async () => ({
+            ip: { v4: '203.0.113.10', v6: null },
+            errors: { v4: null, v6: null },
+          }),
+        }),
+    });
+    const healthyListener = vi.fn();
+    bundle.eventListeners.add(() => {
+      throw new Error('subscriber failed');
+    });
+    bundle.eventListeners.add(healthyListener);
+
+    await bundle.updater.checkOnce({ force: true });
+    await bundle.updater.checkOnce({ force: true });
+
+    expect(healthyListener).toHaveBeenCalledTimes(2);
+    expect(log.warn).toHaveBeenCalledWith(
+      'Cycle event listener failed',
+      expect.objectContaining({ message: 'subscriber failed' }),
+    );
+    expect(log.warn).toHaveBeenCalledWith(
+      'Notification backlog limit reached; dropping cycle notification',
+      expect.objectContaining({ maxPendingNotifications: 1 }),
+    );
+    response.resolve(okRequestResult('https://example.com/hook'));
+    await bundle.flushNotifications();
+  });
 });

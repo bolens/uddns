@@ -4,6 +4,7 @@
 
 import dns from 'node:dns/promises';
 
+import { DEFAULT_MAX_PENDING_NOTIFICATIONS } from './defaults.js';
 import { applyIpPolicy } from './ip-policy.js';
 import { discoverPublicIP } from './ip.js';
 import type { FailoverTarget } from './config-file.js';
@@ -52,6 +53,8 @@ export function createRuntimeBundle(options: {
   discoverFetch?: typeof globalThis.fetch;
   /** Test override for notification HTTP. */
   notifyRequestFn?: typeof request;
+  /** Bound outstanding per-cycle notification fanout. */
+  maxPendingNotifications?: number;
 }): RuntimeBundle {
   const log = options.log ?? createLogger();
   const provider = (options.getProviderFn ?? getProvider)(options.config.provider);
@@ -61,6 +64,8 @@ export function createRuntimeBundle(options: {
   const metrics = createMetricsTracker();
   const eventListeners = new Set<(event: CycleEvent) => void>();
   const pendingNotifications = new Set<Promise<void>>();
+  const maxPendingNotifications =
+    options.maxPendingNotifications ?? DEFAULT_MAX_PENDING_NOTIFICATIONS;
 
   const createUpdaterFn = options.createUpdaterFn ?? createUpdater;
   const telemetry = createTelemetry(options.config.telemetryEnabled);
@@ -99,28 +104,39 @@ export function createRuntimeBundle(options: {
           log.warn('Could not append history', formatError(error));
         }
       }
-      const notify = dispatchNotifications(
-        {
-          webhookUrl: options.config.notifyWebhookUrl,
-          ntfyUrl: options.config.notifyNtfyUrl,
-          slackUrl: options.config.notifySlackUrl,
-          discordUrl: options.config.notifyDiscordUrl,
-          on: options.config.notifyOn,
-        },
-        event,
-        {
-          log,
-          ...(options.notifyRequestFn ? { requestFn: options.notifyRequestFn } : {}),
-        },
-      ).catch((error: unknown) => {
-        log.warn('Notification dispatch failed', formatError(error));
-      });
-      pendingNotifications.add(notify);
-      void notify.finally(() => {
-        pendingNotifications.delete(notify);
-      });
+      if (pendingNotifications.size >= maxPendingNotifications) {
+        log.warn('Notification backlog limit reached; dropping cycle notification', {
+          pending: pendingNotifications.size,
+          maxPendingNotifications,
+        });
+      } else {
+        const notify = dispatchNotifications(
+          {
+            webhookUrl: options.config.notifyWebhookUrl,
+            ntfyUrl: options.config.notifyNtfyUrl,
+            slackUrl: options.config.notifySlackUrl,
+            discordUrl: options.config.notifyDiscordUrl,
+            on: options.config.notifyOn,
+          },
+          event,
+          {
+            log,
+            ...(options.notifyRequestFn ? { requestFn: options.notifyRequestFn } : {}),
+          },
+        ).catch((error: unknown) => {
+          log.warn('Notification dispatch failed', formatError(error));
+        });
+        pendingNotifications.add(notify);
+        void notify.finally(() => {
+          pendingNotifications.delete(notify);
+        });
+      }
       for (const listener of eventListeners) {
-        listener(event);
+        try {
+          listener(event);
+        } catch (error) {
+          log.warn('Cycle event listener failed', formatError(error));
+        }
       }
     },
   };
