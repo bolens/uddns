@@ -106,7 +106,11 @@ export async function main(options: AppOptions = {}): Promise<void> {
       });
       bundle.eventListeners.add((event) => {
         for (const listener of eventListeners) {
-          listener(event);
+          try {
+            listener(event);
+          } catch (error) {
+            log.warn('Event subscriber failed', formatError(error));
+          }
         }
       });
       return bundle;
@@ -136,16 +140,37 @@ export async function main(options: AppOptions = {}): Promise<void> {
     if (healthConfigMatches(activeHealthConfig, health)) {
       return;
     }
+    const previousHealthConfig = activeHealthConfig;
+    activeHealthConfig = null;
     if (sideServer) {
       await sideServer.close();
       sideServer = null;
     }
-    activeHealthConfig = health;
+    try {
+      sideServer = await startHealthServer(health);
+      activeHealthConfig = health;
+    } catch (error) {
+      if (previousHealthConfig?.enabled) {
+        try {
+          sideServer = await startHealthServer(previousHealthConfig);
+          activeHealthConfig = previousHealthConfig;
+        } catch (restoreError) {
+          sideServer = null;
+          log.error('Failed to restore previous health server', formatError(restoreError));
+        }
+      } else if (previousHealthConfig) {
+        activeHealthConfig = previousHealthConfig;
+      }
+      throw error;
+    }
+  }
+
+  async function startHealthServer(health: HealthConfig): Promise<SideServer | null> {
     if (!health.enabled) {
-      return;
+      return null;
     }
     const startSideServerFn = options.startSideServerFn ?? startSideServer;
-    sideServer = await startSideServerFn({
+    const started = await startSideServerFn({
       config: {
         host: health.host,
         port: health.port,
@@ -195,7 +220,8 @@ export async function main(options: AppOptions = {}): Promise<void> {
         };
       },
     });
-    log.info(`Health server listening on ${sideServer.url}`);
+    log.info(`Health server listening on ${started.url}`);
+    return started;
   }
 
   async function reload(): Promise<void> {

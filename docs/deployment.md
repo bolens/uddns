@@ -1,9 +1,12 @@
 # Deployment
 
 Build first, then use a supervisor so fatal errors restart the core updater.
-The process handles `SIGINT`/`SIGTERM` (and `SIGHUP` for config reload), stops
-scheduling work, waits for active work, and exits. A successful `SIGHUP`
-reload also applies health host, port, and metrics settings. Existing SSE
+The process handles `SIGINT`/`SIGTERM` (and `SIGHUP` for YAML config reload),
+stops scheduling work, waits for active work, and exits. `SIGHUP` rereads the
+file named by `UDDNS_CONFIG_FILE`. Node and systemd load `.env` /
+`EnvironmentFile` values only at process start, so changing those requires a
+service restart. Embedded callers that update `process.env` before `SIGHUP`
+can also reload health host, port, and metrics settings. Existing SSE
 connections remain open when those settings are unchanged; when the side
 server bind changes, clients must reconnect.
 
@@ -31,6 +34,27 @@ Published images (on version tags):
 
 ```bash
 docker pull ghcr.io/bolens/uddns:latest
+```
+
+Every release tag must match the version in `package.json` and pass the full
+format, lint, type, test, coverage, build, and dead-code suite before publish.
+Prereleases do not replace `latest`. Published image digests include BuildKit
+provenance, an SPDX JSON SBOM attached to the GitHub release, GitHub artifact
+attestations, and a keyless Sigstore signature.
+
+Verify provenance with GitHub CLI:
+
+```bash
+gh attestation verify oci://ghcr.io/bolens/uddns:2.0.0 --owner bolens
+```
+
+Verify the keyless image signature:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp='https://github.com/bolens/uddns/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
+  ghcr.io/bolens/uddns:2.0.0
 ```
 
 Build locally:

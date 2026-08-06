@@ -137,6 +137,10 @@ process can otherwise call destructive tools). Set
 `UDDNS_MCP_ALLOW_INSECURE_LOOPBACK=true` only for trusted single-user sidecars.
 See [Security](security.md) for the full control-plane auth model.
 
+HTTP transport accepts at most 100 active MCP sessions and 100 event-stream
+subscribers. Idle MCP sessions expire after 30 minutes. Clients should send
+`DELETE /mcp` with their session id when finished.
+
 The optional `compose.mcp.yml` overlay binds MCP to `127.0.0.1` inside the
 container (no published ports). For a published non-loopback MCP service, set
 `UDDNS_MCP_HOST=0.0.0.0` plus auth token and TLS cert mounts.

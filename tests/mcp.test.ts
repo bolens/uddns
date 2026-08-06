@@ -953,6 +953,177 @@ describe('createMcpSession', () => {
 });
 
 describe('MCP HTTP auth', () => {
+  it('reserves session capacity across concurrent initialization requests', async () => {
+    const updater = createUpdater({
+      config: makeConfig(),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const http = await startMcpHttpServer({
+      session: {
+        config: makeConfig(),
+        provider: mockProvider(),
+        updater,
+        log: silentLog(),
+      },
+      mcpConfig: {
+        transport: 'http',
+        host: '127.0.0.1',
+        port: 0,
+        authToken: null,
+        tlsCert: null,
+        tlsKey: null,
+      },
+      log: silentLog(),
+      maxSessions: 1,
+    });
+    const initialize = () =>
+      fetch(http.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1' },
+          },
+        }),
+      });
+
+    try {
+      const responses = await Promise.all([initialize(), initialize()]);
+      expect(
+        responses.map((response) => response.status).sort((left, right) => left - right),
+      ).toEqual([200, 503]);
+    } finally {
+      await http.close();
+      await updater.stop();
+    }
+  });
+
+  it('rejects initialization when the session cap is reached', async () => {
+    const updater = createUpdater({
+      config: makeConfig(),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    const http = await startMcpHttpServer({
+      session: {
+        config: makeConfig(),
+        provider: mockProvider(),
+        updater,
+        log: silentLog(),
+      },
+      mcpConfig: {
+        transport: 'http',
+        host: '127.0.0.1',
+        port: 0,
+        authToken: null,
+        tlsCert: null,
+        tlsKey: null,
+      },
+      log: silentLog(),
+      maxSessions: 0,
+      maxSseClients: 0,
+    });
+
+    try {
+      expect((await fetch(`${new URL(http.url).origin}/events`)).status).toBe(503);
+      const response = await fetch(http.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1' },
+          },
+        }),
+      });
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        error: { message: 'MCP session limit reached' },
+      });
+    } finally {
+      await http.close();
+      await updater.stop();
+    }
+  });
+
+  it('expires idle sessions before enforcing the cap', async () => {
+    const updater = createUpdater({
+      config: makeConfig(),
+      provider: mockProvider(),
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      log: silentLog(),
+      stateStore: memoryStateStore(),
+    });
+    let now = 0;
+    const http = await startMcpHttpServer({
+      session: {
+        config: makeConfig(),
+        provider: mockProvider(),
+        updater,
+        log: silentLog(),
+      },
+      mcpConfig: {
+        transport: 'http',
+        host: '127.0.0.1',
+        port: 0,
+        authToken: null,
+        tlsCert: null,
+        tlsKey: null,
+      },
+      log: silentLog(),
+      maxSessions: 1,
+      sessionIdleMs: 10,
+      now: () => now,
+    });
+    const initialize = () =>
+      fetch(http.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1' },
+          },
+        }),
+      });
+
+    try {
+      expect((await initialize()).status).toBe(200);
+      now = 20;
+      expect((await initialize()).status).toBe(200);
+    } finally {
+      await http.close();
+      await updater.stop();
+    }
+  });
+
   it('answers GET with 405 and DELETE without session with 404', async () => {
     const updater = createUpdater({
       config: makeConfig(),
@@ -1019,6 +1190,43 @@ describe('MCP HTTP auth', () => {
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
       });
       expect(badPost.status).toBe(400);
+
+      const initialized = await fetch(http.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1' },
+          },
+        }),
+      });
+      const sessionId = initialized.headers.get('mcp-session-id');
+      expect(sessionId).toBeTruthy();
+
+      const listTools = await fetch(http.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'mcp-session-id': sessionId!,
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} }),
+      });
+      expect(listTools.status).toBe(200);
+
+      const closeSession = await fetch(http.url, {
+        method: 'DELETE',
+        headers: { 'mcp-session-id': sessionId! },
+      });
+      expect(closeSession.status).toBe(200);
     } finally {
       await http.close();
       await updater.stop();

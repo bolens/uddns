@@ -88,6 +88,11 @@ tests/
 - Fallow rejects unused files, exports, and dependencies.
 - Run `vp run verify` before committing.
 
+## Releasing
+
+See [the release playbook](releasing.md) for versioning, tag publication,
+workflow monitoring, and post-release verification.
+
 ## Adding a provider
 
 1. Create `lib/providers/<id>.ts` exporting a `Provider` (`id`, `label`,

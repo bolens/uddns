@@ -4,6 +4,7 @@ import { dispatchNotifications, matchesNotifyFilter } from '../lib/notify.js';
 import type { request } from '../lib/providers/http.js';
 import type { CycleEvent } from '../lib/schemas/cycle.js';
 import { afterEachRestoreMocks } from './helpers/cleanup.js';
+import { deferred } from './helpers/async.js';
 import { silentLog } from './helpers/log.js';
 
 afterEachRestoreMocks();
@@ -109,4 +110,45 @@ describe('notifications', () => {
       expect.objectContaining({ message: expect.stringContaining('discord down') }),
     );
   });
+
+  it('delivers to independent destinations concurrently', async () => {
+    const gates = [
+      deferred<ReturnType<typeof okRequestResult>>(),
+      deferred<ReturnType<typeof okRequestResult>>(),
+    ];
+    const requestFn = vi
+      .fn<typeof request>()
+      .mockImplementationOnce(() => gates[0]!.promise)
+      .mockImplementationOnce(() => gates[1]!.promise);
+
+    const delivery = dispatchNotifications(
+      {
+        webhookUrl: 'https://example.com/hook',
+        ntfyUrl: 'https://ntfy.sh/topic',
+        on: ['change'],
+      },
+      baseEvent,
+      { requestFn },
+    );
+
+    expect(requestFn).toHaveBeenCalledTimes(2);
+    gates[0]!.resolve(okRequestResult('https://example.com/hook'));
+    gates[1]!.resolve(okRequestResult('https://ntfy.sh/topic'));
+    await delivery;
+  });
 });
+
+function okRequestResult(url: string) {
+  return {
+    response: new Response('ok', { status: 200 }),
+    body: 'ok',
+    meta: {
+      method: 'POST',
+      url,
+      status: 200,
+      statusText: 'OK',
+      durationMs: 1,
+      bodyPreview: 'ok',
+    },
+  };
+}

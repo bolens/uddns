@@ -112,6 +112,7 @@ export function createUpdater(options: UpdaterOptions) {
   let lastSuccessAt: string | null = null;
   let lastError: string | null = null;
   let nextRetryAt: string | null = null;
+  let interruptRetry: (() => void) | null = null;
 
   function scheduleTimer(): void {
     if (timer != null) {
@@ -458,6 +459,7 @@ export function createUpdater(options: UpdaterOptions) {
       return;
     }
     stopping = true;
+    interruptRetry?.();
     stopPromise = (async () => {
       if (timer != null) {
         clearIntervalFn(timer);
@@ -536,7 +538,13 @@ export function createUpdater(options: UpdaterOptions) {
       },
       ...failoverTargets
         .filter((target) =>
-          target.config.hosts.some((entry) => normalizeDnsName(entry) === normalizeDnsName(host)),
+          target.config.hosts.some(
+            (entry) =>
+              normalizeDnsName(entry) === normalizeDnsName(host) &&
+              !target.config.disabledHosts.some(
+                (disabled) => normalizeDnsName(disabled) === normalizeDnsName(host),
+              ),
+          ),
         )
         .map((target) => ({
           accountId: target.accountId,
@@ -671,7 +679,14 @@ export function createUpdater(options: UpdaterOptions) {
       reason,
     });
     if (!stopping) {
-      await sleep(delayMs);
+      await Promise.race([
+        sleep(delayMs),
+        new Promise<void>((resolve) => {
+          interruptRetry = resolve;
+        }),
+      ]).finally(() => {
+        interruptRetry = null;
+      });
     }
   }
 

@@ -2,11 +2,11 @@
  * Bounded ring-buffer of cycle events (separate from IP checkpoints).
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { replaceFileDurably } from './atomic-file.js';
 import { DEFAULT_HISTORY_MAX } from './defaults.js';
-import { hasErrorCode } from './errors.js';
+import { loadValidatedJsonFile } from './json-file.js';
 import { redactString } from './log.js';
 import type { CycleEvent } from './schemas/cycle.js';
 import {
@@ -30,16 +30,6 @@ export function shouldRecordHistory(event: CycleEvent): boolean {
   return RECORDABLE.has(event.status);
 }
 
-async function quarantineCorruptFile(resolved: string, reason: string): Promise<void> {
-  const corrupt = `${resolved}.corrupt.${process.pid}.${Date.now()}`;
-  try {
-    await rename(resolved, corrupt);
-    console.warn(`uDDNS: quarantined corrupt history file (${reason}) -> ${corrupt}`);
-  } catch {
-    console.warn(`uDDNS: ignoring corrupt history file (${reason}): ${resolved}`);
-  }
-}
-
 export function createFileHistoryStore(
   file: string,
   options: { maxEvents?: number } = {},
@@ -49,30 +39,8 @@ export function createFileHistoryStore(
 
   return {
     async load() {
-      let raw: string;
-      try {
-        raw = await readFile(resolved, 'utf8');
-      } catch (error) {
-        if (hasErrorCode(error, 'ENOENT')) {
-          return [];
-        }
-        throw error;
-      }
-
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(raw);
-      } catch {
-        await quarantineCorruptFile(resolved, 'invalid JSON');
-        return [];
-      }
-
-      const parsed = historyFileSchema.safeParse(parsedJson);
-      if (!parsed.success) {
-        await quarantineCorruptFile(resolved, 'schema validation failed');
-        return [];
-      }
-      return parsed.data.events;
+      const parsed = await loadValidatedJsonFile(resolved, 'history', historyFileSchema);
+      return parsed?.events ?? [];
     },
 
     async append(event) {
@@ -98,14 +66,7 @@ export function createFileHistoryStore(
       const existing = await this.load();
       const events = [...existing, entry].slice(-maxEvents);
       const state: HistoryFile = { version: HISTORY_VERSION, events };
-      const directory = path.dirname(resolved);
-      const temporary = `${resolved}.${process.pid}.tmp`;
-      await mkdir(directory, { recursive: true });
-      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-      });
-      await rename(temporary, resolved);
+      await replaceFileDurably(resolved, `${JSON.stringify(state, null, 2)}\n`);
       return events;
     },
   };

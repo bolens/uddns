@@ -159,4 +159,31 @@ describe('side server', () => {
       await server.close();
     }
   });
+
+  it('caps concurrent event subscribers', async () => {
+    const server = await startSideServer({
+      config: { host: '127.0.0.1', port: 0, metricsEnabled: false },
+      getStatus: () => ({
+        running: false,
+        stopping: false,
+        intervalMs: 1000,
+        currentIP: { v4: null, v6: null },
+        cycle: 0,
+        inFlight: false,
+        hosts: {},
+        lastCycle: null,
+        lastSuccessAt: null,
+        lastError: null,
+        nextRetryAt: null,
+        accountId: null,
+      }),
+      maxSseClients: 0,
+    });
+    try {
+      const response = await fetch(`${server.url}/events`);
+      expect(response.status).toBe(503);
+    } finally {
+      await server.close();
+    }
+  });
 });

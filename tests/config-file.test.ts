@@ -252,6 +252,59 @@ accounts:
     await expect(loadAccountsFromFile(file, {})).rejects.toThrow(/provider/i);
   });
 
+  it('rejects unknown YAML keys and unsafe account ids', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
+    const file = path.join(dir, 'uddns.yaml');
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: bad/account
+    provider: duckdns
+    hosts: [myhost]
+    intervl: 60000
+    duckdns:
+      token: t
+      domains: myhost
+`,
+    );
+    await expect(loadAccountsFromFile(file, {})).rejects.toThrow(/account id/i);
+
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: duck
+    provider: duckdns
+    hosts: [myhost]
+    intervl: 60000
+    duckdns:
+      token: t
+      domains: myhost
+`,
+    );
+    await expect(loadAccountsFromFile(file, {})).rejects.toThrow(/intervl|unrecognized/i);
+
+    await writeFile(
+      file,
+      `
+version: 1
+accounts:
+  - id: duck
+    provider: duckdns
+    hosts: [myhost]
+    retry:
+      maxDelayMS: 5000
+    duckdns:
+      token: t
+      domains: myhost
+`,
+    );
+    await expect(loadAccountsFromFile(file, {})).rejects.toThrow(/maxDelayMS|unrecognized/i);
+  });
+
   it('rejects accounts that share state or history files', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'uddns-yaml-'));
     const file = path.join(dir, 'uddns.yaml');

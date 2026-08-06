@@ -557,6 +557,31 @@ describe('createUpdater', () => {
     expect(delays).toEqual([30_000]);
   });
 
+  it('interrupts retry backoff during shutdown', async () => {
+    const sleepStarted = deferred<void>();
+    const updater = createUpdater({
+      config: makeConfig({ hosts: ['home.example.com'] }),
+      provider: mockProvider(async () => ({
+        ok: false,
+        message: 'server error',
+        details: { httpStatus: 503 },
+      })),
+      getPublicIP: async () => ({ v4: '9.9.9.9', v6: null }),
+      log: silentLog(),
+      sleep: async () => {
+        sleepStarted.resolve();
+        await new Promise(() => {});
+      },
+      retryMaxDelayMs: 300_000,
+    });
+
+    const check = updater.checkOnceGuarded();
+    await sleepStarted.promise;
+    await updater.stop();
+
+    await expect(check).resolves.toMatchObject({ status: 'error' });
+  });
+
   it('refreshes currentIP from enabled-host checkpoints when some hosts are disabled', async () => {
     const store = {
       load: async () => ({

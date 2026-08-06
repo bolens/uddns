@@ -56,25 +56,28 @@ export async function dispatchNotifications(
   const payload = redact(event) as CycleEvent;
   const safeMessage = typeof payload.message === 'string' ? payload.message : '[redacted]';
   const ipLabel = `${payload.ip.v4 ?? '-'}/${payload.ip.v6 ?? '-'}`;
+  const deliveries: Promise<void>[] = [];
 
   if (config.webhookUrl) {
-    try {
-      await httpRequest(config.webhookUrl, {
+    deliveries.push(
+      httpRequest(config.webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         pin: notifyPin({ allowPrivateHosts: true }, deps.lookupHost),
-      });
-    } catch (error) {
-      log?.warn('Webhook notification failed', formatError(error));
-    }
+      })
+        .then(() => {})
+        .catch((error: unknown) => {
+          log?.warn('Webhook notification failed', formatError(error));
+        }),
+    );
   }
 
   if (config.ntfyUrl) {
-    try {
-      const title = `uDDNS ${payload.status}`;
-      const body = `${safeMessage} (${ipLabel})`;
-      await httpRequest(config.ntfyUrl, {
+    const title = `uDDNS ${payload.status}`;
+    const body = `${safeMessage} (${ipLabel})`;
+    deliveries.push(
+      httpRequest(config.ntfyUrl, {
         method: 'POST',
         headers: {
           Title: title,
@@ -82,36 +85,44 @@ export async function dispatchNotifications(
         },
         body,
         pin: notifyPin({ allowPrivateHosts: true }, deps.lookupHost),
-      });
-    } catch (error) {
-      log?.warn('ntfy notification failed', formatError(error));
-    }
+      })
+        .then(() => {})
+        .catch((error: unknown) => {
+          log?.warn('ntfy notification failed', formatError(error));
+        }),
+    );
   }
 
   const summary = `uDDNS ${payload.status}: ${safeMessage} (${ipLabel})`;
   if (config.slackUrl) {
-    try {
-      await httpRequest(config.slackUrl, {
+    deliveries.push(
+      httpRequest(config.slackUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: summary }),
         pin: notifyPin({}, deps.lookupHost),
-      });
-    } catch (error) {
-      log?.warn('Slack notification failed', formatError(error));
-    }
+      })
+        .then(() => {})
+        .catch((error: unknown) => {
+          log?.warn('Slack notification failed', formatError(error));
+        }),
+    );
   }
 
   if (config.discordUrl) {
-    try {
-      await httpRequest(config.discordUrl, {
+    deliveries.push(
+      httpRequest(config.discordUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: summary }),
         pin: notifyPin({}, deps.lookupHost),
-      });
-    } catch (error) {
-      log?.warn('Discord notification failed', formatError(error));
-    }
+      })
+        .then(() => {})
+        .catch((error: unknown) => {
+          log?.warn('Discord notification failed', formatError(error));
+        }),
+    );
   }
+
+  await Promise.all(deliveries);
 }

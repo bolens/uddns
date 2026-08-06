@@ -22,6 +22,10 @@ independently, so a partial failure retries only failed hosts. Checkpoints
 default to `.uddns-state.json`; set `UDDNS_STATE_FILE=` to keep state in memory.
 Disabled hosts are skipped and cannot be force-updated.
 
+Multi-account YAML uses strict keys and provider subsections: misspelled or
+unsupported keys fail validation instead of silently falling back to defaults.
+Account ids must be 1–63 characters using letters, numbers, `.`, `_`, or `-`.
+
 `UDDNS_INTERVAL` defaults to `900000` ms (15 minutes) and must be between
 `60000` and `86400000` ms (60 s–24 h). Absolute state/history paths can
 be jailed under `UDDNS_DATA_DIR` when set.

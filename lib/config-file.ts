@@ -12,12 +12,141 @@ import { loadConfig, MANAGED_ENV_PREFIXES } from './config.js';
 import { normalizeDnsName } from './providers/domain-host.js';
 import type { AppConfig, Provider } from './schemas/provider.js';
 
+const unknownValue = z.unknown().optional();
+
+function strictSection(keys: readonly string[]) {
+  return z
+    .object(Object.fromEntries(keys.map((key) => [key, unknownValue])) as Record<string, z.ZodType>)
+    .strict();
+}
+
+const retryYamlSchema = strictSection([
+  'attempts',
+  'baseDelayMs',
+  'base_delay_ms',
+  'maxDelayMs',
+  'max_delay_ms',
+]);
+const notifyYamlSchema = strictSection([
+  'webhookUrl',
+  'webhook_url',
+  'ntfyUrl',
+  'ntfy_url',
+  'slackUrl',
+  'slack_url',
+  'discordUrl',
+  'discord_url',
+  'on',
+]);
+const providerSectionSchemas = {
+  cloudflare: strictSection([
+    'apiToken',
+    'api_token',
+    'zoneId',
+    'zone_id',
+    'zoneName',
+    'zone_name',
+    'recordName',
+    'record_name',
+    'recordId',
+    'record_id',
+    'proxied',
+    'ttl',
+    'createIfMissing',
+    'create_if_missing',
+  ]),
+  duckdns: strictSection(['token', 'domains']),
+  namecheap: strictSection(['host', 'domain', 'password']),
+  dyndns: strictSection(['updateUrl', 'update_url', 'username', 'password']),
+  route53: strictSection([
+    'accessKeyId',
+    'access_key_id',
+    'secretAccessKey',
+    'secret_access_key',
+    'region',
+    'hostedZoneId',
+    'hosted_zone_id',
+    'ttl',
+    'createIfMissing',
+    'create_if_missing',
+  ]),
+  porkbun: strictSection(['apiKey', 'api_key', 'secretKey', 'secret_key', 'domain']),
+  hetzner: strictSection(['apiToken', 'api_token', 'zoneId', 'zone_id', 'zoneName', 'zone_name']),
+  digitalocean: strictSection(['apiToken', 'api_token', 'domain']),
+  gandi: strictSection(['apiToken', 'api_token', 'domain', 'ttl']),
+  linode: strictSection(['apiToken', 'api_token', 'domainId', 'domain_id', 'domain', 'ttl']),
+  ovh: strictSection([
+    'endpoint',
+    'applicationKey',
+    'application_key',
+    'applicationSecret',
+    'application_secret',
+    'consumerKey',
+    'consumer_key',
+    'zone',
+    'ttl',
+  ]),
+  bunny: strictSection(['apiKey', 'api_key', 'zoneId', 'zone_id', 'domain', 'ttl']),
+  contabo: strictSection([
+    'clientId',
+    'client_id',
+    'clientSecret',
+    'client_secret',
+    'apiUser',
+    'api_user',
+    'apiPassword',
+    'api_password',
+    'zone',
+    'ttl',
+  ]),
+} as const;
+
 const accountYamlSchema = z
   .object({
-    id: z.string().min(1),
+    id: z
+      .string()
+      .regex(
+        /^[a-z0-9](?:[a-z0-9._-]{0,62})$/i,
+        'account id must be a 1-63 character letter/number slug using only ".", "_", or "-"',
+      ),
     provider: z.string().min(1),
+    role: unknownValue,
+    failover: unknownValue,
+    interval: unknownValue,
+    stateFile: unknownValue,
+    state_file: unknownValue,
+    historyFile: unknownValue,
+    history_file: unknownValue,
+    hosts: unknownValue,
+    disabledHosts: unknownValue,
+    disabled_hosts: unknownValue,
+    host: unknownValue,
+    hostname: unknownValue,
+    user: unknownValue,
+    password: unknownValue,
+    pass: unknownValue,
+    token: unknownValue,
+    ipFamily: unknownValue,
+    ip_family: unknownValue,
+    ipMissing: unknownValue,
+    ip_missing: unknownValue,
+    ipHttpsV4: unknownValue,
+    ip_https_v4: unknownValue,
+    ipHttpsV6: unknownValue,
+    ip_https_v6: unknownValue,
+    ipTimeoutMs: unknownValue,
+    ip_timeout_ms: unknownValue,
+    ipDnsFallback: unknownValue,
+    ip_dns_fallback: unknownValue,
+    telemetryEnabled: unknownValue,
+    telemetry_enabled: unknownValue,
+    retry: retryYamlSchema.optional(),
+    notify: notifyYamlSchema.optional(),
+    ...Object.fromEntries(
+      Object.entries(providerSectionSchemas).map(([key, schema]) => [key, schema.optional()]),
+    ),
   })
-  .passthrough();
+  .strict();
 
 const configFileSchema = z.object({
   version: z.literal(1),
@@ -74,21 +203,26 @@ function parseFailoverIds(value: unknown): string[] {
   if (value == null) {
     return [];
   }
+  let ids: string[];
   if (typeof value === 'string') {
-    return value
+    ids = value
       .split(/[,\s]+/)
       .map((part) => part.trim())
       .filter(Boolean);
-  }
-  if (Array.isArray(value)) {
-    return value.map((entry) => {
+  } else if (Array.isArray(value)) {
+    ids = value.map((entry) => {
       if (typeof entry !== 'string' || entry.trim() === '') {
         throw new Error('failover entries must be non-empty account id strings');
       }
       return entry.trim();
     });
+  } else {
+    throw new Error('failover must be a list of account ids or a comma-separated string');
   }
-  throw new Error('failover must be a list of account ids or a comma-separated string');
+  if (new Set(ids).size !== ids.length) {
+    throw new Error('failover entries must not contain duplicate account ids');
+  }
+  return ids;
 }
 
 function accountToEnv(
@@ -334,7 +468,11 @@ function assertFailoverGraph(accounts: LoadedAccount[]): void {
       }
       continue;
     }
-    const primaryHosts = new Set(account.config.hosts.map(normalizeDnsName));
+    const primaryHosts = new Set(
+      account.config.hosts
+        .filter((host) => !account.config.disabledHosts.includes(host))
+        .map(normalizeDnsName),
+    );
     for (const targetId of account.failoverAccountIds) {
       const target = byId.get(targetId);
       if (!target) {
@@ -347,10 +485,12 @@ function assertFailoverGraph(accounts: LoadedAccount[]): void {
           `Account "${account.id}" failover target "${targetId}" must have role: failover`,
         );
       }
-      const shared = target.config.hosts.some((host) => primaryHosts.has(normalizeDnsName(host)));
+      const shared = target.config.hosts
+        .filter((host) => !target.config.disabledHosts.includes(host))
+        .some((host) => primaryHosts.has(normalizeDnsName(host)));
       if (!shared) {
         throw new Error(
-          `Account "${account.id}" and failover "${targetId}" must share at least one host`,
+          `Account "${account.id}" and failover "${targetId}" must share at least one host that is enabled in both accounts`,
         );
       }
     }
