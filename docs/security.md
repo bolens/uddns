@@ -79,3 +79,16 @@ Live destructive MCP tools (`check_once`, `force_update`, `update_hosts`,
 Tokens, passwords, `Authorization` headers, usernames, and OAuth client IDs
 are redacted from log context and history messages. Prefer provider-specific
 env vars over putting secrets in URLs.
+
+## Dependency pinning
+
+Supply-chain inputs are immutable in CI and release builds:
+
+- Third-party GitHub Actions use full 40-character commit SHAs.
+- Docker base images and container actions use SHA-256 digests.
+- pnpm dependency resolutions carry SHA-256 or SHA-512 integrity values, and
+  workflow installs use `--frozen-lockfile`.
+
+Run `pnpm run deps:check` locally to validate the policy. The `supply-chain`
+CI job runs on every pull request and push to `main`, independent of path
+filters, and is a required branch-protection check.
