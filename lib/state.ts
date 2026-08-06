@@ -3,11 +3,10 @@
  * and provider responses are never persisted.
  */
 
-import { readFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 
 import { replaceFileDurably } from './atomic-file.js';
-import { hasErrorCode } from './errors.js';
+import { loadValidatedJsonFile } from './json-file.js';
 import type { ProviderId, PublicIP } from './schemas/provider.js';
 import { stateFileSchema, type StateFile } from './schemas/state.js';
 
@@ -18,52 +17,23 @@ export type StateStore = {
   save: (state: HostState) => Promise<void>;
 };
 
-async function quarantineCorruptFile(resolved: string, reason: string): Promise<void> {
-  const corrupt = `${resolved}.corrupt.${process.pid}.${Date.now()}`;
-  try {
-    await rename(resolved, corrupt);
-    console.warn(`uDDNS: quarantined corrupt state file (${reason}) -> ${corrupt}`);
-  } catch {
-    console.warn(`uDDNS: ignoring corrupt state file (${reason}): ${resolved}`);
-  }
-}
-
 export function createFileStateStore(file: string, provider: ProviderId): StateStore {
   const resolved = path.resolve(file);
 
   return {
     async load() {
-      let raw: string;
-      try {
-        raw = await readFile(resolved, 'utf8');
-      } catch (error) {
-        if (hasErrorCode(error, 'ENOENT')) {
-          return {};
-        }
-        throw error;
-      }
-
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(raw);
-      } catch {
-        await quarantineCorruptFile(resolved, 'invalid JSON');
+      const parsed = await loadValidatedJsonFile(resolved, 'state', stateFileSchema);
+      if (!parsed) {
         return {};
       }
-
-      const parsed = stateFileSchema.safeParse(parsedJson);
-      if (!parsed.success) {
-        await quarantineCorruptFile(resolved, 'schema validation failed');
-        return {};
-      }
-      if (parsed.data.provider !== provider) {
+      if (parsed.provider !== provider) {
         // Provider switches intentionally discard checkpoints; keep the file.
         console.warn(
-          `uDDNS: ignoring state file for provider "${parsed.data.provider}" (current: "${provider}")`,
+          `uDDNS: ignoring state file for provider "${parsed.provider}" (current: "${provider}")`,
         );
         return {};
       }
-      return parsed.data.hosts;
+      return parsed.hosts;
     },
 
     async save(hosts) {
