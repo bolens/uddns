@@ -250,6 +250,49 @@ accounts:
 `);
     await expect(loadAccountsFromFile(file)).rejects.toThrow(/non-empty account id strings/);
   });
+
+  it('rejects duplicate failover ids and disabled-only shared hosts', async () => {
+    const duplicate = await writeYaml(`
+version: 1
+accounts:
+  - id: primary
+    provider: cloudflare
+    hosts: [home.example.com]
+    failover: [backup, backup]
+    cloudflare:
+      api_token: tok
+      zone_id: zone
+  - id: backup
+    role: failover
+    provider: duckdns
+    hosts: [home.example.com]
+    duckdns:
+      token: tok
+      domains: home
+`);
+    await expect(loadAccountsFromFile(duplicate)).rejects.toThrow(/duplicate account ids/);
+
+    const disabled = await writeYaml(`
+version: 1
+accounts:
+  - id: primary
+    provider: cloudflare
+    hosts: [home.example.com]
+    failover: [backup]
+    cloudflare:
+      api_token: tok
+      zone_id: zone
+  - id: backup
+    role: failover
+    provider: duckdns
+    hosts: [home.example.com, other.example.com]
+    disabled_hosts: [home.example.com]
+    duckdns:
+      token: tok
+      domains: [home, other]
+`);
+    await expect(loadAccountsFromFile(disabled)).rejects.toThrow(/enabled in both accounts/);
+  });
 });
 
 describe('updater failover', () => {
@@ -420,6 +463,39 @@ describe('updater failover', () => {
       getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
       sleep: async () => undefined,
     });
+    const result = await updater.checkOnce({ force: true });
+    expect(result.status).toBe('error');
+    expect(secondary).not.toHaveBeenCalled();
+  });
+
+  it('skips secondary when the host is disabled there', async () => {
+    const primary = vi.fn(async () => ({ ok: false, message: 'primary down' }));
+    const secondary = vi.fn(async () => ({ ok: true, message: 'secondary ok' }));
+    const updater = createUpdater({
+      config: makeConfig({
+        hosts: ['home.example.com'],
+        stateFile: null,
+        historyFile: null,
+        retryAttempts: 1,
+      }),
+      provider: mockProvider(primary),
+      failoverTargets: [
+        {
+          accountId: 'backup',
+          provider: mockProvider(secondary, 'route53'),
+          config: makeConfig({
+            provider: 'route53',
+            hosts: ['home.example.com'],
+            disabledHosts: ['home.example.com'],
+            stateFile: null,
+            historyFile: null,
+          }),
+        },
+      ],
+      getPublicIP: async () => ({ v4: '1.2.3.4', v6: null }),
+      sleep: async () => undefined,
+    });
+
     const result = await updater.checkOnce({ force: true });
     expect(result.status).toBe('error');
     expect(secondary).not.toHaveBeenCalled();
