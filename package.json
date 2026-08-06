@@ -24,10 +24,11 @@
     "config:check": "node --env-file-if-exists=.env dist/app.js --check-config",
     "scaffold:provider": "node scripts/scaffold-provider.mjs",
     "docs:check": "vp test tests/docs.test.ts",
+    "deps:check": "node scripts/check-dependency-pins.mjs",
     "lean:check": "fallow dead-code --fail-on-issues",
     "audit": "fallow audit",
     "deadcode": "fallow dead-code",
-    "verify": "vp check && node scripts/test-parallel.mjs && vp run build && fallow dead-code --fail-on-issues",
+    "verify": "vp check && node scripts/check-dependency-pins.mjs && node scripts/test-parallel.mjs && vp run build && fallow dead-code --fail-on-issues",
     "fmt": "vp fmt",
     "lint": "vp lint",
     "prepare": "vp config"
