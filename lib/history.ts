@@ -2,9 +2,10 @@
  * Bounded ring-buffer of cycle events (separate from IP checkpoints).
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 
+import { replaceFileDurably } from './atomic-file.js';
 import { DEFAULT_HISTORY_MAX } from './defaults.js';
 import { hasErrorCode } from './errors.js';
 import { redactString } from './log.js';
@@ -98,14 +99,7 @@ export function createFileHistoryStore(
       const existing = await this.load();
       const events = [...existing, entry].slice(-maxEvents);
       const state: HistoryFile = { version: HISTORY_VERSION, events };
-      const directory = path.dirname(resolved);
-      const temporary = `${resolved}.${process.pid}.tmp`;
-      await mkdir(directory, { recursive: true });
-      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-      });
-      await rename(temporary, resolved);
+      await replaceFileDurably(resolved, `${JSON.stringify(state, null, 2)}\n`);
       return events;
     },
   };

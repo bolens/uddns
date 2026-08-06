@@ -3,9 +3,10 @@
  * and provider responses are never persisted.
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 
+import { replaceFileDurably } from './atomic-file.js';
 import { hasErrorCode } from './errors.js';
 import type { ProviderId, PublicIP } from './schemas/provider.js';
 import { stateFileSchema, type StateFile } from './schemas/state.js';
@@ -67,14 +68,7 @@ export function createFileStateStore(file: string, provider: ProviderId): StateS
 
     async save(hosts) {
       const state: StateFile = { version: 1, provider, hosts };
-      const directory = path.dirname(resolved);
-      const temporary = `${resolved}.${process.pid}.tmp`;
-      await mkdir(directory, { recursive: true });
-      await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-      });
-      await rename(temporary, resolved);
+      await replaceFileDurably(resolved, `${JSON.stringify(state, null, 2)}\n`);
     },
   };
 }
