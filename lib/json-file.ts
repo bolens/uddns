@@ -2,6 +2,7 @@
  * Shared validated JSON loading and corrupt-file quarantine.
  */
 
+import { randomUUID } from 'node:crypto';
 import { readFile, rename } from 'node:fs/promises';
 
 import type { z } from 'zod';
@@ -13,7 +14,7 @@ async function quarantineCorruptFile(
   label: string,
   reason: string,
 ): Promise<void> {
-  const corrupt = `${resolved}.corrupt.${process.pid}.${Date.now()}`;
+  const corrupt = `${resolved}.corrupt.${process.pid}.${Date.now()}.${randomUUID()}`;
   try {
     await rename(resolved, corrupt);
     console.warn(`uDDNS: quarantined corrupt ${label} file (${reason}) -> ${corrupt}`);

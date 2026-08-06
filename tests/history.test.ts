@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -84,7 +84,6 @@ describe('history store', () => {
   });
 
   it('quarantines corrupt history JSON and returns an empty list', async () => {
-    const { writeFile } = await import('node:fs/promises');
     const dir = await mkdtemp(path.join(tmpdir(), 'uddns-history-'));
     const file = path.join(dir, 'history.json');
     await writeFile(file, '{not-json', 'utf8');
@@ -97,7 +96,6 @@ describe('history store', () => {
   });
 
   it('quarantines history that fails schema validation', async () => {
-    const { writeFile } = await import('node:fs/promises');
     const dir = await mkdtemp(path.join(tmpdir(), 'uddns-history-'));
     const file = path.join(dir, 'history.json');
     await writeFile(file, JSON.stringify({ version: 1, events: [{ bad: true }] }), 'utf8');
@@ -106,6 +104,25 @@ describe('history store', () => {
     const store = createFileHistoryStore(file);
     await expect(store.load()).resolves.toEqual([]);
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/schema validation failed/));
+    warn.mockRestore();
+  });
+
+  it('uses unique quarantine names within the same millisecond', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'uddns-history-'));
+    const file = path.join(dir, 'history.json');
+    const now = vi.spyOn(Date, 'now').mockReturnValue(123);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const store = createFileHistoryStore(file);
+
+    await writeFile(file, '{bad-one', 'utf8');
+    await store.load();
+    await writeFile(file, '{bad-two', 'utf8');
+    await store.load();
+
+    const quarantined = (await readdir(dir)).filter((name) => name.includes('.corrupt.'));
+    expect(quarantined).toHaveLength(2);
+    expect(new Set(quarantined).size).toBe(2);
+    now.mockRestore();
     warn.mockRestore();
   });
 
