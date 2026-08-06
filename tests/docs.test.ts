@@ -240,24 +240,16 @@ describe('documentation contracts', () => {
     expect(fallow).toContain('"cli.ts"');
   });
 
-  it('keeps every non-live test represented in the CI matrix', async () => {
-    const [ci, entries] = await Promise.all([
-      read('.github/workflows/ci.yml'),
-      readdir(new URL('tests/', root), { withFileTypes: true }),
-    ]);
-    const rootTests = entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.test.ts'))
-      .map((entry) => `tests/${entry.name}`);
-
+  it('runs every non-live test through automatic CI sharding', async () => {
+    const ci = await read('.github/workflows/ci.yml');
     expect(ci).toContain("- 'app.ts'");
     expect(ci).toContain("- 'mcp.ts'");
     expect(ci).toContain("- 'cli.ts'");
+    expect(ci).toContain("- 'tests/**'");
     expect(ci).toContain("- 'docs/**'");
     expect(ci).toContain("- 'examples/**'");
-    expect(ci).toContain('paths: tests/providers');
-    for (const testPath of rootTests) {
-      expect(ci, `${testPath} is missing from the CI test matrix`).toContain(testPath);
-    }
+    expect(ci).toContain('shard: [1, 2, 3, 4]');
+    expect(ci).toContain('--shard=${{ matrix.shard }}/4');
   });
 
   it('keeps the HTTP User-Agent in sync with package version', async () => {
