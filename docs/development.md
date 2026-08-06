@@ -31,7 +31,7 @@ node dist/cli.js check-config
 node dist/cli.js mcp --transport=http
 ```
 
-Set `VITE_GIT_HOOKS=0` when hooks should not be installed.
+Set `VP_GIT_HOOKS=0` when hooks should not be installed.
 
 Provider HTTP suites use `stubFetch` (which installs a pin-path transport
 override), so `vp test` and CI stay deterministic without live dials. Dyn is
