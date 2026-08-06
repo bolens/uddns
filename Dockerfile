@@ -1,19 +1,23 @@
-FROM node:24-alpine AS build
+FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS dependencies
 
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN VITE_GIT_HOOKS=0 pnpm install --frozen-lockfile
+
+FROM dependencies AS build
 COPY app.ts mcp.ts cli.ts package.json tsconfig.json tsconfig.build.json ./
 COPY lib ./lib
 RUN pnpm run build
 
-FROM node:24-alpine
+FROM dependencies AS production-dependencies
+RUN pnpm prune --prod --ignore-scripts
 
-RUN corepack enable
+FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43
+
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+COPY package.json ./
+COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 RUN mkdir /data && chown node:node /data
 

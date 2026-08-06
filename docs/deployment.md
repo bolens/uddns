@@ -33,6 +33,27 @@ Published images (on version tags):
 docker pull ghcr.io/bolens/uddns:latest
 ```
 
+Every release tag must match the version in `package.json` and pass the full
+format, lint, type, test, coverage, build, and dead-code suite before publish.
+Prereleases do not replace `latest`. Published image digests include BuildKit
+provenance, an SPDX JSON SBOM attached to the GitHub release, GitHub artifact
+attestations, and a keyless Sigstore signature.
+
+Verify provenance with GitHub CLI:
+
+```bash
+gh attestation verify oci://ghcr.io/bolens/uddns:2.0.0 --owner bolens
+```
+
+Verify the keyless image signature:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp='https://github.com/bolens/uddns/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
+  ghcr.io/bolens/uddns:2.0.0
+```
+
 Build locally:
 
 ```bash
