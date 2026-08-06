@@ -1,9 +1,12 @@
 # Deployment
 
 Build first, then use a supervisor so fatal errors restart the core updater.
-The process handles `SIGINT`/`SIGTERM` (and `SIGHUP` for config reload), stops
-scheduling work, waits for active work, and exits. A successful `SIGHUP`
-reload also applies health host, port, and metrics settings. Existing SSE
+The process handles `SIGINT`/`SIGTERM` (and `SIGHUP` for YAML config reload),
+stops scheduling work, waits for active work, and exits. `SIGHUP` rereads the
+file named by `UDDNS_CONFIG_FILE`. Node and systemd load `.env` /
+`EnvironmentFile` values only at process start, so changing those requires a
+service restart. Embedded callers that update `process.env` before `SIGHUP`
+can also reload health host, port, and metrics settings. Existing SSE
 connections remain open when those settings are unchanged; when the side
 server bind changes, clients must reconnect.
 

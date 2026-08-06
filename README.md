@@ -37,7 +37,9 @@ vp run start
 ```
 
 `start` loads `.env` via Node's `--env-file-if-exists=.env` (no dotenv package)
-and runs the core updater daemon.
+and runs the core updater daemon. `.env` is read only at process start;
+`SIGHUP` rereads `UDDNS_CONFIG_FILE` YAML, while `.env` changes require a
+restart.
 
 CLI helpers after build:
 

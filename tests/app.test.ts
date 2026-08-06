@@ -517,6 +517,56 @@ describe('application entrypoint', () => {
     listeners.get('SIGTERM')?.();
   });
 
+  it('restores the previous side server when replacement startup fails', async () => {
+    const listeners = new Map<string, (value?: unknown) => void>();
+    const env: Record<string, string | undefined> = {
+      UDDNS_HEALTH: '1',
+      UDDNS_HEALTH_PORT: '3924',
+      UDDNS_HEALTH_ALLOW_INSECURE_LOOPBACK: 'true',
+    };
+    const log = silentLog();
+    const oldClose = vi.fn(async () => {});
+    const restoredClose = vi.fn(async () => {});
+    const startSideServerFn = vi
+      .fn()
+      .mockResolvedValueOnce({ server: {}, url: 'http://127.0.0.1:3924', close: oldClose })
+      .mockRejectedValueOnce(new Error('bind failed'))
+      .mockResolvedValueOnce({
+        server: {},
+        url: 'http://127.0.0.1:3924',
+        close: restoredClose,
+      });
+
+    await main({
+      env,
+      log,
+      loadConfigFn: () => makeConfig(),
+      getProviderFn: () => stubProvider,
+      createUpdaterFn: () => stubUpdater(),
+      startSideServerFn,
+      on: (name, listener) => {
+        listeners.set(name, listener);
+      },
+      exit: vi.fn(),
+    });
+
+    env['UDDNS_HEALTH_PORT'] = '3925';
+    listeners.get('SIGHUP')?.();
+    await vi.waitFor(() => {
+      expect(log.error).toHaveBeenCalledWith(
+        'Configuration reload failed',
+        expect.objectContaining({ message: 'bind failed' }),
+      );
+    });
+    expect(oldClose).toHaveBeenCalledOnce();
+    expect(startSideServerFn).toHaveBeenCalledTimes(3);
+
+    listeners.get('SIGTERM')?.();
+    await vi.waitFor(() => {
+      expect(restoredClose).toHaveBeenCalledOnce();
+    });
+  });
+
   it('reads argv and env from the process by default', async () => {
     const originalArgv = process.argv;
     process.argv = ['node', 'app.js', '--check-config'];
