@@ -13,6 +13,7 @@ import { createServer as createHttpsServer } from 'node:https';
 import { timingSafeEqual } from 'node:crypto';
 
 import { redact } from './log.js';
+import { DEFAULT_SSE_MAX_CLIENTS } from './defaults.js';
 import type { CycleEvent } from './schemas/cycle.js';
 import type { UpdaterStatus } from './updater.js';
 
@@ -37,6 +38,7 @@ export type SideServerOptions = {
   getStatus: () => StatusPayload;
   getMetrics?: () => MetricsSnapshot;
   onEventSubscribe?: (listener: (event: CycleEvent) => void) => () => void;
+  maxSseClients?: number;
 };
 
 export type StatusPayload =
@@ -159,12 +161,16 @@ export function readiness(status: StatusPayload): {
 
 export async function startSideServer(options: SideServerOptions): Promise<SideServer> {
   const { config, getStatus, getMetrics, onEventSubscribe } = options;
+  const maxSseClients = options.maxSseClients ?? DEFAULT_SSE_MAX_CLIENTS;
   const sseClients = new Set<ServerResponse>();
 
   const unsubscribe = onEventSubscribe?.((event) => {
     const data = `data: ${JSON.stringify(redact(event))}\n\n`;
     for (const client of sseClients) {
-      client.write(data);
+      if (!client.write(data)) {
+        client.end();
+        sseClients.delete(client);
+      }
     }
   });
 
@@ -195,6 +201,10 @@ export async function startSideServer(options: SideServerOptions): Promise<SideS
     }
     if (req.method === 'GET' && url === '/events') {
       if (!requireAuth(req, res, config.authToken)) {
+        return;
+      }
+      if (sseClients.size >= maxSseClients) {
+        writeJson(res, 503, { error: 'too many event subscribers' });
         return;
       }
       res.writeHead(200, {

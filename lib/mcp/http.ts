@@ -14,6 +14,11 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Express, NextFunction, Request, Response } from 'express';
 
+import {
+  DEFAULT_MCP_MAX_SESSIONS,
+  DEFAULT_MCP_SESSION_IDLE_MS,
+  DEFAULT_SSE_MAX_CLIENTS,
+} from '../defaults.js';
 import type { Logger } from '../log.js';
 import { redact } from '../log.js';
 import type { CycleEvent } from '../schemas/cycle.js';
@@ -33,6 +38,7 @@ export type McpHttpServer = {
 type HttpSession = {
   transport: StreamableHTTPServerTransport;
   server: UddnsMcpServer;
+  lastActivityAt: number;
 };
 
 function bearerMatches(expected: string, header: string | undefined): boolean {
@@ -122,8 +128,16 @@ export async function startMcpHttpServer(options: {
   session: McpSession;
   mcpConfig: McpConfig;
   log: Logger;
+  maxSessions?: number;
+  sessionIdleMs?: number;
+  maxSseClients?: number;
+  now?: () => number;
 }): Promise<McpHttpServer> {
   const { session, mcpConfig, log } = options;
+  const maxSessions = options.maxSessions ?? DEFAULT_MCP_MAX_SESSIONS;
+  const sessionIdleMs = options.sessionIdleMs ?? DEFAULT_MCP_SESSION_IDLE_MS;
+  const maxSseClients = options.maxSseClients ?? DEFAULT_SSE_MAX_CLIENTS;
+  const now = options.now ?? Date.now;
   const accounts = sessionAccounts(session);
   const app = createMcpExpressApp({ host: mcpConfig.host });
   const sessions = new Map<string, HttpSession>();
@@ -162,6 +176,10 @@ export async function startMcpHttpServer(options: {
   app.use(requireAuth);
 
   app.get('/events', (req, res) => {
+    if (sseClients.size >= maxSseClients) {
+      res.status(503).json({ error: 'too many event subscribers' });
+      return;
+    }
     res.status(200).set({
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -169,38 +187,69 @@ export async function startMcpHttpServer(options: {
     });
     res.write(': ok\n\n');
     sseClients.add(res);
-    const listener = (event: CycleEvent): void => {
-      res.write(`data: ${JSON.stringify(redact(event))}\n\n`);
-    };
-    for (const account of accounts) {
-      account.eventListeners?.add(listener);
-    }
-    req.on('close', () => {
+    const cleanup = (): void => {
       sseClients.delete(res);
       for (const account of accounts) {
         account.eventListeners?.delete(listener);
       }
-    });
+    };
+    const listener = (event: CycleEvent): void => {
+      if (!res.write(`data: ${JSON.stringify(redact(event))}\n\n`)) {
+        cleanup();
+        res.end();
+      }
+    };
+    for (const account of accounts) {
+      account.eventListeners?.add(listener);
+    }
+    req.on('close', cleanup);
   });
 
   app.post('/mcp', async (req, res) => {
     try {
+      for (const [id, candidate] of sessions) {
+        if (now() - candidate.lastActivityAt >= sessionIdleMs) {
+          sessions.delete(id);
+          candidate.server.dispose();
+          await candidate.transport.close();
+          await candidate.server.close();
+          log.debug('Expired idle MCP HTTP session', {
+            activeSessions: sessions.size,
+          });
+        }
+      }
       const sessionIdHeader = req.header('mcp-session-id');
       let entry = sessionIdHeader ? sessions.get(sessionIdHeader) : undefined;
 
       if (entry) {
+        entry.lastActivityAt = now();
         await entry.transport.handleRequest(req, res, req.body);
         return;
       }
 
       if (!sessionIdHeader && isInitializeRequest(req.body)) {
+        if (sessions.size >= maxSessions) {
+          log.warn('MCP HTTP session limit reached', {
+            activeSessions: sessions.size,
+            maxSessions,
+          });
+          res.status(503).json({
+            jsonrpc: '2.0',
+            error: { code: -32002, message: 'MCP session limit reached' },
+            id: null,
+          });
+          return;
+        }
         let server: UddnsMcpServer | undefined;
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
           onsessioninitialized: (sessionId) => {
             if (server) {
-              sessions.set(sessionId, { transport, server });
+              sessions.set(sessionId, { transport, server, lastActivityAt: now() });
+              log.debug('Opened MCP HTTP session', {
+                activeSessions: sessions.size,
+              });
             }
           },
         });
@@ -213,12 +262,15 @@ export async function startMcpHttpServer(options: {
           const closed = sessions.get(id);
           sessions.delete(id);
           closed?.server.dispose();
+          log.debug('Closed MCP HTTP session', {
+            activeSessions: sessions.size,
+          });
         };
         // SDK optional callbacks vs exactOptionalPropertyTypes
         await server.connect(transport as unknown as Transport);
         await transport.handleRequest(req, res, req.body);
         if (transport.sessionId && server) {
-          sessions.set(transport.sessionId, { transport, server });
+          sessions.set(transport.sessionId, { transport, server, lastActivityAt: now() });
         }
         return;
       }
