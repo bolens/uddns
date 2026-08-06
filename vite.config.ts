@@ -25,7 +25,7 @@ export default defineConfig({
     fileParallelism: true,
     coverage: {
       provider: 'v8',
-      include: ['app.ts', 'mcp.ts', 'lib/**/*.ts'],
+      include: ['app.ts', 'mcp.ts', 'cli.ts', 'lib/**/*.ts'],
       exclude: ['**/*.test.ts', 'tests/**'],
       reporter: ['text', 'html', 'clover', 'json'],
       reportsDirectory: './coverage',
