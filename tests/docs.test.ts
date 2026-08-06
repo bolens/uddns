@@ -252,6 +252,18 @@ describe('documentation contracts', () => {
     expect(ci).toContain('--shard=${{ matrix.shard }}/4');
   });
 
+  it('promotes mutable release tags only after verification', async () => {
+    const release = await read('.github/workflows/release.yml');
+    const build = release.indexOf('- name: Build and push');
+    const sign = release.indexOf('- name: Sign image digest');
+    const promote = release.indexOf('- name: Promote verified image aliases');
+
+    expect(release).toContain('flavor: latest=false');
+    expect(build).toBeGreaterThan(-1);
+    expect(sign).toBeGreaterThan(build);
+    expect(promote).toBeGreaterThan(sign);
+  });
+
   it('keeps the HTTP User-Agent in sync with package version', async () => {
     const { version } = JSON.parse(await read('package.json')) as { version: string };
     expect(userAgent).toBe(`uDDNS/${version}`);
