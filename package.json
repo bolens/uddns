@@ -44,7 +44,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.10",
-    "fallow": "^3.11.0",
+    "fallow": "^3.14.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
