@@ -279,9 +279,11 @@ describe('createUpdater', () => {
   });
 
   it('logs skipped hosts as info and still commits the IP', async () => {
-    const update = vi.fn(
-      async (): Promise<UpdateResult> => ({ ok: true, skipped: true, message: 'nochg' }),
-    );
+    const update = vi.fn(async (): Promise<UpdateResult> => ({
+      ok: true,
+      skipped: true,
+      message: 'nochg',
+    }));
     const log = silentLog();
     const updater = createUpdater({
       config: makeConfig({ hosts: ['home.example.com'] }),
