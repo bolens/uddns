@@ -57,6 +57,8 @@ workflow, which rejects tags that do not match `package.json`.
    ```bash
    image="ghcr.io/bolens/uddns"
    docker buildx imagetools inspect "${image}:${version}"
+   docker buildx imagetools inspect "${image}:${version%.*}"
+   docker buildx imagetools inspect "${image}:latest"
    ```
 
 4. Verify the image signature and GitHub attestations using the digest reported
