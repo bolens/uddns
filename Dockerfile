@@ -1,6 +1,6 @@
 FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS dependencies
 
-RUN corepack enable
+RUN npm install --global pnpm@11.24.0
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN VP_GIT_HOOKS=0 pnpm install --frozen-lockfile

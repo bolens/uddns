@@ -1,6 +1,6 @@
 {
   "name": "uddns",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "uDDNS — micro multi-provider Dynamic DNS updater (Cloudflare, DuckDNS, No-IP, Dynu, Namecheap, DynDNS, Route53, Porkbun, Hetzner, DigitalOcean, Gandi, Linode, OVH, Bunny, Contabo)",
   "license": "MIT",

@@ -72,5 +72,9 @@ workflow, which rejects tags that do not match `package.json`.
    gh attestation verify "oci://${image}@sha256:..." --repo bolens/uddns
    ```
 
-If publication fails, inspect the failed job before retrying it. Never delete
-or recreate a successfully published tag to repair mutable aliases.
+If publication fails, inspect the failed job before retrying it. A retry is
+appropriate only when the tagged source is valid and the failure was transient.
+When the tagged source needs a fix, leave the failed tag in place, merge the fix
+with a new patch version, and publish a new tag. Never move or reuse a release
+tag, and never delete or recreate a successfully published tag to repair mutable
+aliases.
