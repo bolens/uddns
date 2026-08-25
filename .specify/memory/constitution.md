@@ -1,64 +1,29 @@
-# [PROJECT_NAME] Constitution
-
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# uDDNS Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
+### I. Network and DNS Safety
 
-<!-- Example: I. Library-First -->
+Configuration MUST be validated before requests. HTTPS-only, DNS-rebinding, private-address, metadata-address, and hostname allowlist protections are mandatory trust boundaries.
 
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### II. Secret-Safe Observability
 
-### [PRINCIPLE_2_NAME]
+Tokens, credentials, authorization data, identifiers, URLs, errors, and previews MUST remain redacted in logs, history, MCP responses, and tests.
 
-<!-- Example: II. CLI Interface -->
+### III. Explicit Scoped Writes
 
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Live DNS updates, retries, and state changes require explicit scope and authorization. MCP operations validate and dry-run first, identify exact hosts, preserve disabled hosts, and never broaden to account-wide writes silently.
 
-### [PRINCIPLE_3_NAME]
+### IV. Deterministic Provider Architecture
 
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
+Providers use shared HTTP/safety modules and established result types. Tests use fixtures and stubbed fetches; default tests never contact provider endpoints.
 
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### V. Contract Synchronization
 
-### [PRINCIPLE_4_NAME]
-
-<!-- Example: IV. Integration Testing -->
-
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
-
-### [PRINCIPLE_5_NAME]
-
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
-
-## [SECTION_2_NAME]
-
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
-
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
-
-## [SECTION_3_NAME]
-
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Schemas, defaults, `.env.example`, provider registries, docs, MCP surfaces, and tests MUST change together. Strict TypeScript/ESM guarantees remain enabled and generated output is not hand-edited.
 
 ## Governance
 
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+`docs/security.md` is the detailed security authority. Any protection reduction requires explicit approval, focused negative tests, and a constitution version update.
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-08-15 | **Last Amended**: 2026-08-15
