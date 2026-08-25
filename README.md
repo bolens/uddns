@@ -26,7 +26,7 @@ vp install
 ```
 
 Or open the repo in a [Dev Container](https://containers.dev/) (VS Code "Reopen in
-Container" or `devcontainer up`): `.devcontainer/` provisions Node 24, pnpm, the Vite+
+Container" or `devcontainer up`): `.devcontainer/` provisions Node 26, pnpm, the Vite+
 toolchain, and Docker, then installs dependencies automatically.
 
 ## Run
