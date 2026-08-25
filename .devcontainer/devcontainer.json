@@ -1,6 +1,6 @@
 {
   "name": "uDDNS",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:24",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:26",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },

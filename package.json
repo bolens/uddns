@@ -43,8 +43,8 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
-    "@vitest/coverage-v8": "^4.1.10",
-    "fallow": "^3.15.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "fallow": "^3.17.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
@@ -52,17 +52,17 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.13.1",
+      "version": "11.24.0",
       "onFail": "download"
     },
     "runtime": {
       "name": "node",
-      "version": "24.18.0",
+      "version": "26.7.0",
       "onFail": "download"
     }
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
-  "packageManager": "pnpm@11.13.1"
+  "packageManager": "pnpm@11.24.0"
 }
