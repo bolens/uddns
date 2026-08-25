@@ -45,7 +45,7 @@ attestations, and a keyless Sigstore signature.
 Verify provenance with GitHub CLI:
 
 ```bash
-gh attestation verify oci://ghcr.io/bolens/uddns:3.0.0 --owner bolens
+gh attestation verify oci://ghcr.io/bolens/uddns:3.0.1 --owner bolens
 ```
 
 Verify the keyless image signature:
@@ -54,7 +54,7 @@ Verify the keyless image signature:
 cosign verify \
   --certificate-identity-regexp='https://github.com/bolens/uddns/.github/workflows/release.yml@refs/tags/v.*' \
   --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
-  ghcr.io/bolens/uddns:3.0.0
+  ghcr.io/bolens/uddns:3.0.1
 ```
 
 Build locally:
