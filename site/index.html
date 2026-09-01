@@ -10,11 +10,28 @@
     <meta name="theme-color" content="#082633" />
     <link rel="canonical" href="https://bolens.github.io/uddns/" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="uDDNS" />
     <meta property="og:url" content="https://bolens.github.io/uddns/" />
     <meta property="og:title" content="uDDNS guide" />
     <meta property="og:description" content="Keep DNS pointed at the address you actually have." />
+    <meta property="og:image" content="https://bolens.github.io/uddns/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="uDDNS — your address changes, your hostname keeps up." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="uDDNS guide" />
+    <meta name="twitter:description" content="Keep DNS pointed at the address you actually have." />
+    <meta name="twitter:image" content="https://bolens.github.io/uddns/og.png" />
+    <meta
+      name="twitter:image:alt"
+      content="uDDNS — your address changes, your hostname keeps up."
+    />
     <title>uDDNS guide</title>
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <link rel="icon" href="favicon.png" type="image/png" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="manifest" href="site.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -22,7 +39,7 @@
 
     <header class="site-header">
       <a class="wordmark" href="#top" aria-label="uDDNS guide home"><span>u</span>DDNS</a>
-      <nav aria-label="Primary navigation">
+      <nav class="desktop-nav" aria-label="Primary navigation">
         <a href="#start">Plan</a>
         <a href="#providers">Providers</a>
         <a href="#deploy">Deploy</a>
@@ -30,6 +47,17 @@
         <a href="#how-it-works">How it works</a>
         <a href="https://github.com/bolens/uddns#documentation">Technical docs</a>
       </nav>
+      <details class="mobile-nav">
+        <summary>Menu</summary>
+        <nav aria-label="Mobile navigation">
+          <a href="#start">Plan</a>
+          <a href="#providers">Providers</a>
+          <a href="#deploy">Deploy</a>
+          <a href="#operate">Daily use</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="https://github.com/bolens/uddns#documentation">Technical docs</a>
+        </nav>
+      </details>
     </header>
 
     <main id="main">
