@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - 'site/**'
+      - 'scripts/ci/check-site-accessibility.py'
+      - 'scripts/ci/check-site-links.py'
+      - 'scripts/ci/check-site-responsive.sh'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -33,8 +36,16 @@ jobs:
           test -s site/styles.css
           test -s site/architecture.html
           test -s site/architecture.json
+          test -s site/404.html
+          test -s site/og.png
           grep -q '<main id="main">' site/index.html
           grep -q 'href="#main"' site/index.html
+      - name: Check accessibility and discovery metadata
+        run: python3 scripts/ci/check-site-accessibility.py
+      - name: Check local links and public metadata
+        run: python3 scripts/ci/check-site-links.py
+      - name: Check responsive rendering
+        run: bash scripts/ci/check-site-responsive.sh
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Upload site
