@@ -1,5 +1,11 @@
 # uDDNS
 
+[User guide](https://bolens.github.io/uddns/) ·
+[Architecture](https://bolens.github.io/uddns/architecture.html) ·
+[Provider configuration](docs/providers.md) ·
+[Deployment](docs/deployment.md) ·
+[Security](docs/security.md)
+
 Micro multi-provider Dynamic DNS updater. Defaults to **Cloudflare**, and also
 supports DuckDNS, No-IP, Dynu, Namecheap, Route53, Porkbun, Hetzner,
 DigitalOcean, Gandi, Linode, OVH, bunny.net, Contabo, and generic

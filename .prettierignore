@@ -1,0 +1,3 @@
+# Archify delivery artifacts are validated and checksummed by Archify.
+site/architecture.html
+site/architecture.json

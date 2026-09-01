@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Setup and operations guide for uDDNS, a small multi-provider dynamic DNS updater."
+    />
+    <meta name="theme-color" content="#082633" />
+    <link rel="canonical" href="https://bolens.github.io/uddns/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bolens.github.io/uddns/" />
+    <meta property="og:title" content="uDDNS guide" />
+    <meta property="og:description" content="Keep DNS pointed at the address you actually have." />
+    <title>uDDNS guide</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="#top" aria-label="uDDNS guide home"><span>u</span>DDNS</a>
+      <nav aria-label="Primary navigation">
+        <a href="#start">Plan</a>
+        <a href="#providers">Providers</a>
+        <a href="#deploy">Deploy</a>
+        <a href="#operate">Daily use</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="https://github.com/bolens/uddns#documentation">Technical docs</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <p class="eyebrow">Multi-provider dynamic DNS</p>
+        <h1 id="hero-title">Keep DNS pointed at the address you <em>actually have.</em></h1>
+        <p class="lede">
+          uDDNS checks your public IPv4 and IPv6 addresses, compares them with saved state, and
+          updates your provider only when an address changes.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#start">Plan your setup</a>
+          <a class="button secondary" href="https://github.com/bolens/uddns#install"
+            >Open technical setup</a
+          >
+        </div>
+
+        <ol class="cycle" aria-label="uDDNS update cycle">
+          <li><span>01</span><strong>Find</strong><small>your public address</small></li>
+          <li><span>02</span><strong>Compare</strong><small>with the last check</small></li>
+          <li class="change">
+            <span>03</span><strong>Change DNS</strong><small>only when needed</small>
+          </li>
+          <li><span>04</span><strong>Remember</strong><small>the new address</small></li>
+        </ol>
+      </section>
+
+      <section class="section" id="start" aria-labelledby="start-title">
+        <div class="section-heading">
+          <p class="eyebrow">Before setup</p>
+          <h2 id="start-title">Bring three things</h2>
+          <p>
+            You do not need to understand DNS internals, but you do need control of a hostname and a
+            computer that can keep uDDNS running.
+          </p>
+        </div>
+        <div class="command-grid">
+          <article>
+            <span class="step-label">1 · A hostname</span>
+            <h3>Choose what should stay reachable</h3>
+            <p>
+              Use a hostname you manage, such as <code>home.example.com</code>. uDDNS will keep that
+              name pointed at your changing public address.
+            </p>
+          </article>
+          <article>
+            <span class="step-label">2 · Provider access</span>
+            <h3>Create the narrowest credential</h3>
+            <p>
+              Use a token or key that can edit only the DNS records uDDNS needs. Your provider’s
+              guide explains which values to copy.
+            </p>
+          </article>
+          <article>
+            <span class="step-label">3 · An always-on home</span>
+            <h3>Pick where it will run</h3>
+            <p>
+              A home server, NAS, or small computer works well. It must reach the internet and
+              remain on when your public address changes.
+            </p>
+          </article>
+        </div>
+        <aside class="notice">
+          <strong>Preview before the first update.</strong>
+          <p>
+            The setup tools can check your configuration and show what would happen without changing
+            a DNS record. Follow the repository’s setup steps when you are ready.
+          </p>
+        </aside>
+        <div class="text-links">
+          <a href="https://github.com/bolens/uddns#install"
+            >Technical setup <span aria-hidden="true">↗</span></a
+          >
+          <a href="https://github.com/bolens/uddns/blob/main/.env.example"
+            >Configuration reference <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+
+      <section class="section providers" id="providers" aria-labelledby="providers-title">
+        <div class="section-heading">
+          <p class="eyebrow">Provider coverage</p>
+          <h2 id="providers-title">One runtime, several DNS APIs</h2>
+          <p>
+            Choose the company that manages your hostname. Advanced setups can use several accounts
+            or a backup provider, with details kept in the repository.
+          </p>
+        </div>
+        <ul class="provider-list" aria-label="Supported providers">
+          <li>Cloudflare</li>
+          <li>DuckDNS</li>
+          <li>No-IP</li>
+          <li>Dynu</li>
+          <li>Namecheap</li>
+          <li>Route 53</li>
+          <li>Porkbun</li>
+          <li>Hetzner</li>
+          <li>DigitalOcean</li>
+          <li>Gandi</li>
+          <li>Linode</li>
+          <li>OVH</li>
+          <li>bunny.net</li>
+          <li>Contabo</li>
+          <li>DynDNS-compatible</li>
+        </ul>
+        <div class="text-links">
+          <a href="https://github.com/bolens/uddns/blob/main/docs/providers.md"
+            >Provider configuration <span aria-hidden="true">↗</span></a
+          >
+          <a href="https://github.com/bolens/uddns/blob/main/examples/uddns.multi.yaml"
+            >Multi-account example <span aria-hidden="true">↗</span></a
+          >
+          <a href="https://github.com/bolens/uddns/blob/main/examples/uddns.failover.yaml"
+            >Failover example <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+
+      <section class="section deploy" id="deploy" aria-labelledby="deploy-title">
+        <div class="section-heading">
+          <p class="eyebrow">Choose a home</p>
+          <h2 id="deploy-title">Match uDDNS to what you already run</h2>
+          <p>
+            There is no single best installation. Pick the option that fits the computer you already
+            maintain.
+          </p>
+        </div>
+        <div class="deploy-grid">
+          <article>
+            <span>01</span>
+            <h3>Already use containers?</h3>
+            <p>
+              Choose Docker Compose. It keeps uDDNS and its saved address in a small, isolated
+              service.
+            </p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Maintain a Linux server?</h3>
+            <p>
+              Choose systemd. The operating system can start uDDNS after a reboot and record its
+              messages.
+            </p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Trying it for the first time?</h3>
+            <p>
+              Run it directly while you configure and preview the first check. Move it into a
+              background service after it works.
+            </p>
+          </article>
+        </div>
+        <div class="text-links">
+          <a href="https://github.com/bolens/uddns/blob/main/docs/deployment.md"
+            >Technical deployment guide <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+
+      <section class="section safety" id="operate" aria-labelledby="operate-title">
+        <div class="section-heading">
+          <p class="eyebrow">Daily use</p>
+          <h2 id="operate-title">Most checks should do nothing</h2>
+          <p>
+            That is the normal result. uDDNS contacts your provider only after it sees a new public
+            address.
+          </p>
+        </div>
+        <ul class="safety-list">
+          <li>
+            <strong>No change</strong>
+            <p>
+              Your saved address still matches. uDDNS leaves the DNS record alone and checks again
+              later.
+            </p>
+          </li>
+          <li>
+            <strong>Updated</strong>
+            <p>Your public address changed and the provider accepted the new record.</p>
+          </li>
+          <li>
+            <strong>Failed</strong>
+            <p>
+              The record may still point to the old address. Read the named error, then check the
+              provider credential and hostname.
+            </p>
+          </li>
+          <li>
+            <strong>Keep credentials private</strong>
+            <p>
+              Do not paste configuration or debug logs into an issue until you have checked them for
+              account details.
+            </p>
+          </li>
+        </ul>
+        <div class="text-links">
+          <a href="https://github.com/bolens/uddns/blob/main/docs/security.md"
+            >Technical security model <span aria-hidden="true">↗</span></a
+          >
+          <a href="https://github.com/bolens/uddns/issues/new"
+            >Ask for help <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+
+      <section class="section diagram-section" id="how-it-works" aria-labelledby="diagram-title">
+        <div class="section-heading">
+          <p class="eyebrow">Optional deeper look</p>
+          <h2 id="diagram-title">Follow an address from discovery to DNS</h2>
+          <p>
+            The interactive map shows how uDDNS checks an address, decides whether anything changed,
+            contacts the selected provider, and records the result.
+          </p>
+        </div>
+        <iframe
+          src="architecture.html"
+          title="Interactive architecture diagram showing how uDDNS keeps a hostname current"
+          loading="lazy"
+        ></iframe>
+        <a class="diagram-link" href="architecture.html">
+          <strong>Open the interactive diagram</strong>
+          <span
+            >Switch themes, inspect source references, trace relationships, or export a copy.</span
+          >
+        </a>
+      </section>
+    </main>
+
+    <footer>
+      <strong><span>u</span>DDNS</strong>
+      <p>Small enough to inspect. Strict where a DNS writer should be.</p>
+      <a href="https://github.com/bolens/uddns#documentation">Technical documentation</a>
+    </footer>
+  </body>
+</html>
