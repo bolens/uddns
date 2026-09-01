@@ -23,7 +23,7 @@ for viewport in 1440x1000 900x1000 390x844 320x800; do
   "$browser" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --force-prefers-reduced-motion --window-size="${viewport/x/,}" --screenshot="$output" \
     "http://127.0.0.1:$port/" >/dev/null 2>&1
-  dimensions="$(identify -format '%wx%h' "$output")"
+  dimensions="$(python3 -c 'import struct, sys; data = open(sys.argv[1], "rb").read(24); width, height = struct.unpack(">II", data[16:24]); print(f"{width}x{height}")' "$output")"
   [[ "$dimensions" == "$viewport" ]] || { echo "$viewport capture has dimensions $dimensions" >&2; exit 1; }
 done
 echo "ok: responsive captures in $evidence_dir"
