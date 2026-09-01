@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "How uDDNS keeps a hostname current",
+    "output": "architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1200, 680],
+    "repository": {
+      "url": "https://github.com/bolens/uddns",
+      "revision": "27bc63b4bf67c31371d29967e03a490b9097af9c"
+    }
+  },
+  "components": [
+    {
+      "id": "echoServices",
+      "type": "external",
+      "label": "HTTPS address services",
+      "sublabel": "Public IPv4 / IPv6",
+      "pos": [25, 150],
+      "size": [160, 70],
+      "sources": [{ "path": "lib/ip.ts", "label": "Address discovery" }]
+    },
+    {
+      "id": "dnsFallback",
+      "type": "external",
+      "label": "DNS fallback",
+      "sublabel": "Optional · off by default",
+      "pos": [25, 350],
+      "size": [160, 70],
+      "sources": [{ "path": "lib/ip.ts", "label": "Optional fallback" }]
+    },
+    {
+      "id": "addressDiscovery",
+      "type": "security",
+      "label": "Address discovery",
+      "sublabel": "Validate and pin HTTPS",
+      "pos": [330, 245],
+      "size": [170, 78],
+      "sources": [
+        { "path": "lib/ip.ts", "label": "Discovery order" },
+        { "path": "lib/safe-https.ts", "label": "Pinned connection" }
+      ]
+    },
+    {
+      "id": "configuration",
+      "type": "database",
+      "label": "Configuration",
+      "sublabel": "Accounts, hosts, interval",
+      "pos": [645, 40],
+      "size": [170, 70],
+      "sources": [{ "path": "lib/config-file.ts", "label": "YAML accounts" }]
+    },
+    {
+      "id": "runtimeLoop",
+      "type": "backend",
+      "label": "uDDNS update loop",
+      "sublabel": "Compare before writing",
+      "tag": "explicit scope",
+      "pos": [640, 245],
+      "size": [180, 78],
+      "sources": [
+        { "path": "lib/runtime.ts", "label": "Runtime wiring" },
+        { "path": "lib/updater.ts", "label": "Update session" }
+      ]
+    },
+    {
+      "id": "providerApi",
+      "type": "cloud",
+      "label": "DNS provider API",
+      "sublabel": "Selected host records",
+      "pos": [950, 245],
+      "size": [170, 78],
+      "sources": [
+        { "path": "lib/providers/index.ts", "label": "Provider registry" },
+        { "path": "lib/providers/http.ts", "label": "Safe requests" }
+      ]
+    },
+    {
+      "id": "controlSurfaces",
+      "type": "frontend",
+      "label": "CLI and MCP",
+      "sublabel": "Validate, preview, confirm",
+      "pos": [330, 465],
+      "size": [170, 74],
+      "sources": [
+        { "path": "cli.ts", "label": "CLI commands" },
+        { "path": "lib/mcp/tools.ts", "label": "Confirmed tools" }
+      ]
+    },
+    {
+      "id": "stateHistory",
+      "type": "database",
+      "label": "State and history",
+      "sublabel": "Atomic per-host checkpoints",
+      "pos": [645, 465],
+      "size": [170, 74],
+      "sources": [
+        { "path": "lib/state.ts", "label": "Saved state" },
+        { "path": "lib/history.ts", "label": "Cycle history" }
+      ]
+    },
+    {
+      "id": "notifications",
+      "type": "external",
+      "label": "Notifications",
+      "sublabel": "Webhook, ntfy, Slack, Discord",
+      "pos": [950, 465],
+      "size": [170, 74],
+      "sources": [{ "path": "lib/notify.ts", "label": "Notification channels" }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Computer running uDDNS",
+      "wraps": ["addressDiscovery", "configuration", "runtimeLoop", "controlSurfaces", "stateHistory"],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "httpsDiscovery",
+      "from": "echoServices",
+      "to": "addressDiscovery",
+      "label": "HTTPS address check",
+      "variant": "security"
+    },
+    {
+      "id": "optionalDnsDiscovery",
+      "from": "dnsFallback",
+      "to": "addressDiscovery",
+      "label": "only when enabled",
+      "variant": "dashed"
+    },
+    {
+      "id": "discoveredAddress",
+      "from": "addressDiscovery",
+      "to": "runtimeLoop",
+      "label": "validated address",
+      "variant": "emphasis"
+    },
+    {
+      "id": "loadedConfiguration",
+      "from": "configuration",
+      "to": "runtimeLoop",
+      "label": "validated hosts and policy",
+      "labelAt": [730, 124]
+    },
+    {
+      "id": "providerUpdate",
+      "from": "runtimeLoop",
+      "to": "providerApi",
+      "label": "HTTPS update if changed",
+      "variant": "emphasis"
+    },
+    {
+      "id": "scopedControl",
+      "from": "controlSurfaces",
+      "to": "runtimeLoop",
+      "label": "preview or confirmed action",
+      "variant": "security"
+    },
+    {
+      "id": "checkpointWrite",
+      "from": "runtimeLoop",
+      "to": "stateHistory",
+      "label": "result and checkpoint",
+      "labelAt": [730, 337]
+    },
+    {
+      "id": "sendNotification",
+      "from": "runtimeLoop",
+      "to": "notifications",
+      "label": "redacted outcome",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Normal cycle",
+      "items": ["Discover the public address", "Compare it with saved state", "Contact the provider only after a change"]
+    },
+    {
+      "dot": "amber",
+      "title": "Network safety",
+      "items": ["Validate HTTPS targets before connecting", "Pin requests to the verified address set", "Keep the plain-DNS fallback off by default"]
+    },
+    {
+      "dot": "emerald",
+      "title": "Controlled writes",
+      "items": ["Scope updates to configured hosts", "Require confirmation for live MCP writes", "Save state atomically after each result"]
+    }
+  ]
+}
