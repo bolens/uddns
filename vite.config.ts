@@ -7,7 +7,13 @@ export default defineConfig({
     env: { node: true },
   },
   fmt: {
-    ignorePatterns: ['dist/**', 'coverage/**', 'pnpm-lock.yaml'],
+    ignorePatterns: [
+      'dist/**',
+      'coverage/**',
+      'pnpm-lock.yaml',
+      '.agents/skills/speckit-*/**',
+      '.specify/**',
+    ],
     singleQuote: true,
     semi: true,
     sortPackageJson: true,
