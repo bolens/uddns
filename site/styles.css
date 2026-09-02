@@ -393,6 +393,15 @@ footer p {
   margin: 0;
 }
 
+@media (min-width: 100rem) {
+  .site-header { padding-inline: max(2rem, calc((100vw - 1520px) / 2)); }
+  main, footer { width: min(1520px, calc(100% - 4rem)); }
+  .hero { min-height: min(50rem, calc(100svh - 4.5rem)); }
+  h1 { max-width: 1120px; }
+  .section-heading { max-width: 880px; }
+  .diagram-section iframe { height: 54rem; }
+}
+
 @media (max-width: 760px) {
   .site-header {
     min-height: 4rem;
@@ -465,3 +474,6 @@ footer p {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Routing-chart signature: the update cycle reads as one continuous path. */
+::selection{background:var(--cyan);color:var(--deep)}h1,h2{text-wrap:balance}p{text-wrap:pretty}.cycle{position:relative;border-top:.3rem solid var(--cyan);box-shadow:0 -1rem 3rem color-mix(in srgb,var(--cyan) 9%,transparent)}.cycle .change{background:linear-gradient(145deg,color-mix(in srgb,var(--cyan) 16%,var(--panel)),var(--panel-soft))}
