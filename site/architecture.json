@@ -9,7 +9,12 @@
     "repository": {
       "url": "https://github.com/bolens/uddns",
       "revision": "27bc63b4bf67c31371d29967e03a490b9097af9c"
-    }
+    },
+    "views": [
+      { "id": "update-cycle", "label": "Change-aware update", "focus": ["echoServices", "addressDiscovery", "runtimeLoop", "providerApi", "stateHistory"], "note": "A cycle validates the public address, compares state, and writes DNS only when the selected record changed." },
+      { "id": "discovery-policy", "label": "Discovery policy", "focus": ["echoServices", "dnsFallback", "addressDiscovery", "configuration"], "note": "Pinned HTTPS services are primary; DNS discovery remains an explicit, disabled-by-default fallback." },
+      { "id": "controlled-action", "label": "Controlled action", "focus": ["controlSurfaces", "configuration", "runtimeLoop", "stateHistory", "notifications"], "note": "CLI and MCP controls validate scope, preview mutations, and record redacted outcomes for sensitive actions." }
+    ]
   },
   "components": [
     {
@@ -186,11 +191,6 @@
       "dot": "amber",
       "title": "Network safety",
       "items": ["Validate HTTPS targets before connecting", "Pin requests to the verified address set", "Keep the plain-DNS fallback off by default"]
-    },
-    {
-      "dot": "emerald",
-      "title": "Controlled writes",
-      "items": ["Scope updates to configured hosts", "Require confirmation for live MCP writes", "Save state atomically after each result"]
     }
   ]
 }
