@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Check the hand-authored Pages documents for basic accessibility contracts."""
 
+import html
 from html.parser import HTMLParser
+import json
 from pathlib import Path
 import os
 import re
@@ -28,13 +30,21 @@ class Document(HTMLParser):
             self.mains += 1
         elif tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             self.headings.append(int(tag[1]))
-        elif tag == "img" and "alt" not in values and values.get("role") != "presentation":
+        elif (
+            tag == "img"
+            and "alt" not in values
+            and values.get("role") != "presentation"
+        ):
             self.failures.append("image has no alt text")
         elif tag == "iframe" and not values.get("title"):
             self.failures.append("iframe has no title")
-        elif tag == "nav" and not (values.get("aria-label") or values.get("aria-labelledby")):
+        elif tag == "nav" and not (
+            values.get("aria-label") or values.get("aria-labelledby")
+        ):
             self.failures.append("navigation landmark has no accessible name")
-        elif tag in {"a", "button"} and not (values.get("aria-label") or values.get("href") or values.get("title")):
+        elif tag in {"a", "button"} and not (
+            values.get("aria-label") or values.get("href") or values.get("title")
+        ):
             self.failures.append(f"{tag} has no accessible name")
 
     def handle_data(self, data: str) -> None:
@@ -58,14 +68,46 @@ class Document(HTMLParser):
             self.failures.append(f"document has {self.headings.count(1)} h1 elements")
         for previous, current in zip(self.headings, self.headings[1:]):
             if current > previous + 1:
-                self.failures.append(f"heading level jumps from h{previous} to h{current}")
+                self.failures.append(
+                    f"heading level jumps from h{previous} to h{current}"
+                )
         return self.failures
 
 
 def main() -> int:
     site = Path(os.environ.get("SITE_DIR", "site"))
     failures: list[str] = []
-    for asset in ("theme.js", "theme-modes.css", "favicon.ico", "favicon.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og.png", "site.webmanifest"):
+    source_path = site / "architecture.json"
+    artifact_path = site / "architecture.html"
+    try:
+        architecture = json.loads(source_path.read_text(encoding="utf-8"))
+        rendered = artifact_path.read_text(encoding="utf-8")
+        if architecture.get("diagram_type") != "architecture":
+            failures.append(f"{source_path}: diagram_type must be architecture")
+        if architecture.get("meta", {}).get("quality_profile") != "showcase":
+            failures.append(f"{source_path}: quality_profile must be showcase")
+        if 'name="generator" content="archify ' not in rendered:
+            failures.append(f"{artifact_path}: missing Archify generator metadata")
+        for component in architecture.get("components", []):
+            label = component.get("label")
+            if (
+                isinstance(label, str)
+                and html.escape(label, quote=True) not in rendered
+            ):
+                failures.append(f"{artifact_path}: missing component label {label!r}")
+    except (OSError, json.JSONDecodeError) as error:
+        failures.append(f"{source_path}: {error}")
+    for asset in (
+        "theme.js",
+        "theme-modes.css",
+        "favicon.ico",
+        "favicon.png",
+        "apple-touch-icon.png",
+        "icon-192.png",
+        "icon-512.png",
+        "og.png",
+        "site.webmanifest",
+    ):
         if not (site / asset).is_file():
             failures.append(f"{site / asset}: missing discovery asset")
     for name in ("index.html", "404.html"):
@@ -75,15 +117,27 @@ def main() -> int:
         failures.extend(f"{path}: {failure}" for failure in document.finish())
     home = (site / "index.html").read_text(encoding="utf-8")
     css = (site / "styles.css").read_text(encoding="utf-8")
-    for contract in ('og:site_name', 'twitter:image:alt', 'rel="apple-touch-icon"', 'rel="manifest"'):
+    for contract in (
+        "og:site_name",
+        "twitter:image:alt",
+        'rel="apple-touch-icon"',
+        'rel="manifest"',
+    ):
         if contract not in home:
-            failures.append(f"{site / 'index.html'}: missing discovery contract {contract}")
+            failures.append(
+                f"{site / 'index.html'}: missing discovery contract {contract}"
+            )
     if ":focus-visible" not in css:
         failures.append(f"{site / 'styles.css'}: no visible keyboard focus rule")
     if "@media (prefers-reduced-motion: reduce)" not in css:
         failures.append(f"{site / 'styles.css'}: no reduced-motion fallback")
     theme_source = (site / "theme.js").read_text(encoding="utf-8")
-    for behavior in ("prefers-color-scheme: light", "prefers-color-scheme: dark", "new Date().getHours()", "localStorage.setItem"):
+    for behavior in (
+        "prefers-color-scheme: light",
+        "prefers-color-scheme: dark",
+        "new Date().getHours()",
+        "localStorage.setItem",
+    ):
         if behavior not in theme_source:
             failures.append(f"theme.js: missing {behavior} adaptive-theme behavior")
     if not re.search(r"return [\x27\"]dark[\x27\"]", theme_source):
