@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+pnpm run verify
+python3 scripts/ci/check-site-accessibility.py
+python3 scripts/ci/check-site-links.py
+bash scripts/ci/check-site-responsive.sh
+actionlint
+zizmor --offline --min-severity medium --min-confidence medium .github
