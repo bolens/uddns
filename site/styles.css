@@ -474,3 +474,6 @@ footer p {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Routing-chart signature: the update cycle reads as one continuous path. */
+::selection{background:var(--cyan);color:var(--deep)}h1,h2{text-wrap:balance}p{text-wrap:pretty}.cycle{position:relative;border-top:.3rem solid var(--cyan);box-shadow:0 -1rem 3rem color-mix(in srgb,var(--cyan) 9%,transparent)}.cycle .change{background:linear-gradient(145deg,color-mix(in srgb,var(--cyan) 16%,var(--panel)),var(--panel-soft))}
