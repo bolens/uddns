@@ -243,7 +243,7 @@ jobs:
         run: pnpm run build
 
       - name: Dry-run example configuration (${{ matrix.config-file }})
-        uses: ./.github/actions/config-dry-run
+        uses: ./.github/actions/config-dry-run # zizmor: ignore[self-repository] actionlint 1.7.12 requires the current local-action syntax.
         with:
           config-file: ${{ matrix.config-file }}
     strategy:

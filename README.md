@@ -108,3 +108,7 @@ examples. Transient provider updates retry with configurable backoff
 `UDDNS_CONFIG_FILE` to a YAML file (see `examples/uddns.multi.yaml`). For
 ordered DNS-provider failover on the same hostname, see
 `examples/uddns.failover.yaml`.
+
+### Git hooks
+
+Run `bash scripts/install-git-hooks` once per clone. The pre-commit hook runs fast staged checks; pre-push runs the broader local CI gate.
