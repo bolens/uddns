@@ -190,6 +190,12 @@ h1 em {
   outline: 2px solid var(--amber);
   outline-offset: 3px;
 }
+.cycle-signal { display: block; width: calc(100% - 2rem); height: 2.5rem; margin: -2.8rem auto .35rem; overflow: visible; }
+.cycle-track { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: .035 .025; animation: cycle-track 5.4s linear infinite; }
+.cycle-stops circle { fill: var(--panel); stroke: var(--cyan); stroke-width: 2; }
+.cycle-pulse { fill: var(--amber); filter: drop-shadow(0 0 7px color-mix(in srgb, var(--amber) 65%, transparent)); animation: cycle-pulse 5.4s cubic-bezier(.45, 0, .2, 1) infinite; }
+@keyframes cycle-track { to { stroke-dashoffset: -1; } }
+@keyframes cycle-pulse { 0%, 7% { transform: translateX(0); } 29% { transform: translateX(235px); } 55% { transform: translateX(471px); } 82%, 100% { transform: translateX(706px); } }
 .cycle {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -475,10 +481,19 @@ footer p {
   }
 }
 
+@media (orientation: landscape) and (max-height: 560px) {
+  .hero { min-height: auto; padding-block: 1.25rem 2rem; }
+  h1 { font-size: clamp(2.75rem, 7vw, 3.5rem); }
+  .lede { margin-block: 0.65rem; }
+  .actions { margin-block: 0.65rem 1.5rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
+  .cycle-signal * { animation: none !important; }
+  .cycle-pulse { transform: translateX(706px); }
   *,
   *::before,
   *::after {
