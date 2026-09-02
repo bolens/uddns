@@ -29,7 +29,7 @@ tag:
 
 ```bash
 version="$(node -p "require('./package.json').version")"
-git tag -a "v${version}" -m "uDDNS v${version}"
+git tag -s "v${version}" -m "uDDNS v${version}"
 git push origin "v${version}"
 ```
 
