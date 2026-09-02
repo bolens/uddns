@@ -7,7 +7,13 @@ the minor and `latest` aliases.
 
 ## Prepare
 
-1. Confirm the release PR is merged and all required checks passed.
+1. Queue the release PR for squash auto-merge, then confirm it merged after all
+   required checks passed:
+
+   ```bash
+   gh pr merge --auto --squash --delete-branch
+   ```
+
 2. Update local `main` from `origin/main` and require a clean worktree.
 3. Choose the next semantic version. Update `package.json` in a separate PR
    when it does not already contain that version, and merge it before tagging.
