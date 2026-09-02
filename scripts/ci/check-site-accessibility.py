@@ -64,7 +64,7 @@ class Document(HTMLParser):
 def main() -> int:
     site = Path(os.environ.get("SITE_DIR", "site"))
     failures: list[str] = []
-    for asset in ("favicon.ico", "favicon.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og.png", "site.webmanifest"):
+    for asset in ("theme.js", "theme-modes.css", "favicon.ico", "favicon.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "og.png", "site.webmanifest"):
         if not (site / asset).is_file():
             failures.append(f"{site / asset}: missing discovery asset")
     for name in ("index.html", "404.html"):
@@ -81,6 +81,11 @@ def main() -> int:
         failures.append(f"{site / 'styles.css'}: no visible keyboard focus rule")
     if "@media (prefers-reduced-motion: reduce)" not in css:
         failures.append(f"{site / 'styles.css'}: no reduced-motion fallback")
+    theme_source = (site / "theme.js").read_text(encoding="utf-8")
+    for behavior in ("prefers-color-scheme: light", "prefers-color-scheme: dark", "new Date().getHours()", "return \"dark\"", "localStorage.setItem"):
+        if behavior not in theme_source:
+            failures.append(f"theme.js: missing {behavior} adaptive-theme behavior")
+
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
