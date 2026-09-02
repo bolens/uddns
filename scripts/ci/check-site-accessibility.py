@@ -4,6 +4,7 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import os
+import re
 import sys
 
 
@@ -82,9 +83,11 @@ def main() -> int:
     if "@media (prefers-reduced-motion: reduce)" not in css:
         failures.append(f"{site / 'styles.css'}: no reduced-motion fallback")
     theme_source = (site / "theme.js").read_text(encoding="utf-8")
-    for behavior in ("prefers-color-scheme: light", "prefers-color-scheme: dark", "new Date().getHours()", "return \"dark\"", "localStorage.setItem"):
+    for behavior in ("prefers-color-scheme: light", "prefers-color-scheme: dark", "new Date().getHours()", "localStorage.setItem"):
         if behavior not in theme_source:
             failures.append(f"theme.js: missing {behavior} adaptive-theme behavior")
+    if not re.search(r"return [\x27\"]dark[\x27\"]", theme_source):
+        failures.append("theme.js: missing dark adaptive-theme fallback")
 
     if failures:
         print("\n".join(failures), file=sys.stderr)
