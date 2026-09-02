@@ -86,10 +86,19 @@ def main() -> int:
             failures.append(f"{source_path}: diagram_type must be architecture")
         if architecture.get("meta", {}).get("quality_profile") != "showcase":
             failures.append(f"{source_path}: quality_profile must be showcase")
+        repository = architecture.get("meta", {}).get("repository", {})
+        if not repository.get("url") or not re.fullmatch(
+            r"[0-9a-f]{40}", repository.get("revision", "")
+        ):
+            failures.append(f"{source_path}: repository evidence must be pinned to a full commit")
         if 'name="generator" content="archify ' not in rendered:
             failures.append(f"{artifact_path}: missing Archify generator metadata")
         for component in architecture.get("components", []):
             label = component.get("label")
+            if not component.get("sources"):
+                failures.append(
+                    f"{source_path}: component {component.get('id')!r} has no evidence"
+                )
             if (
                 isinstance(label, str)
                 and html.escape(label, quote=True) not in rendered
