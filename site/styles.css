@@ -393,6 +393,15 @@ footer p {
   margin: 0;
 }
 
+@media (min-width: 100rem) {
+  .site-header { padding-inline: max(2rem, calc((100vw - 1520px) / 2)); }
+  main, footer { width: min(1520px, calc(100% - 4rem)); }
+  .hero { min-height: min(50rem, calc(100svh - 4.5rem)); }
+  h1 { max-width: 1120px; }
+  .section-heading { max-width: 880px; }
+  .diagram-section iframe { height: 54rem; }
+}
+
 @media (max-width: 760px) {
   .site-header {
     min-height: 4rem;
