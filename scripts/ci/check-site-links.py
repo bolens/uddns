@@ -69,6 +69,10 @@ def main() -> int:
     robots = (site / "robots.txt").read_text(encoding="utf-8")
     if f"Sitemap: {ROOT}sitemap.xml" not in robots:
         failures.append(f"{site / 'robots.txt'}: sitemap URL is missing")
+    llms = (site / "llms.txt").read_text(encoding="utf-8")
+    for url in (ROOT, f"{ROOT}architecture.html", "https://github.com/bolens/uddns"):
+        if url not in llms:
+            failures.append(f"{site / 'llms.txt'}: missing {url}")
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
