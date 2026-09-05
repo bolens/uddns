@@ -1,5 +1,9 @@
 # Agent guidance
 
+Before Spec Kit planning or implementation, read
+`.specify/memory/project-guide.md` with the project constitution. It maps
+requirements to this repository's source, acceptance evidence, and validation.
+
 Read `.specify/memory/constitution.md`, `docs/development.md`, and
 `docs/security.md`. Prefer package scripts using the pinned Node, pnpm, and
 Vite+ toolchain.
