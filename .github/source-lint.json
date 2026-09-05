@@ -1,0 +1,12 @@
+{
+  "python": [
+    "*"
+  ],
+  "javascript": [
+    "site/*.js"
+  ],
+  "css": [
+    "site/*.css"
+  ],
+  "notes": "Complements native repository checks. Managed Spec Kit files retain their dedicated integrity gate; imported snapshots and generated/native-checked surfaces are scoped separately."
+}
