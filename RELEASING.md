@@ -1,6 +1,6 @@
 # Release playbook
 
-uDDNS publishes Semantic Versioning releases and multi-architecture GHCR images
+uDDNS publishes Semantic Versioning releases and GHCR images
 from `vX.Y.Z` tags. `package.json` is the version authority. The Release
 workflow validates source, builds and pushes the immutable image, attaches an
 SPDX SBOM and attestations, signs the digest with Cosign, promotes aliases, and
@@ -31,7 +31,7 @@ and push it. Do not promote aliases by hand ahead of workflow verification.
 
 ## Verify and recover
 
-Verify the release tag and notes, immutable GHCR digest, multi-platform
+Verify the release tag and notes, immutable GHCR digest, image
 manifest, SPDX SBOM, provenance and SBOM attestations, Cosign signature, and
 promoted aliases. Pull by digest into an isolated environment and run config,
 health, and dry-run checks without provider writes. Confirm Pages reports the
