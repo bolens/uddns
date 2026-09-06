@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "uddns": {
+      "command": "node",
+      "args": ["--env-file=/absolute/path/to/uddns/.env", "/absolute/path/to/uddns/dist/mcp.js"],
+      "cwd": "/absolute/path/to/uddns"
+    }
+  }
+}
