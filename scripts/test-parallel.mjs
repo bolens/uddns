@@ -44,6 +44,8 @@ const shardRuns = Array.from({ length: shardTotal }, (_, i) => {
     [
       `--shard=${shard}/${shardTotal}`,
       '--reporter=blob',
+      // Print failures even when a failed shard prevents report merging.
+      '--reporter=default',
       '--coverage',
       '--coverage.clean=false',
       '--coverage.reporter=json',

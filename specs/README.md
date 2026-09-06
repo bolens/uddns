@@ -7,3 +7,5 @@ Installation validation alone does not establish feature completion.
 
 The baseline includes [legacy contracts](001-updater-baseline/legacy-contracts.md)
 and [coverage of all providers and supporting interfaces](001-updater-baseline/legacy-coverage.md).
+
+- [Development environments](002-development-environments/spec.md): prospective native and container tooling contract.
