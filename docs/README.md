@@ -4,13 +4,13 @@ Dynamic DNS provider execution, health, MCP, and durable checkpoints.
 
 ## Start here
 
-| Need | Owning document |
-| --- | --- |
-| Use the project | [README.md](../README.md) |
-| Change the repository | [AGENTS.md](../AGENTS.md) |
-| Deliver or recover | [RELEASING.md](../RELEASING.md) |
-| Plan substantial changes | [.specify/memory/project-guide.md](../.specify/memory/project-guide.md) |
-| Non-negotiable constraints | [.specify/memory/constitution.md](../.specify/memory/constitution.md) |
+| Need                       | Owning document                                                         |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Use the project            | [README.md](../README.md)                                               |
+| Change the repository      | [AGENTS.md](../AGENTS.md)                                               |
+| Deliver or recover         | [RELEASING.md](../RELEASING.md)                                         |
+| Plan substantial changes   | [.specify/memory/project-guide.md](../.specify/memory/project-guide.md) |
+| Non-negotiable constraints | [.specify/memory/constitution.md](../.specify/memory/constitution.md)   |
 
 ## Architecture
 
