@@ -12,8 +12,8 @@ Extension recommendations do not install command-line dependencies.
 
 | Task                  | Command             |
 | --------------------- | ------------------- |
-| build                 | `vp run build `     |
-| verify                | `vp run verify `    |
+| build                 | `vp run build`      |
+| verify                | `vp run verify`     |
 | check                 | `vp run check`      |
 | test                  | `vp run test`       |
 | typecheck             | `vp run typecheck`  |
