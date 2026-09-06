@@ -117,3 +117,6 @@ vp run scaffold:provider -- <id> "Provider Label"
 
 Return `fail("...")` for provider validation errors instead of throwing, so the
 loop keeps running.
+
+For pinned native shells and local Docker, Podman, or Apple container tooling, see
+[development environments](development-environments.md).

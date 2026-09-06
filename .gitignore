@@ -128,3 +128,10 @@ docker-compose.override.yml
 __pycache__/
 *.py[cod]
 .ruff_cache/
+
+# Local Nix development state and image archives
+.devenv/
+.direnv/
+.devenv.*
+.devenv.flake.nix
+devenv.local.*

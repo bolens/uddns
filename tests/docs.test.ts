@@ -124,6 +124,7 @@ describe('documentation contracts', () => {
       [
         'docs/deployment.md',
         'docs/development.md',
+        'docs/development-environments.md',
         'docs/mcp.md',
         'docs/providers.md',
         'docs/security.md',
