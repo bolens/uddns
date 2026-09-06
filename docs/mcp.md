@@ -72,6 +72,11 @@ Tool results include both JSON text `content` and `structuredContent`.
 - `stop_loop` — stop scheduling and wait for an active cycle (all accounts when `accountId` is omitted)
 - `init_config` — elicit non-secret init values and return a `.env` template
 
+`init_config` validates provider, single-line host text, and the 60 s–24 h
+interval bounds before returning a template. Invalid accepted input returns
+`action: reject-input`; a client without elicitation support receives the default
+fallback template. Neither path writes files or supplies credentials.
+
 Long-running update tools emit MCP progress notifications when the client
 provides a `progressToken`.
 

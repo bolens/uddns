@@ -38,3 +38,13 @@ Run checks in an isolated checkout. Commands are instructions, not evidence of
 a pass. Record results in `coverage.md`, keep incomplete work in `tasks.md`, and
 follow `RELEASING.md` for reviewed delivery. No live operation is required solely
 to create this retrospective baseline.
+
+## Legacy completion audit, 2026-09-06
+
+Map all provider adapters, six CLI commands, 16 MCP tools, shared update/configuration
+logic, persistence, outbound policies, and support surfaces to concrete contracts.
+Keep existing detailed configuration/provider guides as normative references.
+Centralize initializer field validation so CLI and elicited MCP templates cannot
+emit intervals rejected by runtime or extra assignments from multiline hosts.
+Prove rejection before writes, preserve force/elicitation behavior, and run native
+verification with stubbed providers. Review and merge with exact-head hosted checks.

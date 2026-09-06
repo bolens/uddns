@@ -12,6 +12,9 @@ claim that the original work followed Spec Kit. New behavior requires a separate
 change contract. Existing feature specifications remain authoritative within their
 own scope.
 
+The [legacy contracts](legacy-contracts.md) and [complete surface mapping](legacy-coverage.md)
+extend this baseline with the existing provider and interface-specific requirements.
+
 ## User scenarios and testing
 
 ### User story 1: Use the documented entry points (P1)
@@ -40,6 +43,19 @@ A maintainer changes the implementation or adds a supported capability.
 - **FR-004**: State and history MUST retain bounded validated schemas, atomic durable publication, configured data-root restrictions, and credential redaction.
 - **FR-005**: HTTP control planes MUST require their documented token/TLS policy, with explicit confirmation for live MCP mutation tools.
 - **FR-006**: Missing IP families, retry/failover, intervals, and per-host failures MUST retain explicit policy and deterministic reporting.
+
+## Corrective requirements from the legacy audit
+
+The 2026-09-06 audit at `cad0c10b2c5b` found that init could generate an
+interval rejected by runtime configuration, and template fields could contain
+line breaks that create additional environment assignments.
+
+- **FR-007**: Both CLI and MCP initialization MUST validate generated template
+  fields before writing or returning them. Intervals MUST use the same finite
+  60000 through 86400000 ms bounds as runtime configuration. Provider IDs MUST
+  be supported. Host text MUST NOT contain line breaks or NUL bytes. Rejected
+  input MUST leave existing files unchanged and MCP MUST identify rejected input
+  separately from a client that does not support elicitation.
 
 ## Success criteria
 

@@ -31,6 +31,11 @@ node dist/cli.js check-config
 node dist/cli.js mcp --transport=http
 ```
 
+`init` validates the provider, single-line host field, and runtime interval bounds
+before writing `.env`. It leaves credentials for the operator to supply and
+refuses existing files unless `--force` is explicit. Run `check-config` after
+adding credentials to validate the complete provider configuration.
+
 Set `VP_GIT_HOOKS=0` when hooks should not be installed.
 
 Provider HTTP suites use `stubFetch` (which installs a pin-path transport

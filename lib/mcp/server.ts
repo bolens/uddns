@@ -430,8 +430,18 @@ export function createUddnsMcpServer(
             nextSteps: [`Choose a provider from: ${PROVIDER_IDS_LIST.join(', ')}`],
           });
         }
+        let env: string;
+        try {
+          env = buildEnvContents({ provider, hosts, interval });
+        } catch (error) {
+          return toolResult({
+            error: error instanceof Error ? error.message : String(error),
+            action: 'reject-input',
+            nextSteps: ['Use single-line hosts and an interval from 60000 to 86400000 ms'],
+          });
+        }
         return toolResult({
-          env: buildEnvContents({ provider, hosts, interval }),
+          env,
           nextSteps: [
             'Write the template to .env',
             'Fill provider credentials from docs/providers.md',
