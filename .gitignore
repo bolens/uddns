@@ -138,3 +138,13 @@ devenv.local.*
 
 # Copy .mcp.json.example locally and set explicit checkout/resource paths.
 /.mcp.json
+
+# Shared VS Code configuration; keep personal editor state ignored.
+!/.vscode/
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/extensions.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
+!/.vscode/*.code-snippets
+!/.vscode/README.md
