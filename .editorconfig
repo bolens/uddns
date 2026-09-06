@@ -10,3 +10,22 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+# Lockfiles are written by their owning tool.
+[pnpm-lock.yaml]
+indent_style = unset
+indent_size = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset
+
+[*.{ico,png}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
