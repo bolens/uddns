@@ -1,5 +1,7 @@
 # Development environments
 
+[Documentation](README.md)
+
 Install [devenv](https://devenv.sh/getting-started/) and run `devenv shell`.
 The lockfile pins the Nix toolchain, including Node 26.7.0. The Corepack pnpm
 wrapper honors the repository's `packageManager` version (11.24.0).

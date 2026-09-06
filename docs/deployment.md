@@ -1,5 +1,7 @@
 # Deployment
 
+[Documentation](README.md)
+
 Build first, then use a supervisor so fatal errors restart the core updater.
 The process handles `SIGINT`/`SIGTERM` (and `SIGHUP` for YAML config reload),
 stops scheduling work, waits for active work, and exits. `SIGHUP` rereads the
