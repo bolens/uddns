@@ -16,12 +16,8 @@
       "envFile": "${workspaceFolder}/.env",
       "preLaunchTask": "build",
       "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/dist/**/*.js"
-      ],
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/dist/app.js"
     },
     {
@@ -32,16 +28,10 @@
       "envFile": "${workspaceFolder}/.env",
       "preLaunchTask": "build",
       "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/dist/**/*.js"
-      ],
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "skipFiles": ["<node_internals>/**"],
       "program": "${workspaceFolder}/dist/mcp.js",
-      "args": [
-        "--transport=http"
-      ]
+      "args": ["--transport=http"]
     }
   ]
 }
