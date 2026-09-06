@@ -136,6 +136,9 @@ __pycache__/
 .devenv.flake.nix
 devenv.local.*
 
+# Copy .mcp.json.example locally and set explicit checkout/resource paths.
+/.mcp.json
+
 # Shared VS Code configuration; keep personal editor state ignored.
 !/.vscode/
 /.vscode/*

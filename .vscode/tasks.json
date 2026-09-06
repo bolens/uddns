@@ -31,10 +31,7 @@
       "label": "check",
       "type": "process",
       "command": "vp",
-      "args": [
-        "run",
-        "check"
-      ],
+      "args": ["run", "check"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -45,10 +42,7 @@
       "label": "test",
       "type": "process",
       "command": "vp",
-      "args": [
-        "run",
-        "test"
-      ],
+      "args": ["run", "test"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -59,10 +53,7 @@
       "label": "typecheck",
       "type": "process",
       "command": "vp",
-      "args": [
-        "run",
-        "typecheck"
-      ],
+      "args": ["run", "typecheck"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -73,10 +64,7 @@
       "label": "docs:check",
       "type": "process",
       "command": "vp",
-      "args": [
-        "run",
-        "docs:check"
-      ],
+      "args": ["run", "docs:check"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -87,10 +75,7 @@
       "label": "Check diff whitespace",
       "type": "process",
       "command": "git",
-      "args": [
-        "diff",
-        "--check"
-      ],
+      "args": ["diff", "--check"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
