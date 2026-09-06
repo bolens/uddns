@@ -50,3 +50,5 @@ runtime proof. A topic without an implementation stays explicitly unimplemented.
 - [State and recovery](state.md)
 
 - [Development environments](development-environments.md)
+
+- [Editor setup](../.vscode/README.md)
