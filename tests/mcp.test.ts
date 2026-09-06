@@ -825,6 +825,15 @@ describe('createUddnsMcpServer', () => {
         }),
       },
     });
+    for (const content of [
+      { provider: 'duckdns', hosts: 'myhost', intervalMs: '86400001' },
+      { provider: 'duckdns', hosts: 'home\nUDDNS_HEALTH=true', intervalMs: '60000' },
+    ]) {
+      elicit.mockResolvedValueOnce({ action: 'accept', content });
+      expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
+        structuredContent: { result: { action: 'reject-input', error: expect.any(String) } },
+      });
+    }
     elicit.mockResolvedValueOnce({ action: 'cancel' });
     expect(await registered._registeredTools['init_config']!.handler(extra)).toMatchObject({
       structuredContent: { result: expect.objectContaining({ cancelled: true }) },
