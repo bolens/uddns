@@ -1,14 +1,39 @@
 {
-  "editor.defaultFormatter": "oxc.oxc-vscode",
-  "[javascript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
-  "[javascriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
-  "[typescript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
-  "[typescriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[javascript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
   "oxc.fmt.configPath": "./vite.config.ts",
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file",
   "editor.codeActionsOnSave": {
     "source.fixAll.oxc": "explicit"
   },
-  "npm.scriptRunner": "vp"
+  "npm.scriptRunner": "pnpm",
+  "files.encoding": "utf8",
+  "files.insertFinalNewline": true,
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false,
+    "editor.wordWrap": "on"
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.devenv": true,
+    "**/.direnv": true
+  },
+  "files.watcherExclude": {
+    "**/.devenv/**": true,
+    "**/.direnv/**": true,
+    "**/.venv/**": true
+  }
 }

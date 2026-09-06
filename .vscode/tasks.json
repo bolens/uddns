@@ -9,14 +9,93 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": "$tsc"
+      "problemMatcher": "$tsc",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     },
     {
       "label": "verify",
       "type": "shell",
       "command": "vp run verify",
-      "group": "test",
-      "problemMatcher": []
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "check",
+      "type": "process",
+      "command": "vp",
+      "args": [
+        "run",
+        "check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "vp",
+      "args": [
+        "run",
+        "test"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "typecheck",
+      "type": "process",
+      "command": "vp",
+      "args": [
+        "run",
+        "typecheck"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "docs:check",
+      "type": "process",
+      "command": "vp",
+      "args": [
+        "run",
+        "docs:check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Check diff whitespace",
+      "type": "process",
+      "command": "git",
+      "args": [
+        "diff",
+        "--check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "group": "test"
     }
   ]
 }
