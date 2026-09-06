@@ -2,29 +2,46 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug DDNS updater",
+      "name": "Debug unit tests",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "vp test",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Debug DDNS updater (uses local .env)",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
       "preLaunchTask": "build",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "skipFiles": ["<node_internals>/**"],
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "program": "${workspaceFolder}/dist/app.js"
     },
     {
-      "name": "Debug optional MCP HTTP server",
+      "name": "Debug optional MCP HTTP server (uses local .env)",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
       "preLaunchTask": "build",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "skipFiles": ["<node_internals>/**"],
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "program": "${workspaceFolder}/dist/mcp.js",
-      "args": ["--transport=http"]
+      "args": [
+        "--transport=http"
+      ]
     }
   ]
 }
