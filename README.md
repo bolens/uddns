@@ -114,3 +114,8 @@ ordered DNS-provider failover on the same hostname, see
 Run `bash scripts/install-git-hooks` once per clone. The pre-commit hook runs fast staged checks; pre-push runs the broader local CI gate.
 
 Pinned native and container tooling: [development environments](docs/development-environments.md).
+
+## License scope and attribution
+
+See [third-party notices](THIRD_PARTY_NOTICES.md) for the project license scope,
+retained upstream notices, and dependency or asset exceptions.
