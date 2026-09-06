@@ -10,7 +10,10 @@ import {
   type DiscoverDeps,
   type DnsResolver,
 } from '../lib/ip.js';
+import { afterEachRestoreMocks } from './helpers/cleanup.js';
 import { fetchInputUrl } from './helpers/fetch.js';
+
+afterEachRestoreMocks();
 
 beforeEach(() => {
   vi.spyOn(dns, 'lookup').mockImplementation((async () => [
@@ -52,8 +55,11 @@ function httpsResponse(body: string, requestUrl: string): Response {
 }
 
 describe('discoverPublicIP', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
+  it('keeps the DNS lookup fixture installed after suite setup', async () => {
+    expect(vi.isMockFunction(dns.lookup)).toBe(true);
+    await expect(dns.lookup('fixture.invalid', { all: true })).resolves.toEqual([
+      { address: '1.1.1.1', family: 4 },
+    ]);
   });
 
   it('prefers HTTPS (TLS-authenticated) sources and never consults DNS when they succeed', async () => {
