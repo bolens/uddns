@@ -67,8 +67,8 @@ docker run -d --name uddns --restart unless-stopped \
   uddns
 ```
 
-The image stores checkpoints at `/data/state.json` and history at
-`/data/history.json`. Health probes hit `http://127.0.0.1:3924/healthz`
+The image sets `UDDNS_DATA_DIR=/data`, stores checkpoints at `/data/state.json`,
+and stores history at `/data/history.json`. Health probes hit `http://127.0.0.1:3924/healthz`
 (enabled by default in the image).
 
 The entrypoint is `node` with default command `dist/app.js`. To run MCP HTTP:

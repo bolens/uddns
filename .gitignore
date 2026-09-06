@@ -115,7 +115,6 @@ temp/
 .direnv/
 .venv/
 venv/
-.python-version
 .tox/
 .parcel-cache/
 .serverless/
@@ -124,3 +123,8 @@ venv/
 *.tfstate*
 .docker/
 docker-compose.override.yml
+
+# Local tooling and runtime artifacts
+__pycache__/
+*.py[cod]
+.ruff_cache/

@@ -1,6 +1,6 @@
 # Release playbook
 
-uDDNS publishes Semantic Versioning releases and multi-architecture GHCR images
+uDDNS publishes Semantic Versioning releases and GHCR images
 from `vX.Y.Z` tags. `package.json` is the version authority. The Release
 workflow validates source, builds and pushes the immutable image, attaches an
 SPDX SBOM and attestations, signs the digest with Cosign, promotes aliases, and
@@ -31,7 +31,7 @@ and push it. Do not promote aliases by hand ahead of workflow verification.
 
 ## Verify and recover
 
-Verify the release tag and notes, immutable GHCR digest, multi-platform
+Verify the release tag and notes, immutable GHCR digest, image
 manifest, SPDX SBOM, provenance and SBOM attestations, Cosign signature, and
 promoted aliases. Pull by digest into an isolated environment and run config,
 health, and dry-run checks without provider writes. Confirm Pages reports the
@@ -42,3 +42,27 @@ fails before aliases move, fix the workflow through a PR and retry safely. If a
 bad image is public, stop alias promotion and publish a corrected patch version.
 
 Fleet policy: <https://github.com/bolens/.github/blob/main/RELEASING.md>.
+
+## Branch protection
+
+The default branch requires pull requests, resolved conversations, linear
+history, and an up-to-date branch with passing required checks, including `CI
+result` and `supply-chain`. These rules also apply to administrators; force
+pushes and branch deletion are disabled. Zero approving reviews are required
+because this is a solo-maintainer repository; review the complete diff before
+merging.
+
+Keep required checks available on every pull request. Filter expensive work
+inside jobs or use an always-running result job that rejects failures and
+cancellations. Update the protection settings when renaming required jobs.
+
+## Source lint
+
+The Source lint workflow checks maintained python, javascript, css files selected by
+[`.github/source-lint.json`](.github/source-lint.json) on every pull request
+and push to `main`. Existing native checks remain part of the merge gate.
+Use the [shared local reproduction instructions](https://github.com/bolens/.github/blob/7603518f305fb76f7bb1b9979f2692521f633b82/docs/source-lint.md)
+with the same tooling revision pinned in
+[the workflow](.github/workflows/source-lint.yml). Review exclusions when adding
+source files; generated and imported files retain their native validation.
+Require the new check to pass on the current PR head before merging.

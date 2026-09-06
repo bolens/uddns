@@ -22,6 +22,7 @@ COPY --from=build /app/dist ./dist
 RUN mkdir /data && chown node:node /data
 
 USER node
+ENV UDDNS_DATA_DIR=/data
 ENV UDDNS_STATE_FILE=/data/state.json
 ENV UDDNS_HISTORY_FILE=/data/history.json
 ENV UDDNS_HEALTH=1
