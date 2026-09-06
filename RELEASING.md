@@ -1,5 +1,7 @@
 # Release playbook
 
+[Documentation](docs/README.md)
+
 uDDNS publishes Semantic Versioning releases and GHCR images
 from `vX.Y.Z` tags. `package.json` is the version authority. The Release
 workflow validates source, builds and pushes the immutable image, attaches an

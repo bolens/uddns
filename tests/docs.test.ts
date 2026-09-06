@@ -120,16 +120,17 @@ describe('documentation contracts', () => {
       .map((match) => match[1])
       .filter((path): path is string => Boolean(path));
 
-    expect([...new Set(links)].sort()).toEqual(
-      [
-        'docs/deployment.md',
-        'docs/development.md',
-        'docs/development-environments.md',
-        'docs/mcp.md',
-        'docs/providers.md',
-        'docs/security.md',
-      ].sort(),
+    expect(links).toContain('docs/README.md');
+    const hub = await read('docs/README.md');
+    const pages = (await readdir(new URL('docs/', root))).filter(
+      (name) => name.endsWith('.md') && name !== 'README.md',
     );
+    for (const page of pages) {
+      expect(hub, `Documentation index omits ${page}`).toContain(`](${page})`);
+      expect(await read(`docs/${page}`), `${page} does not link to the index`).toContain(
+        '](README.md)',
+      );
+    }
     await expect(Promise.all(links.map(read))).resolves.toHaveLength(links.length);
   });
 

@@ -1,5 +1,7 @@
 # uddns Spec Kit project guide
 
+[Documentation](../../docs/README.md)
+
 A TypeScript dynamic-DNS updater with reusable provider logic, CLI/MCP surfaces, and
 health/status services.
 
