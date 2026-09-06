@@ -1,3 +1,15 @@
 {
-  "recommendations": ["VoidZero.vite-plus-extension-pack"]
+  "recommendations": [
+    "VoidZero.vite-plus-extension-pack",
+    "EditorConfig.EditorConfig",
+    "redhat.vscode-yaml",
+    "GitHub.vscode-github-actions",
+    "timonwong.shellcheck",
+    "mads-hartmann.bash-ide-vscode",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-azuretools.vscode-containers",
+    "ms-vscode-remote.remote-containers",
+    "oxc.oxc-vscode"
+  ]
 }
