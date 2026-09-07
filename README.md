@@ -35,7 +35,8 @@ vp install
 
 Or open the repo in a [Dev Container](https://containers.dev/) (VS Code "Reopen in
 Container" or `devcontainer up`): `.devcontainer/` provisions Node 26, pnpm, the Vite+
-toolchain, and Docker, then installs dependencies automatically.
+toolchain, and Docker CLI/Compose, then installs dependencies automatically.
+Choose **uDDNS with Docker** for a nested Docker daemon and image builds.
 
 ## Run
 
@@ -121,3 +122,8 @@ Pinned native and container tooling: [development environments](docs/development
 
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the project license scope,
 retained upstream notices, and dependency or asset exceptions.
+
+## Devcontainer
+
+See [the devcontainer guide](.devcontainer/README.md) for the repository toolchain,
+setup, checks and platform limits.
