@@ -1,5 +1,7 @@
 # Providers and configuration
 
+[Documentation](README.md)
+
 `.env.example` is the complete environment-variable reference. This guide
 describes host behavior and the provider-specific values needed to get started.
 

@@ -1,5 +1,7 @@
 # VS Code for uddns
 
+[Documentation](../docs/README.md)
+
 Open this repository as a folder, or add it as a folder in a multi-root workspace.
 Install the recommendations from the Extensions view. Use **Tasks: Run Task** for
 the commands below. Tasks run from this repository unless they state another directory.
@@ -10,8 +12,8 @@ Extension recommendations do not install command-line dependencies.
 
 | Task                  | Command             |
 | --------------------- | ------------------- |
-| build                 | `vp run build `     |
-| verify                | `vp run verify `    |
+| build                 | `vp run build`      |
+| verify                | `vp run verify`     |
 | check                 | `vp run check`      |
 | test                  | `vp run test`       |
 | typecheck             | `vp run typecheck`  |

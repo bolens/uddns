@@ -1,5 +1,7 @@
 # Optional MCP server
 
+[Documentation](README.md)
+
 The core uDDNS daemon runs with `vp run start` and does not require MCP. The
 optional MCP entrypoint exposes the same updater capabilities over stdio or
 Streamable HTTP.

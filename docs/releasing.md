@@ -1,5 +1,7 @@
 # Release playbook
 
+[Documentation](README.md)
+
 Releases are built from protected `main` by `.github/workflows/release.yml`.
 The workflow publishes the exact semantic-version image first, generates its
 SBOM, attests and signs the digest, and only then promotes stable releases to

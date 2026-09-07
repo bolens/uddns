@@ -1,5 +1,7 @@
 # Development
 
+[Documentation](README.md)
+
 ## Commands
 
 ```bash

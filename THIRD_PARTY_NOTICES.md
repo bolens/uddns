@@ -1,5 +1,7 @@
 # Third-party notices
 
+[Documentation](docs/README.md)
+
 ## License scope
 
 The root MIT license covers original material authored by bolens. It does not

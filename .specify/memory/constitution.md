@@ -1,5 +1,7 @@
 # uDDNS Constitution
 
+[Documentation](../../docs/README.md)
+
 ## Core Principles
 
 ### I. Network and DNS Safety

@@ -1,5 +1,7 @@
 # Security
 
+[Documentation](README.md)
+
 uDDNS treats outbound HTTPS and local control planes as untrusted surfaces.
 This page summarizes the built-in safeguards. `.env.example` remains the
 complete environment-variable reference.

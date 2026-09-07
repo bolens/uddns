@@ -1,5 +1,7 @@
 # uddns devcontainer
 
+[Documentation](../docs/README.md)
+
 Open this repository in VS Code and run **Dev Containers: Reopen in
 Container**. A local Docker-compatible engine and the Dev Containers extension
 are required. The first build downloads the pinned tool images and distribution

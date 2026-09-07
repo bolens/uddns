@@ -1,5 +1,7 @@
 # uDDNS
 
+[Documentation](docs/README.md)
+
 [User guide](https://bolens.github.io/uddns/) ·
 [Architecture](https://bolens.github.io/uddns/architecture.html) ·
 [Provider configuration](docs/providers.md) ·
