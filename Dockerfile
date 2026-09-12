@@ -1,4 +1,4 @@
-FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS dependencies
+FROM node:26-alpine@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868 AS dependencies
 
 RUN npm install --global pnpm@11.24.0
 WORKDIR /app
@@ -13,7 +13,7 @@ RUN pnpm run build
 FROM dependencies AS production-dependencies
 RUN pnpm prune --prod --ignore-scripts
 
-FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3
+FROM node:26-alpine@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868
 
 WORKDIR /app
 COPY package.json LICENSE THIRD_PARTY_LICENSES.txt THIRD_PARTY_NOTICES.md ./
