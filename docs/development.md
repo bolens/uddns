@@ -122,3 +122,20 @@ loop keeps running.
 
 For pinned native shells and local Docker, Podman, or Apple container tooling, see
 [development environments](development-environments.md).
+
+## Woodpecker CI
+
+[.woodpecker.yml](../.woodpecker.yml) runs on pushes, pull requests, and manual builds
+in a Gitea-connected Woodpecker installation. Either Linux Docker runner can
+execute the workflow. Container images are pinned by digest.
+
+The workflow runs the existing `pnpm run verify` gate: formatting, type-aware lint,
+types, dependency pins, all deterministic test shards with merged coverage, build, and
+dead-code checks. It uses the package manager version declared in `package.json`. Live
+provider tests remain opt-in and are not run. Image publication and release signing
+continue in GitHub Actions.
+
+Activate this repository in Woodpecker after its GitHub source branch has been
+synchronized to Gitea. The existing GitHub checks remain required until their
+coverage and release responsibilities are migrated explicitly. Review image
+digest updates alongside the repository toolchain and lockfiles.
