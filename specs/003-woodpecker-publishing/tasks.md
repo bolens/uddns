@@ -25,7 +25,7 @@
       cases across both repositories, including wrong forge URLs and owners. Synthetic
       sentinels are absent from excluded publishers; the image/event barrier rejects
       registry secrets in command or environment steps. Provider HTTP fetching occurs
-      before filtering; corrected signed broker SDK204/no-values integration proof remains pending.
+      before filtering; signed broker SDK empty-secret response integration proof remains pending.
 - [ ] Prove the native clone's full-history assertion before retiring historical checks.
       Every workflow pins the already-installed clone plugin 2.11.0 with depth zero
       and partial false. The actual compiler preserves both settings and trusted
