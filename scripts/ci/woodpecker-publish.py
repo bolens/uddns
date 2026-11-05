@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
+from pathlib import Path
 
 REPOSITORY = "bolens/uddns"
 IMAGE = f"ghcr.io/{REPOSITORY}"
@@ -74,7 +74,7 @@ def github_environment():
                     or any(ord(character) < 33 or ord(character) > 126 for character in token)
                     or not math.isfinite(expiry) or expiry - time.time() < 120):
                 raise ValueError("invalid broker credential")
-        except Exception:
+        except Exception:  # noqa: BLE001 -- malformed broker responses must never disclose credentials
             # Never expose HTTP response bodies, request objects, lease or token.
             raise RuntimeError("publication credential redemption failed") from None
         _GITHUB_CREDENTIAL = (token, expiry)

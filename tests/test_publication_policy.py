@@ -3,10 +3,10 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1] / "scripts/ci/woodpecker-publish.py"
@@ -85,17 +85,15 @@ class PublicationPolicyTests(unittest.TestCase):
 
     def test_modified_or_wrong_checkout_denied(self):
         for answers in [["b" * 40], [SHA, " M package.json"]]:
-            with self.subTest(answers=answers), patch.object(publisher, "run", side_effect=answers):
-                with self.assertRaises(ValueError):
-                    publisher.context()
+            with self.subTest(answers=answers), patch.object(publisher, "run", side_effect=answers), self.assertRaises(ValueError):
+                publisher.context()
 
     def test_disabled_and_unreadable_setting_deny_writes(self):
         for value in [{"value": "false"}, {}, subprocess.CalledProcessError(1, ["gh", "api"])]:
             with self.subTest(value=value):
                 kwargs = {"side_effect": value} if isinstance(value, Exception) else {"return_value": value}
-                with patch.object(publisher, "api", **kwargs):
-                    with self.assertRaises(publisher.PublicationDisabled):
-                        publisher.guard()
+                with patch.object(publisher, "api", **kwargs), self.assertRaises(publisher.PublicationDisabled):
+                    publisher.guard()
 
     def test_existing_immutable_image_denied(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "{}", "")):

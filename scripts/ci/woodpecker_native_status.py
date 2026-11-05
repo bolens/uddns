@@ -20,14 +20,14 @@ def pipeline_status(api, repository, sha, producer, native_repo, workflows, even
     for page in range(1, 21):
         statuses = api(f"repos/{repository}/commits/{sha}/statuses?per_page=100&page={page}")
         if not isinstance(statuses, list):
-            raise ValueError("invalid native status history")
+            raise TypeError("invalid native status history")
         for status in statuses:
             context = status.get("context")
             if (context not in expected or status.get("creator", {}).get("id") != int(creator)
                     or not re.fullmatch(re.escape(producer) + r"/[1-9][0-9]*", status.get("target_url") or "")):
                 continue
             if type(status.get("id")) is not int:
-                raise ValueError("native status has no immutable sequence identity")
+                raise TypeError("native status has no immutable sequence identity")
             if context not in selected or status["id"] > selected[context]["id"]:
                 selected[context] = status
         if len(statuses) < 100:

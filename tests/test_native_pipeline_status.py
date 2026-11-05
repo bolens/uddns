@@ -1,8 +1,8 @@
 """Only the requested native pipeline's trusted workflow statuses permit promotion."""
 import importlib.util
 import os
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("native_status", Path(__file__).resolve().parents[1] / "scripts/ci/woodpecker_native_status.py")
@@ -39,9 +39,14 @@ class NativeStatusTests(unittest.TestCase):
 
     def test_unconfigured_creator_and_wrong_native_repo_are_denied(self):
         for environment, producer in [({}, PRODUCER), ({"WOODPECKER_STATUS_CREATOR_ID": "123"}, PRODUCER.replace("/11/", "/12/"))]:
-            with self.subTest(environment=environment), patch.dict(os.environ, environment, clear=True):
-                with self.assertRaises(ValueError):
-                    status.pipeline_status(lambda _: [], "bolens/audio-utils", "a" * 40, producer, 11, ["publishing"], "push")
+            with self.subTest(environment=environment), patch.dict(os.environ, environment, clear=True), self.assertRaises(ValueError):
+                status.pipeline_status(lambda _: [], "bolens/audio-utils", "a" * 40, producer, 11, ["publishing"], "push")
+
+    def test_malformed_status_response_fails_closed(self):
+        with self.assertRaises(TypeError):
+            self.verify({"unexpected": "object"})
+        with self.assertRaises(TypeError):
+            self.verify([self.row(id="not-an-integer")])
 
     def test_paginated_history_and_resource_bound(self):
         pages = [[self.row(context="unrelated", id=number) for number in range(100)], [self.row(), self.row("publishing")]]

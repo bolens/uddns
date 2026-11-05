@@ -3,11 +3,11 @@ import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location("bridge", Path(__file__).resolve().parents[1] / "scripts/ci/woodpecker-verify-image.py")
@@ -78,9 +78,8 @@ class ImageBridgeTests(ReceiptFixture, unittest.TestCase):
                 bridge.publish_pages()
             push.assert_not_called()
         replies[-1] = {"commit": "d" * 40, "status": "built"}
-        with patch.object(bridge, "pages_module", return_value=SimpleNamespace(publish_pages=push)), patch.object(bridge, "api", side_effect=replies), patch("time.monotonic", side_effect=[0, 1, 601]), patch("time.sleep"):
-            with self.assertRaisesRegex(TimeoutError, "generated branch commit"):
-                bridge.publish_pages()
+        with patch.object(bridge, "pages_module", return_value=SimpleNamespace(publish_pages=push)), patch.object(bridge, "api", side_effect=replies), patch("time.monotonic", side_effect=[0, 1, 601]), patch("time.sleep"), self.assertRaisesRegex(TimeoutError, "generated branch commit"):
+            bridge.publish_pages()
 
     def test_exact_native_receipt(self):
         self.assertEqual(bridge.validate_assets(self.directory, SHA, TAG), (self.record, self.predicate))
@@ -141,9 +140,8 @@ class ImageBridgeTests(ReceiptFixture, unittest.TestCase):
     def test_moved_or_unsigned_tag_is_denied(self):
         for signed in [{"verification": {"verified": False}, "object": {"type": "commit", "sha": SHA}},
                        {"verification": {"verified": True}, "object": {"type": "commit", "sha": "d" * 40}}]:
-            with patch.object(bridge, "api", side_effect=[{"object": {"type": "tag", "sha": "tag-object"}}, signed]):
-                with self.assertRaises(ValueError):
-                    bridge.verify_tag(SHA, TAG)
+            with patch.object(bridge, "api", side_effect=[{"object": {"type": "tag", "sha": "tag-object"}}, signed]), self.assertRaises(ValueError):
+                bridge.verify_tag(SHA, TAG)
 
     def test_backport_advances_only_its_minor(self):
         self.assertEqual(bridge.alias_plan(TAG, "v1.3.0", alias("1.2.8"), alias("1.3.0"), DIGEST),
@@ -169,9 +167,8 @@ class ImageBridgeTests(ReceiptFixture, unittest.TestCase):
                          {"minor": False, "latest": False, "github_latest": True})
 
     def test_registry_auth_or_network_failure_is_not_an_absent_alias(self):
-        with patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", "unauthorized")):
-            with self.assertRaises(ValueError):
-                bridge.inspect_alias("latest")
+        with patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", "unauthorized")), self.assertRaises(ValueError):
+            bridge.inspect_alias("latest")
 
     def test_immutable_version_conflict_denies_registry_writes(self):
         (self.directory / "verified.json").write_text(json.dumps({**self.record, "release_id": 10}))
@@ -265,9 +262,8 @@ class NativeFinalizerTests(ReceiptFixture, unittest.TestCase):
         before = (self.local / "image-manifest.json").read_bytes()
         image = {"Digest": DIGEST, "Labels": {"org.opencontainers.image.revision": SHA,
                  "org.opencontainers.image.source": "https://github.com/" + bridge.REPOSITORY}}
-        with patch.object(self.native, "OUTPUT", self.local), patch.object(self.native, "guard", return_value=(SHA, TAG)), patch.object(self.native, "run", side_effect=[json.dumps(image), json.dumps({"config": {"digest": "sha256:" + "e" * 64}})]), patch.dict(os.environ, {"CI_PIPELINE_NUMBER": "12"}):
-            with self.assertRaisesRegex(ValueError, "config differs"):
-                self.native.manifest()
+        with patch.object(self.native, "OUTPUT", self.local), patch.object(self.native, "guard", return_value=(SHA, TAG)), patch.object(self.native, "run", side_effect=[json.dumps(image), json.dumps({"config": {"digest": "sha256:" + "e" * 64}})]), patch.dict(os.environ, {"CI_PIPELINE_NUMBER": "12"}), self.assertRaisesRegex(ValueError, "config differs"):
+            self.native.manifest()
         self.assertEqual((self.local / "image-manifest.json").read_bytes(), before)
 
     def test_completed_owned_release_is_verified_without_writes(self):

@@ -4,9 +4,9 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
+from pathlib import Path
 from urllib.parse import urlparse
 
 from woodpecker_native_status import wait_for_native_success
@@ -72,7 +72,7 @@ def validate_assets(directory, sha, tag):
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", record.get("digest", "")) or not re.fullmatch(r"sha256:[0-9a-f]{64}", record.get("configDigest", "")):
         raise ValueError("invalid native image digest")
     expected = ASSETS - {"image-manifest.json"}
-    if set(record.get("assets", {})) != expected or set(path.name for path in directory.iterdir()) != ASSETS:
+    if set(record.get("assets", {})) != expected or {path.name for path in directory.iterdir()} != ASSETS:
         raise ValueError("native asset set differs from the release contract")
     for name, digest in record["assets"].items():
         file = directory / name
