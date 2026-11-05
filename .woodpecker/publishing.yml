@@ -1,0 +1,58 @@
+# Canonical GitHub signed-tag publication; broker and repository flag are required.
+# PR, manual, cron and Gitea events never select publisher steps or secrets.
+# The retained hosted bridge verifies the native image, signs, then promotes it.
+labels:
+  platform: linux/amd64
+  backend: docker
+depends_on:
+  - woodpecker
+clone:
+  git:
+    image: woodpeckerci/plugin-git:2.11.0@sha256:9802cb7852dcf31f9c5c1d1ddeadfb9002d4fae85751f7b6a792eedb267bcc59
+    settings:
+      depth: 0
+      partial: false
+when:
+  - event: tag
+    evaluate: CI_FORGE_TYPE == "github" && CI_FORGE_URL == "https://github.com" && CI_REPO == "bolens/uddns"
+steps:
+  - name: authorize-candidate
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      WOODPECKER_PUBLISH_LEASE:
+        from_secret: github_publish_lease
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends gh git python3 skopeo ca-certificates
+      - python3 scripts/ci/woodpecker-publish.py prepare
+  - name: build-candidate
+    image: woodpeckerci/plugin-kaniko:2.3.4@sha256:497071c44ffd0c24d6e3e3e49993c33a6544eb30a5e3f887c031d2b643238432
+    settings:
+      registry: ghcr.io
+      repo: bolens/uddns
+      username:
+        from_secret: ghcr_username
+      password:
+        from_secret: ghcr_password
+      tags: candidate-${CI_COMMIT_SHA}-${CI_PIPELINE_NUMBER}
+      env_file: .woodpecker-out/kaniko.env
+      dockerfile: Dockerfile
+      context: .
+      extra_opts: >-
+        --digest-file=.woodpecker-out/image.digest
+        --tar-path=.woodpecker-out/image.tar
+        --label=org.opencontainers.image.source=https://github.com/bolens/uddns
+        --label=org.opencontainers.image.revision=${CI_COMMIT_SHA}
+  - name: build-native-sbom
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+      - bash scripts/ci/build-image-sbom.sh
+  - name: verify-candidate-identity
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      WOODPECKER_PUBLISH_LEASE:
+        from_secret: github_publish_lease
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends gh git python3 skopeo ca-certificates
+      - python3 scripts/ci/woodpecker-publish.py manifest
+      - python3 scripts/ci/woodpecker-publish.py finalize-release

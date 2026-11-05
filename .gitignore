@@ -148,3 +148,6 @@ devenv.local.*
 !/.vscode/launch.json
 !/.vscode/*.code-snippets
 !/.vscode/README.md
+
+# Native CI candidate artifacts; never source credentials.
+/.woodpecker-out/

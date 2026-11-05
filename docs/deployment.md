@@ -40,9 +40,12 @@ docker pull ghcr.io/bolens/uddns:latest
 
 Every release tag must match the version in `package.json` and pass the full
 format, lint, type, test, coverage, build, and dead-code suite before publish.
-Prereleases do not replace `latest`. Published image digests include BuildKit
-provenance, an SPDX JSON SBOM attached to the GitHub release, GitHub artifact
-attestations, and a keyless Sigstore signature.
+Prereleases do not replace `latest`. The default GitHub builder supplies BuildKit
+provenance. After the documented Woodpecker cutover, native SLSA provenance names
+Woodpecker as the external builder and binds the exact source/image/config.
+Both paths retain an SPDX JSON SBOM attached to the GitHub release, GitHub
+artifact attestations, and the existing keyless Sigstore signing identity.
+See [release ownership and cutover](releasing.md).
 
 Verify provenance with GitHub CLI:
 
