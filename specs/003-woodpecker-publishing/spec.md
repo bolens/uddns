@@ -25,3 +25,12 @@ precedes this migration; earlier CI enablement remains retained history.
    gh-pages branch owner with .nojekyll. No duplicate Actions deploy trigger.
 6. Existing Actions gates remain active until native exact-head acceptance and
    owning required-check/settings migration are proven.
+
+## Duplicate Linux retirement
+
+Portable hosted jobs retire only when both `WOODPECKER_LINUX_CI` and
+`WOODPECKER_PUBLISHING` are explicitly true. Keep the Linux flag off through exact
+PR and merged-main native proof, required-context migration and live broker/owner
+acceptance. Native macOS, unproven Linux Nix/devenv parity, actual Docker/runtime
+and devcontainer checks, metadata and update automation remain hosted.
+The hosted change planner, supply-chain pin metadata and CI result/runtime chain remain active; no legacy app-validation cron is removed.

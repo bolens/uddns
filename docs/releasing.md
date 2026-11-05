@@ -148,3 +148,24 @@ When the tagged source needs a fix, leave the failed tag in place, merge the fix
 with a new patch version, and publish a new tag. Never move or reuse a release
 tag, and never delete or recreate a successfully published tag to repair mutable
 aliases.
+
+## Retiring duplicate portable Linux validation
+
+Both repository variables `WOODPECKER_LINUX_CI=true` and
+`WOODPECKER_PUBLISHING=true` are required to retire the duplicate portable Linux
+jobs. Keep `WOODPECKER_LINUX_CI` absent or false until exact PR and merged-main
+native checks pass, the broker and publishing owner are accepted, and required
+checks migrate to the tested native contexts. The publishing flag follows its
+separate coordinated owner cutover; it can be enabled first while duplicate Linux
+validation remains active. Publication rollback restores these hosted checks when its flag
+is cleared; cancel or drain active publishers before changing that owner flag.
+Native macOS, Linux Nix/devenv validation while its native parity remains unproven,
+actual Docker/runtime/devcontainer validation, and metadata/update automation
+remain hosted. The validation flag does not authorize credentials or publication.
+
+This repository has no legacy weekly application-validation schedule to retire.
+Its Thursday Spec Kit updater and daily maintainer-assignment schedules remain.
+The hosted CI change planner, supply-chain pin metadata, runtime-image job and CI
+result aggregator remain active so selected Docker fixture failures still block
+integration. Preserve the required supply-chain, CI result and development
+contexts alongside the tested native check when migrating protections.

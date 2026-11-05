@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   actionlint:
+    if: (vars.WOODPECKER_LINUX_CI != 'true' || vars.WOODPECKER_PUBLISHING != 'true')
     permissions:
       contents: read
     uses: bolens/.github/.github/workflows/reusable-actionlint.yml@b179e4783aca035374a85da9676e0be893fa1701

@@ -33,3 +33,8 @@ Full-history cloning uses the installed plugin 2.11.0 pinned by digest, with
 both depth zero and partial false. Partial cloning otherwise overrides depth;
 core validation must prove the actual checkout is not shallow before historical
 checks can move off their existing owner.
+
+Wrap each existing duplicate hosted condition with the two-flag OR guard, keeping
+its triggers, permissions and original condition. Publication cutover can happen
+first while duplicate Linux validation stays active. Cancellation/draining before
+publication rollback is required; clearing its flag restores duplicate validation.
