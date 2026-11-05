@@ -2,11 +2,22 @@
 
 [Documentation](docs/README.md)
 
-uDDNS publishes Semantic Versioning releases and GHCR images
-from `vX.Y.Z` tags. `package.json` is the version authority. The Release
-workflow validates source, builds and pushes the immutable image, attaches an
-SPDX SBOM and attestations, signs the digest with Cosign, promotes aliases, and
-creates the GitHub release.
+uDDNS publishes Semantic Versioning releases and GHCR images from signed
+annotated `vX.Y.Z` tags. `package.json` is the version authority.
+
+With `WOODPECKER_PUBLISHING=true`, enable the authenticated broker policy and
+full Woodpecker profile together. Native validation precedes the signed-tag
+publisher's immutable candidate, SPDX SBOM, and release manifest. The retained
+hosted Release bridge verifies the exact native source and image, signs and
+attests with GitHub OIDC, then promotes that same digest and publishes the
+release. Its separate Pages job builds fresh protected main and verifies an
+explicit GitHub Pages build after release publication. Ordinary main Pages
+publication runs in Woodpecker; Gitea copies select validation only.
+
+With publication disabled, the hosted Release workflow remains the complete
+fallback. Follow [the cutover contract](docs/releasing.md) for activation and
+rollback: drain native and hosted publishers, select the validation-only profile,
+then clear the publication flag. Do not run two publication owners together.
 
 ## Prepare and validate
 
@@ -60,11 +71,16 @@ cancellations. Update the protection settings when renaming required jobs.
 
 ## Source lint
 
-The Source lint workflow checks maintained python, javascript, css files selected by
-[`.github/source-lint.json`](.github/source-lint.json) on every pull request
-and push to `main`. Existing native checks remain part of the merge gate.
+The native Woodpecker core checks maintained Python, JavaScript, and CSS files
+selected by [`.github/source-lint.json`](.github/source-lint.json), using
+[`scripts/ci/check-fleet.sh`](scripts/ci/check-fleet.sh) and the same pinned fleet
+tooling as [the hosted Source lint fallback](.github/workflows/source-lint.yml).
+The hosted check runs whenever either `WOODPECKER_LINUX_CI` or
+`WOODPECKER_PUBLISHING` is not `true`. After the paired cutover is accepted,
+require `ci/woodpecker/pr/woodpecker` with `supply-chain`, `CI result`, and
+`Development environment` on the current head, rather than an intentionally
+skipped fallback. Retain macOS and actual Docker environment validation.
+
 Use the [shared local reproduction instructions](https://github.com/bolens/.github/blob/7603518f305fb76f7bb1b9979f2692521f633b82/docs/source-lint.md)
-with the same tooling revision pinned in
-[the workflow](.github/workflows/source-lint.yml). Review exclusions when adding
-source files; generated and imported files retain their native validation.
-Require the new check to pass on the current PR head before merging.
+with the same pinned tooling revision. Review exclusions when adding source files;
+generated and imported files retain their native validation.
