@@ -17,7 +17,10 @@ class CINodeRuntimeTests(unittest.TestCase):
     def setUp(self):
         self.scratch = tempfile.TemporaryDirectory()
         self.addCleanup(self.scratch.cleanup)
-        self.root = Path(self.scratch.name)
+        physical = Path(self.scratch.name) / 'physical'
+        physical.mkdir()
+        self.root = Path(self.scratch.name) / 'alias'
+        self.root.symlink_to(physical, target_is_directory=True)
         (self.root / '.dockerenv').touch()
         self.workspace = self.root / 'workspace'
         self.workspace.mkdir()
@@ -42,11 +45,11 @@ class CINodeRuntimeTests(unittest.TestCase):
     def test_explicit_container_setup_is_idempotent_and_limits_library_search(self):
         child = self.prepare()
         self.assertTrue(self.destination.is_symlink())
-        self.assertEqual(self.destination.resolve(), self.linker)
+        self.assertEqual(self.destination.resolve(), self.linker.resolve())
         inode = self.destination.lstat().st_ino
         self.assertEqual(self.prepare(), child)
         self.assertEqual(self.destination.lstat().st_ino, inode)
-        self.assertEqual(child['LD_LIBRARY_PATH'], str(self.library))
+        self.assertEqual(child['LD_LIBRARY_PATH'], str(self.library.resolve()))
         self.assertEqual(child['PRESERVE_ME'], self.environment['PRESERVE_ME'])
         self.assertEqual(self.environment['LD_LIBRARY_PATH'], '/untrusted')
 
