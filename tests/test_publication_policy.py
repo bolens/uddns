@@ -47,6 +47,7 @@ class PublicationPolicyTests(unittest.TestCase):
             request = build.return_value.open.call_args.args[0]
             self.assertEqual(request.full_url, publisher.CREDENTIAL_ENDPOINT)
             self.assertEqual(request.method, "POST")
+            self.assertEqual(request.get_header("User-agent"), "woodpecker-publisher/1")
             body = json.loads(request.data)
             self.assertRegex(body.pop("request_id"), "^[0-9a-f]{32}$")
             self.assertEqual(body, {"lease": "unit-test-lease", "repository": publisher.REPOSITORY, "commit": SHA, "purpose": "github"})

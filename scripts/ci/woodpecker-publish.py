@@ -57,7 +57,7 @@ def github_environment():
             data=json.dumps({"lease": lease, "repository": REPOSITORY,
                              "commit": sha, "purpose": "github",
                              "request_id": secrets.token_hex(16)}).encode(),
-            headers={"Content-Type": "application/json"}, method="POST")
+            headers={"Content-Type": "application/json", "User-Agent": "woodpecker-publisher/1"}, method="POST")
         try:
             with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
                 record = json.load(response)
