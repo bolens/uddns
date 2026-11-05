@@ -25,6 +25,8 @@ steps:
       VITEST_MAX_WORKERS: '1'
     commands:
       - test "$(git rev-parse --is-shallow-repository)" = false
+      - python3 scripts/ci/sync-woodpecker-validation.py --check
+      - python3 -m unittest discover -s tests -p test_validation_profile.py
       - npm install --global "$(node -p "require('./package.json').packageManager")"
       - pnpm install --frozen-lockfile
       - pnpm run verify

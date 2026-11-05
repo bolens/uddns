@@ -169,3 +169,39 @@ The hosted CI change planner, supply-chain pin metadata, runtime-image job and C
 result aggregator remain active so selected Docker fixture failures still block
 integration. Preserve the required supply-chain, CI result and development
 contexts alongside the tested native check when migrating protections.
+
+### Workflow discovery profiles
+
+Keep Woodpecker's repository `config_file` set to `.woodpecker-validation/`
+while publishing is disabled, including on Gitea mirrors. This directory is a
+byte-for-byte generated validation allowlist; matching basenames retain required
+check identities. Canonical validation lives in `.woodpecker/`. Run
+`python3 scripts/ci/sync-woodpecker-validation.py --write` after editing it;
+`--check` fails on drift, missing files or extra discovered workflows. Never add
+publishers to the validation profile. The check runs in both discovery profiles.
+
+For publication cutover, first drain the legacy publisher and all queued hosted
+publication bridges. Read back the prior discovery and cancellation settings.
+Remove only `push` from Woodpecker `cancel_previous_pipeline_events`, preserving
+PR cancellation and every unrelated event, so a later main push cannot cancel a
+data-changing publisher. Enable GitHub's `WOODPECKER_PUBLISHING=true`, then select
+Woodpecker `config_file=.woodpecker/`. Read back all three controls in order. The selection is an independent operator
+control, not a credential grant; the broker still enforces the GitHub flag and
+exact protected source. Wrong or unavailable credentials fail closed. Do not run
+the full profile with publishing disabled: unresolved secret references fail at
+compilation, before helper commands run.
+
+For rollback, stop new publication triggers and cancel or drain every native and
+hosted publisher first. Switch Woodpecker to `.woodpecker-validation/` before
+clearing the GitHub publishing flag and restoring legacy publishing. Verify both
+readbacks; only after the drain may validation-only mode restore the previous
+push-cancellation setting if desired. Queued or
+restarted pipelines may retain stored workflow configurations, so cancel those
+explicitly; changing discovery does not sanitize an existing pipeline. Keep the
+Linux retirement flag off until its separate acceptance requirements are met.
+
+Profile changes apply to newly created pipelines. Select the full profile before
+merging the reviewed branch so its genuine main push tests validation and delivery
+in one pipeline. A new manual run can prove validation-only discovery; it cannot
+start publication. Restart reuses saved definitions and cannot activate a changed
+profile or sanitize an old publisher configuration.

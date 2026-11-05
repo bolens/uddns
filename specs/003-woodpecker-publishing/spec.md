@@ -34,3 +34,8 @@ PR and merged-main native proof, required-context migration and live broker/owne
 acceptance. Native macOS, unproven Linux Nix/devenv parity, actual Docker/runtime
 and devcontainer checks, metadata and update automation remain hosted.
 The hosted change planner, supply-chain pin metadata and CI result/runtime chain remain active; no legacy app-validation cron is removed.
+
+Default-off and rollback select the generated credential-free validation profile,
+with exact canonical bytes and unchanged check basenames. Full-profile discovery
+and the GitHub publishing flag are separate operator controls; no placeholder
+credentials or silent publisher skips may bridge a disabled credential policy.

@@ -38,3 +38,11 @@ Wrap each existing duplicate hosted condition with the two-flag OR guard, keepin
 its triggers, permissions and original condition. Publication cutover can happen
 first while duplicate Linux validation stays active. Cancellation/draining before
 publication rollback is required; clearing its flag restores duplicate validation.
+
+Generate `.woodpecker-validation/` from the explicit canonical validation allowlist
+and require its byte/drift check in core validation. The operator selects this
+profile when publication is off, then drains owners, removes only push cancellation,
+enables the GitHub flag and selects the full profile before the genuine merge push.
+Rollback drains both native/hosted publishers before selecting validation-only and
+clearing the flag. Restarts reuse stored definitions; only new pipelines discover
+profile changes. Preserve PR cancellation and unrelated settings.

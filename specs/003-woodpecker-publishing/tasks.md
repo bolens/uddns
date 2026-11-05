@@ -40,4 +40,7 @@
 - [ ] Obtain final retirement-head PR and merged-main native acceptance before flags.
 - [ ] Obtain native exact-head acceptance, then migrate required checks and remove duplicate triggers.
 
+- [x] Prove actual v3.20 discovery and empty-secret compilation of the six/one validation workflows, unchanged contexts, drift/symlink/extra/reference denials and cached restart behavior.
+- [ ] Independently review and deliver the validation-profile source, then verify live ordered profile/flag/cancellation readbacks and genuine main-push acceptance.
+
 Unchecked items are required remaining work; no unexecuted path counts as a pass.
