@@ -6,8 +6,8 @@ Some packages are build tools and are not shipped in every runtime artifact.
 Preserve the applicable notices with distributed code and assets.
 
 ==============================================================================
-@hono/node-server@2.1.1
-Source: https://www.npmjs.com/package/@hono/node-server/v/2.1.1
+@hono/node-server@2.1.6
+Source: https://www.npmjs.com/package/@hono/node-server/v/2.1.6
 Declared license: MIT
 
 --- LICENSE ---
@@ -34,8 +34,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-@modelcontextprotocol/sdk@1.30.0
-Source: https://www.npmjs.com/package/@modelcontextprotocol/sdk/v/1.30.0
+@modelcontextprotocol/sdk@1.32.2
+Source: https://www.npmjs.com/package/@modelcontextprotocol/sdk/v/1.32.2
 Declared license: MIT
 
 --- LICENSE ---
@@ -62,8 +62,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-@opentelemetry/api@1.9.1
-Source: https://www.npmjs.com/package/@opentelemetry/api/v/1.9.1
+@opentelemetry/api@1.10.0
+Source: https://www.npmjs.com/package/@opentelemetry/api/v/1.10.0
 Declared license: Apache-2.0
 
 --- LICENSE ---
@@ -356,8 +356,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-body-parser@2.3.0
-Source: https://www.npmjs.com/package/body-parser/v/2.3.0
+body-parser@2.4.0
+Source: https://www.npmjs.com/package/body-parser/v/2.4.0
 Declared license: MIT
 
 --- LICENSE ---
@@ -472,8 +472,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-content-disposition@1.1.0
-Source: https://www.npmjs.com/package/content-disposition/v/1.1.0
+content-disposition@2.0.1
+Source: https://www.npmjs.com/package/content-disposition/v/2.0.1
 Declared license: MIT
 
 --- LICENSE ---
@@ -1044,8 +1044,8 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-express@5.2.1
-Source: https://www.npmjs.com/package/express/v/5.2.1
+express@5.3.0
+Source: https://www.npmjs.com/package/express/v/5.3.0
 Declared license: MIT
 
 --- LICENSE ---
@@ -1103,8 +1103,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-fast-uri@3.1.6
-Source: https://www.npmjs.com/package/fast-uri/v/3.1.6
+fast-uri@3.1.9
+Source: https://www.npmjs.com/package/fast-uri/v/3.1.9
 Declared license: BSD-3-Clause
 
 --- LICENSE ---
@@ -1410,8 +1410,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-hono@4.13.4
-Source: https://www.npmjs.com/package/hono/v/4.13.4
+hono@4.13.16
+Source: https://www.npmjs.com/package/hono/v/4.13.16
 Declared license: MIT
 
 --- LICENSE ---
@@ -1517,8 +1517,8 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 ==============================================================================
-ip-address@10.5.0
-Source: https://www.npmjs.com/package/ip-address/v/10.5.0
+ip-address@10.7.6
+Source: https://www.npmjs.com/package/ip-address/v/10.7.6
 Declared license: MIT
 
 --- LICENSE ---
@@ -2142,8 +2142,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-proxy-addr@2.0.7
-Source: https://www.npmjs.com/package/proxy-addr/v/2.0.7
+proxy-addr@2.0.8
+Source: https://www.npmjs.com/package/proxy-addr/v/2.0.8
 Declared license: MIT
 
 --- LICENSE ---
@@ -2171,8 +2171,8 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-qs@6.16.0
-Source: https://www.npmjs.com/package/qs/v/6.16.0
+qs@6.17.1
+Source: https://www.npmjs.com/package/qs/v/6.17.1
 Declared license: BSD-3-Clause
 
 --- LICENSE.md ---
@@ -2784,8 +2784,8 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ==============================================================================
-yaml@2.9.0
-Source: https://www.npmjs.com/package/yaml/v/2.9.0
+yaml@2.9.1
+Source: https://www.npmjs.com/package/yaml/v/2.9.1
 Declared license: ISC
 
 --- LICENSE ---
@@ -2826,8 +2826,8 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ==============================================================================
-zod@4.5.4
-Source: https://www.npmjs.com/package/zod/v/4.5.4
+zod@4.6.7
+Source: https://www.npmjs.com/package/zod/v/4.6.7
 Declared license: MIT
 
 --- LICENSE ---
