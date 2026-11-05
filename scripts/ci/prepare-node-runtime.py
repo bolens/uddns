@@ -3,9 +3,9 @@
 
 import argparse
 import os
-from pathlib import Path
 import platform
 import sys
+from pathlib import Path
 
 
 def prepare(environment, *, root=Path('/'), workspace=None, uid=None, system=None, machine=None):

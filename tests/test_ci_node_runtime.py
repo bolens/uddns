@@ -1,9 +1,9 @@
 """The CI-only loader adapter cannot modify ordinary host or conflicting paths."""
 
 import importlib.util
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1] / 'scripts/ci/prepare-node-runtime.py'
@@ -123,10 +123,12 @@ class CINodeRuntimeTests(unittest.TestCase):
         self.assertFalse(self.destination.exists())
 
     def test_cli_executes_existing_gate_and_does_not_swallow_exec_failure(self):
-        with patch.object(RUNTIME.sys, 'argv', ['prepare-node-runtime.py', '--', 'repo-check']), \
-                patch.object(RUNTIME, 'prepare', return_value={'LD_LIBRARY_PATH': '/validated'}) as prepare, \
-                patch.object(RUNTIME.os, 'execvpe', side_effect=OSError('fixture failure')) as execute:
-            with self.assertRaises(OSError):
-                RUNTIME.main()
+        with (
+            patch.object(RUNTIME.sys, 'argv', ['prepare-node-runtime.py', '--', 'repo-check']),
+            patch.object(RUNTIME, 'prepare', return_value={'LD_LIBRARY_PATH': '/validated'}) as prepare,
+            patch.object(RUNTIME.os, 'execvpe', side_effect=OSError('fixture failure')) as execute,
+            self.assertRaises(OSError),
+        ):
+            RUNTIME.main()
         prepare.assert_called_once_with(RUNTIME.os.environ)
         execute.assert_called_once_with('repo-check', ['repo-check'], {'LD_LIBRARY_PATH': '/validated'})
