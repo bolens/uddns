@@ -19,3 +19,4 @@ steps:
       - npm install --global "$(node -p "require('./package.json').packageManager")"
       - pnpm install --frozen-lockfile
       - pnpm run verify
+      - python3 -m unittest discover -s tests -p 'test_*development_container.py'
