@@ -1,4 +1,7 @@
 # Portable validation on Gitea-connected Woodpecker runners. No publication credentials.
+labels:
+  platform: linux/amd64
+  backend: docker
 when:
   - event:
       - push
