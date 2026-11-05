@@ -1,5 +1,7 @@
 { pkgs, config, lib, ... }:
 let
+  runtimeLinker = pkgs.stdenv.cc.bintools.dynamicLinker;
+  runtimeLibraries = lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ];
   pnpm = pkgs.writeShellScriptBin "pnpm" ''
     exec ${pkgs.corepack}/bin/corepack pnpm "$@"
   '';
@@ -8,8 +10,8 @@ let
     ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
       # pnpm's pinned Node runtime uses the standard Linux ELF interpreter.
       mkdir -p "$out/lib" "$out/lib64"
-      ln -s ${pkgs.stdenv.cc.bintools.dynamicLinker} "$out/lib/$(basename ${pkgs.stdenv.cc.bintools.dynamicLinker})"
-      ln -s ${pkgs.stdenv.cc.bintools.dynamicLinker} "$out/lib64/$(basename ${pkgs.stdenv.cc.bintools.dynamicLinker})"
+      ln -s ${runtimeLinker} "$out/lib/$(basename ${runtimeLinker})"
+      ln -s ${runtimeLinker} "$out/lib64/$(basename ${runtimeLinker})"
     ''}
   '';
 in
@@ -30,9 +32,17 @@ in
     SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
     LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive";
+    UDDNS_CI_NODE_LINKER = runtimeLinker;
+    UDDNS_CI_NODE_LIBRARY_PATH = runtimeLibraries;
   };
   scripts.repo-check.exec = "bash scripts/check-development.sh";
-  enterTest = "repo-check";
+  enterTest = ''
+    if [[ "''${UDDNS_CI_NODE_BOOTSTRAP:-}" == true ]]; then
+      python3 scripts/ci/prepare-node-runtime.py -- repo-check
+    else
+      repo-check
+    fi
+  '';
 
   containers.shell = {
     name = "localhost/uddns-dev";
@@ -47,7 +57,7 @@ in
     entrypoint = [ (pkgs.writeShellScript "development-entrypoint" ''
       export PATH="${lib.makeBinPath config.packages}:$PATH"
       ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-        export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.glibc ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        export LD_LIBRARY_PATH="${runtimeLibraries}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       ''}
       exec "$@"
     '') ];

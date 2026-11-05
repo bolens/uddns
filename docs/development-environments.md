@@ -100,3 +100,14 @@ duplicate hosted Linux `devenv test` step. Clearing the flag restores that check
 The flag does not skip macOS, actual Docker development/runtime/editor-image
 validation, or OIDC signing, and does not authorize publishing. Source review and
 workflow parsing do not prove cold-store Nix execution or native parity.
+
+The direct Nix CI image needs the standard ELF interpreter used by pnpm's pinned
+Node binary. Its Nix step explicitly enables `UDDNS_CI_NODE_BOOTSTRAP=true`; the
+`enterTest` wrapper then uses the same Nix-derived linker and GCC/glibc library
+closure as the exported development image. It requires the disposable Linux
+amd64 CI container, root, Docker marker and exact checkout, and refuses existing
+conflicting loader paths. The ordinary host and macOS gates keep `repo-check`
+as their entrypoint. `enterShell` stays unchanged. The gate also executes the
+managed Node binary and checks its version against `package.json` before full
+verification. Native runtime acceptance remains required before the Nix flag
+cutover.

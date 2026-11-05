@@ -56,3 +56,12 @@ Unchecked items are required remaining work; no unexecuted path counts as a pass
 
 Cold Nix storage, runner timeout and actual test execution remain acceptance
 requirements. No source, compiler or mocked check counts as runtime parity.
+
+### Direct Nix CI managed-runtime correction
+
+- [x] Diagnose the actual step545 failure and the managed Node ELF interpreter dependency.
+- [x] Add an explicit disposable-CI wrapper sharing the existing Nix-derived loader/library closure.
+- [x] Verify eight focused guard/idempotence/conflict/exec fixtures in temporary filesystems.
+- [ ] Independently review the wrapper and prove managed Node in the exact Nix image.
+- [ ] Pass normal hooks and the complete exact-head native development gate.
+- [ ] Verify genuine merged-main parity before the operator enables the Nix cutover flag.
