@@ -126,8 +126,13 @@ jobs:
           VALIDATE: ${{ needs.validate.result }}
           CONTAINER: ${{ needs.container.result }}
           DEVCONTAINER: ${{ needs.devcontainer.result }}
+          DEVCONTAINER_SELECTED: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.devcontainer == 'true' }}
         run: |
           test "$CHANGES" = success
           case "$VALIDATE" in success|skipped) ;; *) exit 1 ;; esac
           case "$CONTAINER" in success|skipped) ;; *) exit 1 ;; esac
-          case "$DEVCONTAINER" in success|skipped) ;; *) exit 1 ;; esac
+          if [ "$DEVCONTAINER_SELECTED" = true ]; then
+            test "$DEVCONTAINER" = success
+          else
+            case "$DEVCONTAINER" in success|skipped) ;; *) exit 1 ;; esac
+          fi
