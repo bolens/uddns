@@ -136,7 +136,8 @@ execute the workflow. Container images are pinned by digest.
 
 The workflow runs the existing `pnpm run verify` gate: formatting, type-aware lint,
 types, dependency pins, all deterministic test shards with merged coverage, build, and
-dead-code checks. It uses the package manager version declared in `package.json`. Live
+dead-code checks, followed by the deterministic local/remote container-adapter unit
+tests. It uses the package manager version declared in `package.json`. Live
 provider tests remain opt-in and are not run. Image publication and release signing
 continue in GitHub Actions.
 
