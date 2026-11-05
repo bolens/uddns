@@ -28,3 +28,8 @@ No production release is created for migration validation.
 Validate shell/YAML/fleet contracts, mocked publication denial/identity behavior,
 native application gates, then exact-source Woodpecker with no production release.
 Migrate one owning trigger/status only after that evidence and root settings proof.
+
+Full-history cloning uses the installed plugin 2.11.0 pinned by digest, with
+both depth zero and partial false. Partial cloning otherwise overrides depth;
+core validation must prove the actual checkout is not shallow before historical
+checks can move off their existing owner.
