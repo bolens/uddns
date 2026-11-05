@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#061c26"/>
+  <circle cx="1020" cy="90" r="220" fill="#0b2a38"/>
+  <path d="M0 500h1200v130H0z" fill="#0b2a38"/>
+  <g transform="translate(82 78)">
+    <rect width="82" height="82" rx="18" fill="#082633" stroke="#28505d"/>
+    <path d="M23 22v23c0 9 5 14 14 14s14-5 14-14V22h-9v23c0 4-1 6-5 6s-5-2-5-6V22z" fill="#55d8cf"/>
+    <circle cx="61" cy="22" r="7" fill="#f5c15d"/>
+  </g>
+  <text x="188" y="136" fill="#edf8fa" font-family="monospace" font-size="54" font-weight="700">uDDNS</text>
+  <text x="82" y="300" fill="#edf8fa" font-family="system-ui,sans-serif" font-size="78" font-weight="700">Your address changes.</text>
+  <text x="82" y="392" fill="#55d8cf" font-family="system-ui,sans-serif" font-size="78" font-weight="700">Your hostname keeps up.</text>
+  <text x="82" y="560" fill="#9db7be" font-family="monospace" font-size="27">A small multi-provider dynamic DNS updater</text>
+  <circle cx="1110" cy="554" r="12" fill="#f5c15d"/>
+</svg>

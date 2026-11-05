@@ -1,0 +1,13 @@
+# uddns
+
+uddns is a dynamic DNS updater with provider adapters, host selection, persisted state, safe HTTPS policy, and an MCP interface. The site documents the project and its architecture.
+
+## Documentation
+
+- Overview: https://bolens.github.io/uddns/
+- Architecture: https://bolens.github.io/uddns/architecture.html
+
+## Source
+
+- Repository: https://github.com/bolens/uddns
+- Issues: https://github.com/bolens/uddns/issues
