@@ -44,3 +44,24 @@
 - [ ] Independently review and deliver the validation-profile source, then verify live ordered profile/flag/cancellation readbacks and genuine main-push acceptance.
 
 Unchecked items are required remaining work; no unexecuted path counts as a pass.
+
+## Linux development-environment parity follow-up
+
+- [x] Add the owning pinned native Linux test step and regenerate the validation profile.
+- [x] Add the default-off hosted Linux test guard, preserving Docker/macOS/OIDC checks.
+- [ ] Verify normal hooks, workflow lint and actual SDK event/profile/flag fixtures.
+- [ ] Complete independent review and exact-head native PR acceptance.
+- [ ] Verify genuine merged-main native parity before root enables `WOODPECKER_NIX_CI`.
+- [ ] Reconcile the accepted source to Gitea without changing its governance overlays.
+
+Cold Nix storage, runner timeout and actual test execution remain acceptance
+requirements. No source, compiler or mocked check counts as runtime parity.
+
+### Direct Nix CI managed-runtime correction
+
+- [x] Diagnose the actual step545 failure and the managed Node ELF interpreter dependency.
+- [x] Add an explicit disposable-CI wrapper sharing the existing Nix-derived loader/library closure.
+- [x] Verify eight focused guard/idempotence/conflict/exec fixtures in temporary filesystems.
+- [ ] Independently review the wrapper and prove managed Node in the exact Nix image.
+- [ ] Pass normal hooks and the complete exact-head native development gate.
+- [ ] Verify genuine merged-main parity before the operator enables the Nix cutover flag.

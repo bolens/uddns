@@ -46,3 +46,26 @@ enables the GitHub flag and selects the full profile before the genuine merge pu
 Rollback drains both native/hosted publishers before selecting validation-only and
 clearing the flag. Restarts reuse stored definitions; only new pipelines discover
 profile changes. Preserve PR cancellation and unrelated settings.
+
+## Linux development-environment parity follow-up
+
+Append the owning pinned `devenv test` command as a new Nix-image step within the
+existing core workflow; keep all current basenames, dependencies and required
+contexts. Use the already trusted public cache, one Nix build job/two cores and
+bounded test workers. Regenerate the byte-identical validation profile. Retain
+actual Docker, macOS and OIDC checks. A separate `WOODPECKER_NIX_CI` flag defaults
+off and skips only the hosted Linux native test after exact PR and genuine main
+proof. Root owns the flag; source delivery does not enable it.
+
+### Managed Node in the direct Nix CI image
+
+Actual native step545 at3114eea reached the Nix shell and frozen dependency
+installation, then failed when the Vite+ shim selected the managed Node26.7.0
+binary whose standard ELF interpreter was absent. Reuse the exported development
+image's existing Nix-derived loader/library closure through an explicit CI-only
+`enterTest` wrapper. Require Linux/amd64/root/Docker and the exact workspace,
+refuse conflicting paths, and keep generic host `enterShell` unchanged. Preserve
+the runtime/package-manager pins and frozen install, check the managed binary's
+version, and run the complete existing `repo-check`. Root owns the bounded exact
+container loader proof; native exact-head/full-gate acceptance follows before
+any `WOODPECKER_NIX_CI` change.

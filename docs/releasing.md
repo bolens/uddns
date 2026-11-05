@@ -159,9 +159,10 @@ checks migrate to the tested native contexts. The publishing flag follows its
 separate coordinated owner cutover; it can be enabled first while duplicate Linux
 validation remains active. Publication rollback restores these hosted checks when its flag
 is cleared; cancel or drain active publishers before changing that owner flag.
-Native macOS, Linux Nix/devenv validation while its native parity remains unproven,
-actual Docker/runtime/devcontainer validation, and metadata/update automation
-remain hosted. The validation flag does not authorize credentials or publication.
+Native macOS, actual Docker/runtime/devcontainer validation, and metadata/update
+automation remain hosted. The separate default-off `WOODPECKER_NIX_CI` flag controls
+only the duplicate hosted Linux `devenv test` step after exact native PR and
+genuine merged-main parity proof; see [development environments](development-environments.md). The validation flag does not authorize credentials or publication.
 
 This repository has no legacy weekly application-validation schedule to retire.
 Its Thursday Spec Kit updater and daily maintainer-assignment schedules remain.

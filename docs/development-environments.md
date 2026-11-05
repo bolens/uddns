@@ -86,3 +86,28 @@ Mocked lifecycle and archive-ownership tests validate the transfer contract
 without starting a daemon; actual remote-engine execution remains separate
 operator verification. This optional transport does not change hosted CI or
 Woodpecker runner provisioning.
+
+## Native Linux CI parity
+
+The existing Woodpecker `woodpecker` workflow also runs the locked `devenv test`
+gate in a pinned Nix container, without a Docker socket, host mounts or publisher
+credentials. Nix builds use one job and two cores; application tests use bounded workers.
+The generated validation-only profile includes the same gate and check identity.
+
+Keep `WOODPECKER_NIX_CI` absent or false until the exact PR and genuine merged-main
+native runs pass. Only then may the operator set it to literal `true` to skip the
+duplicate hosted Linux `devenv test` step. Clearing the flag restores that check.
+The flag does not skip macOS, actual Docker development/runtime/editor-image
+validation, or OIDC signing, and does not authorize publishing. Source review and
+workflow parsing do not prove cold-store Nix execution or native parity.
+
+The direct Nix CI image needs the standard ELF interpreter used by pnpm's pinned
+Node binary. Its Nix step explicitly enables `UDDNS_CI_NODE_BOOTSTRAP=true`; the
+`enterTest` wrapper then uses the same Nix-derived linker and GCC/glibc library
+closure as the exported development image. It requires the disposable Linux
+amd64 CI container, root, Docker marker and exact checkout, and refuses existing
+conflicting loader paths. The ordinary host and macOS gates keep `repo-check`
+as their entrypoint. `enterShell` stays unchanged. The gate also executes the
+managed Node binary and checks its version against `package.json` before full
+verification. Native runtime acceptance remains required before the Nix flag
+cutover.
