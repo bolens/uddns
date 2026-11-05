@@ -50,6 +50,18 @@ may resolve a public tag without REST credentials, but that tag-only result cann
 authorize a Pages push. This hosted release-time refresh remains an explicit migration exception;
 no release has been created to test the cutover.
 
+## Cutover rollback
+
+Before clearing `WOODPECKER_PUBLISHING`, stop new protected-main/tag publication
+triggers and cancel or drain every active native publisher and hosted signing,
+image-promotion and release-Pages bridge. Confirm that no job or queued dispatch
+can still promote images, finalize a release or push Pages. Only then clear the
+flag and restore the prior workflow discovery, required checks and Pages settings
+as one coordinated owner change. This order prevents an in-flight native bridge
+from publishing after the legacy owner resumes. Preserve immutable versions and
+digests; inspect pending drafts and receipts before any retry. Ordinary failed
+validation PR checks do not require publication credentials or flag changes.
+
 ## Prepare
 
 1. Queue the release PR for squash auto-merge, then confirm it merged after all
