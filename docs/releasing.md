@@ -9,13 +9,19 @@ generates its SBOM, and signs/attests the digest before alias promotion.
 
 ## Woodpecker cutover
 
-Keep `.woodpecker-publishing.yml.example` and `.woodpecker-pages.yml.example`
-outside discovery until native checks, broker policy and branch Pages settings
-are verified. Then move the validation file to `.woodpecker/woodpecker.yml` and
-the examples to `.woodpecker/publishing.yml` and `.woodpecker/pages.yml` together.
-Gitea mirrors keep credential-free validation; only the canonical GitHub forge
-may publish. The activation flag disables legacy tag publication and hosted
-ordinary Pages deployment, while preserving the thin hosted release bridge.
+The staged configuration uses `.woodpecker/woodpecker.yml` for validation,
+`.woodpecker/publishing.yml` for canonical signed GitHub tags and
+`.woodpecker/pages.yml` for canonical protected-main Pages. PR, manual, cron and
+Gitea events do not select publisher steps or credentials. The server broker must
+approve the event and the canonical repository variable `WOODPECKER_PUBLISHING`
+must explicitly enable delivery. Until native checks, broker policy and hosted
+bridges pass acceptance, keep that flag off and retain the legacy owners.
+Coordinate broker/flag enforcement and owner transition before merging these
+active configuration files; a missing broker credential fails closed. Switch
+Pages to the verified `gh-pages` branch source after the first validated native
+push creates it. The activation flag disables legacy tag publication and hosted
+ordinary Pages deployment while preserving the thin hosted release bridges.
+Gitea mirrors keep credential-free validation.
 
 A signed annotated version tag reachable from protected main starts native
 validation and a socket-free Kaniko candidate build. The broker provides

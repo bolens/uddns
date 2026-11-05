@@ -1,9 +1,6 @@
-# DEFAULT DISABLED: example is outside Woodpecker config discovery.
-# Activation is an atomic cutover: move .woodpecker.yml to
-# .woodpecker/woodpecker.yml, then this example to .woodpecker/publishing.yml.
-# Keep the validation dependency, broker policy and host variable required.
-# The retained GitHub OIDC bridge verifies the exact digest/runtime, signs and
-# attests the native provenance/SBOM, then promotes aliases and finalizes the release.
+# Canonical GitHub signed-tag publication; broker and repository flag are required.
+# PR, manual, cron and Gitea events never select publisher steps or secrets.
+# The retained hosted bridge verifies the native image, signs, then promotes it.
 labels:
   platform: linux/amd64
   backend: docker

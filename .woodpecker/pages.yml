@@ -1,7 +1,6 @@
-# DEFAULT DISABLED. After broker/native proof, move into .woodpecker/pages.yml
-# together with the validation/publishing cutover described in the migration plan.
-# A retained hosted bridge builds fresh current-main Pages after release promotion.
-# This native workflow owns ordinary protected-main site changes.
+# Canonical GitHub protected-main Pages; broker/flag and branch Pages settings required.
+# A separate hosted bridge owns release-time fresh-main Pages with exact build proof.
+# PR, manual, cron and Gitea events never select these publisher secrets.
 labels:
   platform: linux/amd64
   backend: docker
