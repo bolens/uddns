@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # Portable equivalents of the pinned fleet source, Spec Kit and workflow gates.
 set -euo pipefail
-root=$(git rev-parse --show-toplevel)
+# Nested tooling clones must not inherit a calling Git hook's repository/index.
+git_local_environment=$(git rev-parse --local-env-vars)
+while IFS= read -r git_variable; do
+    unset "$git_variable"
+done <<<"$git_local_environment"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+test "$(git -C "$root" rev-parse --show-toplevel)" = "$root"
 cd -- "$root"
 scratch=$(mktemp -d)
 trap 'rm -rf -- "$scratch"' EXIT

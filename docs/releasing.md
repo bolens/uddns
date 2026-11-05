@@ -2,10 +2,53 @@
 
 [Documentation](README.md)
 
-Releases are built from protected `main` by `.github/workflows/release.yml`.
-The workflow publishes the exact semantic-version image first, generates its
-SBOM, attests and signs the digest, and only then promotes stable releases to
-the minor and `latest` aliases.
+The default release owner remains `.github/workflows/release.yml` until the
+Woodpecker cutover below is accepted and `WOODPECKER_PUBLISHING=true` is enabled.
+It builds from protected `main`, publishes the exact semantic-version image,
+generates its SBOM, and signs/attests the digest before alias promotion.
+
+## Woodpecker cutover
+
+Keep `.woodpecker-publishing.yml.example` and `.woodpecker-pages.yml.example`
+outside discovery until native checks, broker policy and branch Pages settings
+are verified. Then move the validation file to `.woodpecker/woodpecker.yml` and
+the examples to `.woodpecker/publishing.yml` and `.woodpecker/pages.yml` together.
+Gitea mirrors keep credential-free validation; only the canonical GitHub forge
+may publish. The activation flag disables legacy tag publication and hosted
+ordinary Pages deployment, while preserving the thin hosted release bridge.
+
+A signed annotated version tag reachable from protected main starts native
+validation and a socket-free Kaniko candidate build. The broker provides
+`ghcr_username`/`ghcr_password` only to the exact pinned Kaniko plugin, and an
+opaque `github_publish_lease` only on approved protected refs. Candidate metadata
+binds the source, platform, image/config digests, SPDX inventory and native SLSA
+builder statement. The approved App creates or resumes a matching draft without
+replacing uploaded bytes, dispatches the hosted bridge and exits pending.
+
+The bridge requires the complete successful native tag pipeline before testing
+its exact image digest offline. It retains the existing GitHub OIDC signing
+identity and attests the external Woodpecker builder accurately. Only then may it
+promote the immutable version, advance a matching minor without downgrading, and
+advance global `latest` for a newer stable release. Backports explicitly avoid
+becoming GitHub's latest release. `WOODPECKER_STATUS_CREATOR_ID` must be the
+verified native status creator; `WOODPECKER_STATUS_PREFIX` defaults to
+`ci/woodpecker`. Other pipelines or creators cannot satisfy these checks.
+
+Release publication uses the hosted job's repository-scoped token. Because such
+publication does not trigger another release workflow, a dependent hosted job explicitly
+fetches fresh protected-main site sources, renders the current latest stable
+release, runs credential-free accessibility/link/viewport checks, and appends
+`gh-pages` with `.nojekyll`. It rechecks both main and latest-release identities
+immediately before pushing. A built-in-token branch push also does not trigger
+Pages, so this dependent job requests a branch build with its own `pages: write`
+permission and requires successful completion for the exact generated commit.
+The site job can be retried independently after release publication. Ordinary
+main site changes use native Woodpecker
+Pages, with approved release ID/tag metadata prepared in a separate authenticated
+step. The renderer and validators receive public metadata only. Local validation
+may resolve a public tag without REST credentials, but that tag-only result cannot
+authorize a Pages push. This hosted release-time refresh remains an explicit migration exception;
+no release has been created to test the cutover.
 
 ## Prepare
 
@@ -41,8 +84,8 @@ git tag -s "v${version}" -m "uDDNS v${version}"
 git push origin "v${version}"
 ```
 
-Do not move or reuse a published release tag. The tag starts the Release
-workflow, which rejects tags that do not match `package.json`.
+Do not move or reuse a published release tag. The active release owner rejects
+tags that do not match `package.json` and retains the same signed source.
 
 ## Verify
 
@@ -59,8 +102,9 @@ workflow, which rejects tags that do not match `package.json`.
    gh release view "v${version}" --json tagName,isDraft,isPrerelease,assets,url
    ```
 
-3. Confirm the exact-version container tag resolves. For stable versions,
-   confirm the minor and `latest` aliases resolve to the same digest:
+3. Confirm the exact-version container tag resolves. A newer stable release
+   advances its minor and `latest`; a backport advances only its applicable minor
+   and never downgrades global `latest`:
 
    ```bash
    image="ghcr.io/bolens/uddns"

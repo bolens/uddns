@@ -3,10 +3,12 @@ labels:
   platform: linux/amd64
   backend: docker
 when:
+  - event: push
+    branch: main
   - event:
-      - push
       - pull_request
       - manual
+      - tag
 steps:
   - name: verify
     image: node:26-bookworm@sha256:fa52d1669505e29b58c042875b1d65c229e0787a3610fd52869b22b68e480853
@@ -21,6 +23,8 @@ steps:
       - pnpm run verify
       - python3 -m unittest discover -s tests -p 'test_*development_container.py'
       - python3 -m unittest discover -s tests -p test_publication_policy.py
+      - python3 -m unittest discover -s tests -p test_image_bridge.py
+      - python3 -m unittest discover -s tests -p test_native_pipeline_status.py
   - name: fleet-contracts
     image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
     environment:

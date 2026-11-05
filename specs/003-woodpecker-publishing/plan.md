@@ -13,10 +13,16 @@ Git trace/debug settings are removed from authenticated subprocesses. Repository
 WOODPECKER_PUBLISHING must explicitly enable production delivery; its absence
 keeps activation disabled. The broker is the security boundary, not YAML filters.
 
-Ordinary socket-free Kaniko is a candidate for image builds. Its lack of BuildKit
-max provenance/SBOM and inability to execute runtime fixtures remain explicit
-migration gaps until an equivalent isolated builder/runtime is proven. Preserve
-existing platform guarantees and do not claim execution from source inspection.
+Socket-free Kaniko builds the candidate and pinned Syft supplies native SPDX.
+The native SLSA statement records the actual external builder. A thin hosted
+Docker/OIDC bridge waits for the exact complete native pipeline, validates the
+pulled digest offline, signs/attests without rebuilding, then promotes aliases
+and publishes the owned draft. Native dispatch exits pending so the bridge does
+not wait on an occupied runner. Release-time fresh-main Pages remains in that
+hosted dependent job with explicit exact-commit branch build verification; ordinary
+main Pages moves to Woodpecker. Platform/macOS, native
+Nix/devenv and actual devcontainer exceptions remain until native parity proof.
+No production release is created for migration validation.
 
 Validate shell/YAML/fleet contracts, mocked publication denial/identity behavior,
 native application gates, then exact-source Woodpecker with no production release.

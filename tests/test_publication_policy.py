@@ -122,7 +122,8 @@ class PublicationPolicyTests(unittest.TestCase):
     def test_build_tag_is_per_pipeline_candidate_without_alias(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", "manifest unknown")):
             publisher.prepare()
-            self.assertEqual((Path(directory) / "kaniko.env").read_text(), f"PLUGIN_TAGS=candidate-{SHA}-12\n")
+            self.assertEqual((Path(directory) / "kaniko.env").read_text().splitlines()[0], f"PLUGIN_TAGS=candidate-{SHA}-12")
+            self.assertIn("org.opencontainers.image.revision=" + SHA, (Path(directory) / "kaniko.env").read_text())
 
     def test_manifest_rejects_foreign_revision(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(publisher, "run", return_value='{"Digest":"sha256:' + "b" * 64 + '","Labels":{"org.opencontainers.image.revision":"foreign"}}'):
@@ -155,6 +156,43 @@ class PagesPublicationTests(unittest.TestCase):
             self.assertEqual(publisher.context("push"), (SHA, ""))
             with self.assertRaises(ValueError):
                 publisher.context()
+
+    def test_public_site_validation_resolves_canonical_tag_without_rest_or_credentials(self):
+        from unittest.mock import MagicMock
+        response = MagicMock()
+        response.__enter__.return_value.geturl.return_value = "https://github.com/bolens/uddns/releases/tag/v1.2.3"
+        with patch("urllib.request.urlopen", return_value=response) as request:
+            self.assertEqual(publisher.public_release(), {"id": None, "tag_name": "v1.2.3"})
+            outgoing = request.call_args.args[0]
+            self.assertEqual(outgoing.method, "HEAD")
+            self.assertEqual(outgoing.full_url, "https://github.com/bolens/uddns/releases/latest")
+            self.assertNotIn("Authorization", outgoing.headers)
+            response.__enter__.return_value.geturl.return_value = "https://other.example/releases/tag/v1.2.3"
+            with self.assertRaisesRegex(ValueError, "not canonical"):
+                publisher.public_release()
+
+    def test_prepared_release_metadata_is_bound_to_source_and_has_no_bearer(self):
+        release = {"id": 10, "tag_name": "v1.2.3"}
+        with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(publisher, "api", return_value=release) as api, patch.object(publisher, "public_release") as public:
+            publisher.prepare_pages()
+            api.assert_called_once_with(f"repos/{publisher.REPOSITORY}/releases/latest")
+            self.assertEqual(publisher.pages_release(SHA), release)
+            self.assertEqual(set(json.loads((Path(directory) / "pages-release.json").read_text())), {"repository", "commit", "release"})
+            public.assert_not_called()
+            with self.assertRaisesRegex(ValueError, "another source"):
+                publisher.pages_release("d" * 40)
+
+    def test_tag_only_public_validation_cannot_authorize_pages_push(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(publisher, "api") as api:
+            site = Path(directory) / "site"
+            site.mkdir()
+            (site / "index.html").write_text("public")
+            record = {"repository": publisher.REPOSITORY, "commit": SHA, "release_id": None,
+                      "pagesSourceSHA": SHA, "files": publisher.site_files(site), "release": "v1.2.3"}
+            (Path(directory) / "pages-manifest.json").write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                publisher.publish_pages()
+            api.assert_not_called()
 
     def test_pages_modified_after_render_cannot_push(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(publisher, "api") as api:
