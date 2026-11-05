@@ -86,3 +86,17 @@ Mocked lifecycle and archive-ownership tests validate the transfer contract
 without starting a daemon; actual remote-engine execution remains separate
 operator verification. This optional transport does not change hosted CI or
 Woodpecker runner provisioning.
+
+## Native Linux CI parity
+
+The existing Woodpecker `woodpecker` workflow also runs the locked `devenv test`
+gate in a pinned Nix container, without a Docker socket, host mounts or publisher
+credentials. Nix builds use one job and two cores; application tests use bounded workers.
+The generated validation-only profile includes the same gate and check identity.
+
+Keep `WOODPECKER_NIX_CI` absent or false until the exact PR and genuine merged-main
+native runs pass. Only then may the operator set it to literal `true` to skip the
+duplicate hosted Linux `devenv test` step. Clearing the flag restores that check.
+The flag does not skip macOS, actual Docker development/runtime/editor-image
+validation, or OIDC signing, and does not authorize publishing. Source review and
+workflow parsing do not prove cold-store Nix execution or native parity.

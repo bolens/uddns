@@ -46,3 +46,13 @@ enables the GitHub flag and selects the full profile before the genuine merge pu
 Rollback drains both native/hosted publishers before selecting validation-only and
 clearing the flag. Restarts reuse stored definitions; only new pipelines discover
 profile changes. Preserve PR cancellation and unrelated settings.
+
+## Linux development-environment parity follow-up
+
+Append the owning pinned `devenv test` command as a new Nix-image step within the
+existing core workflow; keep all current basenames, dependencies and required
+contexts. Use the already trusted public cache, one Nix build job/two cores and
+bounded test workers. Regenerate the byte-identical validation profile. Retain
+actual Docker, macOS and OIDC checks. A separate `WOODPECKER_NIX_CI` flag defaults
+off and skips only the hosted Linux native test after exact PR and genuine main
+proof. Root owns the flag; source delivery does not enable it.

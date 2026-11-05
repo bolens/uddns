@@ -53,3 +53,21 @@ steps:
       - UDDNS_CONFIG_FILE=examples/uddns.failover.yaml node dist/cli.js check-config
       - python3 scripts/ci/check-site-accessibility.py
       - python3 scripts/ci/check-site-links.py
+  - name: development-environment
+    image: nixos/nix:2.35.4@sha256:f159a58f390677f41e8e900a74b6e2f9c7f27b364122ae6acf7a652ce6c551c0
+    environment:
+      CI: 'true'
+      VP_GIT_HOOKS: '0'
+      TEST_SHARD_TOTAL: '2'
+      VITEST_MAX_WORKERS: '1'
+      NIX_CONFIG: |-
+        experimental-features = nix-command flakes
+        sandbox = false
+        build-users-group =
+        max-jobs = 1
+        cores = 2
+        extra-substituters = https://devenv.cachix.org
+        extra-trusted-public-keys = devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=
+    commands:
+      - git config --global --add safe.directory "$CI_WORKSPACE"
+      - nix run github:cachix/devenv/42246161fa3bf7cd18f8334d08c73d6aaa8762d3 -- test
