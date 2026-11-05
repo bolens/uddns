@@ -40,6 +40,11 @@ adding credentials to validate the complete provider configuration.
 
 Set `VP_GIT_HOOKS=0` when hooks should not be installed.
 
+The pnpm catalog keeps Vite+, its Vite core, Vitest, and the coverage provider
+compatible. Use the target Vite+ release's migration command when updating this
+coupled toolchain, review its migration findings, and verify all deterministic
+tests and coverage thresholds before merging.
+
 Provider HTTP suites use `stubFetch` (which installs a pin-path transport
 override), so `vp test` and CI stay deterministic without live dials. Dyn is
 the only bundled provider with a public client-development test account. Other

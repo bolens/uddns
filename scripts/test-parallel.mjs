@@ -44,6 +44,7 @@ const shardRuns = Array.from({ length: shardTotal }, (_, i) => {
     [
       `--shard=${shard}/${shardTotal}`,
       '--reporter=blob',
+      `--outputFile=.vitest-reports/blob-${shard}-${shardTotal}.json`,
       // Print failures even when a failed shard prevents report merging.
       '--reporter=default',
       '--coverage',
@@ -69,7 +70,7 @@ if (failures.length > 0) {
 }
 
 console.log('Merging shard reports and coverage…');
-await run(['--merge-reports', '--coverage']);
+await run(['--merge-reports=.vitest-reports', '--coverage']);
 
 // Drop per-shard coverage scratch dirs; merged report lives in ./coverage
 for (let shard = 1; shard <= shardTotal; shard++) {

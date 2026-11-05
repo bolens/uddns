@@ -195,7 +195,7 @@ jobs:
           merge-multiple: true
 
       - name: Merge test reports and coverage
-        run: pnpm run test -- --merge-reports --coverage
+        run: pnpm run test -- --merge-reports=.vitest-reports --coverage
 
       - name: Upload coverage report
         if: ${{ !cancelled() }}
