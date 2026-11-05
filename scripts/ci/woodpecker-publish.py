@@ -20,7 +20,7 @@ class PublicationDisabled(Exception):
 
 def sanitized_environment():
     environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("GH_", "GITHUB_", "GIT_"))
+                   if not key.startswith(("GH_", "GITHUB_", "GIT_", "CI_NETRC_", "CURL_TRACE", "CURL_VERBOSE"))
                    and key not in {"SSH_ASKPASS", "WOODPECKER_PUBLISH_LEASE"}}
     environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="/dev/null",
                        GIT_TERMINAL_PROMPT="0")
@@ -63,9 +63,16 @@ def github_environment():
                 record = json.load(response)
             token = record["token"]
             expires = record["expires_at"]
-            expiry = (float(expires) if isinstance(expires, (int, float)) else
-                      datetime.datetime.fromisoformat(expires.replace("Z", "+00:00")).timestamp())
-            if not isinstance(token, str) or not token or not math.isfinite(expiry) or expiry - time.time() < 120:
+            if isinstance(expires, (int, float)):
+                expiry = float(expires)
+            else:
+                parsed = datetime.datetime.fromisoformat(expires.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    raise ValueError("broker expiry requires a timezone")
+                expiry = parsed.timestamp()
+            if (not isinstance(token, str) or not token
+                    or any(ord(character) < 33 or ord(character) > 126 for character in token)
+                    or not math.isfinite(expiry) or expiry - time.time() < 120):
                 raise ValueError("invalid broker credential")
         except Exception:
             # Never expose HTTP response bodies, request objects, lease or token.
@@ -292,6 +299,9 @@ def publish_pages():
         guard(pages_event())
         if api(f"repos/{REPOSITORY}/commits/main")["sha"] != record["pagesSourceSHA"]:
             raise ValueError("Pages source changed before push")
+        latest = api(f"repos/{REPOSITORY}/releases/latest")
+        if latest["id"] != record["release_id"] or latest["tag_name"] != record["release"]:
+            raise ValueError("Pages release changed before push")
         run("git", "push", remote, "HEAD:refs/heads/gh-pages", cwd=destination, env=git_environment())
 
 

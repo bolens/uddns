@@ -1,0 +1,30 @@
+# DEFAULT DISABLED. After broker/native proof, move into .woodpecker/pages.yml
+# together with the validation/publishing cutover described in the migration plan.
+# The tag finalizer must invoke the same fresh-main build after release completion;
+# candidate image creation alone is not release completion.
+labels:
+  platform: linux/amd64
+  backend: docker
+depends_on:
+  - validation
+when:
+  - event: push
+    branch: main
+    evaluate: CI_FORGE_TYPE == "github" && CI_FORGE_URL == "https://github.com" && CI_REPO == "bolens/uddns"
+steps:
+  - name: build-current-main-site
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends python3 git curl chromium ca-certificates
+      - env -u WOODPECKER_PUBLISH_LEASE bash scripts/ci/check-pages.sh
+  - name: publish-validated-site
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      WOODPECKER_PUBLISH_LEASE:
+        from_secret: github_publish_lease
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends python3 git gh ca-certificates
+      - python3 scripts/ci/woodpecker-publish.py publish-pages

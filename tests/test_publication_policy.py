@@ -35,7 +35,7 @@ class PublicationPolicyTests(unittest.TestCase):
         self.addCleanup(self.git.stop)
 
     def test_lease_is_redeemed_at_fixed_endpoint_and_cached_without_trace_env(self):
-        reply = io.BytesIO(json.dumps({"token": "unit-test-token", "expires_at": 5000}).encode())
+        reply = io.BytesIO(json.dumps({"token": "unit-test-token", "expires_at": "1970-01-01T01:23:20Z"}).encode())
         with patch.dict(os.environ, {"WOODPECKER_PUBLISH_LEASE": "unit-test-lease", "GH_DEBUG": "api", "GIT_TRACE": "1"}), patch.object(publisher, "_GITHUB_CREDENTIAL", None), patch("time.time", return_value=1000), patch("urllib.request.build_opener") as build:
             build.return_value.open.return_value = reply
             first = publisher.github_environment()
@@ -168,6 +168,21 @@ class PagesPublicationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 publisher.publish_pages()
             api.assert_not_called()
+
+    def test_new_release_before_push_cannot_append_stale_metadata(self):
+        replies = [{"sha": SHA}, {"id": 10, "tag_name": "v1.2.3"},
+                   {"sha": SHA}, {"id": 11, "tag_name": "v1.2.4"}]
+        with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(publisher, "api", side_effect=replies), patch.object(publisher, "github_environment", return_value={"GH_TOKEN": "unit-test-token"}), patch.object(publisher, "run", return_value="existing-branch") as git:
+            site = Path(directory) / "site"
+            site.mkdir()
+            (site / "index.html").write_text("public")
+            record = {"repository": publisher.REPOSITORY, "commit": SHA,
+                      "pagesSourceSHA": SHA, "files": publisher.site_files(site),
+                      "release_id": 10, "release": "v1.2.3"}
+            (Path(directory) / "pages-manifest.json").write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "release changed before push"):
+                publisher.publish_pages()
+            self.assertFalse(any(call.args[:2] == ("git", "push") for call in git.call_args_list))
 
     def test_pages_push_preserves_history_and_keeps_auth_out_of_argv(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(publisher, "OUTPUT", Path(directory)), patch.object(publisher, "guard", return_value=(SHA, "")), patch.object(publisher, "api", return_value={"id": 10, "tag_name": "v1.2.3", "sha": SHA}), patch.object(publisher, "github_environment", side_effect=[{"GH_TOKEN": "unit-test-token"}, {"GH_TOKEN": "refreshed-test-token"}]), patch.object(publisher, "run", return_value="existing-branch") as git:
