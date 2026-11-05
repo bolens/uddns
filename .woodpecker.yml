@@ -1,4 +1,4 @@
-# Portable validation on Gitea-connected Woodpecker runners. No publication credentials.
+# Portable Linux validation on either forge. Publication is a separate trusted workflow.
 labels:
   platform: linux/amd64
   backend: docker
@@ -20,3 +20,23 @@ steps:
       - pnpm install --frozen-lockfile
       - pnpm run verify
       - python3 -m unittest discover -s tests -p 'test_*development_container.py'
+      - python3 -m unittest discover -s tests -p test_publication_policy.py
+  - name: fleet-contracts
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      CI: 'true'
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates python3 python3-venv shellcheck
+      - bash scripts/ci/check-fleet.sh
+  - name: config-and-site
+    image: node:26-bookworm@sha256:fa52d1669505e29b58c042875b1d65c229e0787a3610fd52869b22b68e480853
+    environment:
+      CI: 'true'
+      VP_GIT_HOOKS: '0'
+    commands:
+      - UDDNS_CONFIG_FILE=examples/uddns.multi.yaml node dist/cli.js check-config
+      - UDDNS_CONFIG_FILE=examples/uddns.failover.yaml node dist/cli.js check-config
+      - python3 scripts/ci/check-site-accessibility.py
+      - python3 scripts/ci/check-site-links.py

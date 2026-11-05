@@ -130,18 +130,20 @@ For pinned native shells and local Docker, Podman, or Apple container tooling, s
 
 ## Woodpecker CI
 
-[.woodpecker.yml](../.woodpecker.yml) runs on pushes, pull requests, and manual builds
-in a Gitea-connected Woodpecker installation. Either Linux Docker runner can
-execute the workflow. Container images are pinned by digest.
+[`.woodpecker.yml`](../.woodpecker.yml) runs portable Linux checks on either forge.
+The migration targets direct GitHub-connected Woodpecker for canonical
+publication; Gitea copies validate only. Actions remains the publication owner
+until the cutover is accepted. The migration contract and remaining acceptance work
+are recorded in [`specs/003-woodpecker-publishing/spec.md`](../specs/003-woodpecker-publishing/spec.md).
 
-The workflow runs the existing `pnpm run verify` gate: formatting, type-aware lint,
-types, dependency pins, all deterministic test shards with merged coverage, build, and
-dead-code checks, followed by the deterministic local/remote container-adapter unit
-tests. It uses the package manager version declared in `package.json`. Live
-provider tests remain opt-in and are not run. Image publication and release signing
-continue in GitHub Actions.
+Existing GitHub Actions gates remain required until the exact-source Woodpecker
+checks pass and the owning host settings migrate. Native macOS and GitHub OIDC
+signing are retained platform exceptions. Docker build/runtime checks remain on
+Actions until equivalent isolated build and fixture execution are proven; runners
+do not receive a host Docker socket or broader privileges.
 
-Activate this repository in Woodpecker after its GitHub source branch has been
-synchronized to Gitea. The existing GitHub checks remain required until their
-coverage and release responsibilities are migrated explicitly. Review image
-digest updates alongside the repository toolchain and lockfiles.
+Publication is disabled by default. Activation requires the authenticated server
+secret broker's exact GitHub repository/ref/SHA policy and the canonical GitHub
+repository variable `WOODPECKER_PUBLISHING=true`. No PR, fork, manual or Gitea
+workflow receives publication credentials. Existing release/version rules remain
+in [the release playbook](../RELEASING.md).

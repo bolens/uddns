@@ -9,3 +9,5 @@ The baseline includes [legacy contracts](001-updater-baseline/legacy-contracts.m
 and [coverage of all providers and supporting interfaces](001-updater-baseline/legacy-coverage.md).
 
 - [Development environments](002-development-environments/spec.md): prospective native and container tooling contract.
+
+- [003-woodpecker-publishing](003-woodpecker-publishing/spec.md): portable CI and controlled publication (implementation in progress).

@@ -1,0 +1,47 @@
+# DEFAULT DISABLED: example is outside Woodpecker config discovery.
+# Activation is an atomic cutover: move .woodpecker.yml to
+# .woodpecker/validation.yml, then this example to .woodpecker/publishing.yml.
+# Keep the validation dependency, broker policy and host variable required.
+# This workflow publishes candidates only. Runtime verification, OIDC bridge and
+# serialized alias promotion remain required before consumer delivery is enabled.
+labels:
+  platform: linux/amd64
+  backend: docker
+depends_on:
+  - validation
+when:
+  - event: tag
+    evaluate: CI_FORGE_TYPE == "github" && CI_FORGE_URL == "https://github.com" && CI_REPO == "bolens/uddns"
+steps:
+  - name: authorize-candidate
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      WOODPECKER_PUBLISH_LEASE:
+        from_secret: github_publish_lease
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends gh git python3 skopeo ca-certificates
+      - python3 scripts/ci/woodpecker-publish.py prepare
+  - name: build-candidate
+    image: woodpeckerci/plugin-kaniko:2.3.4@sha256:497071c44ffd0c24d6e3e3e49993c33a6544eb30a5e3f887c031d2b643238432
+    settings:
+      registry: ghcr.io
+      repo: bolens/uddns
+      username:
+        from_secret: ghcr_username
+      password:
+        from_secret: ghcr_password
+      env_file: .woodpecker-out/kaniko.env
+      dockerfile: Dockerfile
+      context: .
+      extra_opts: >-
+        --digest-file=.woodpecker-out/image.digest
+        --label=org.opencontainers.image.source=https://github.com/bolens/uddns
+        --label=org.opencontainers.image.revision=${CI_COMMIT_SHA}
+  - name: verify-candidate-identity
+    image: node:26-trixie@sha256:6d2c7d5d074bf72f81ddc252b4fbb5d625bc028eeda49cb4b8c2ff8eda1ee617
+    environment:
+      WOODPECKER_PUBLISH_LEASE:
+        from_secret: github_publish_lease
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends gh git python3 skopeo ca-certificates
+      - python3 scripts/ci/woodpecker-publish.py manifest
