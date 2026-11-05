@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.paths.outputs.environment }}
+      devcontainer: ${{ steps.paths.outputs.devcontainer }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -28,6 +29,9 @@ jobs:
         id: paths
         with:
           filters: |
+            devcontainer:
+              - ".devcontainer/**"
+              - ".github/workflows/devenv.yml"
             environment:
               - 'devenv.*'
               - '.github/workflows/devenv.yml'
@@ -92,10 +96,28 @@ jobs:
           python3 scripts/development-container.py build docker
           python3 scripts/development-container.py run docker -- bash scripts/check-development.sh
 
+  devcontainer:
+    name: Devcontainer build and smoke
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.devcontainer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build maintained devcontainer Dockerfile
+        run: docker build --tag uddns-devcontainer:ci --file .devcontainer/Dockerfile .devcontainer
+      - name: Smoke test tools without a Docker socket or network
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" --env HOME=/tmp \
+            --volume "$GITHUB_WORKSPACE:/workspace" --workdir /workspace \
+            --entrypoint bash uddns-devcontainer:ci .devcontainer/smoke.sh
+
   result:
     name: Development environment
     if: always()
-    needs: [changes, validate, container]
+    needs: [changes, validate, container, devcontainer]
     runs-on: ubuntu-latest
     steps:
       - name: Require selected environment checks
@@ -103,7 +125,14 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           VALIDATE: ${{ needs.validate.result }}
           CONTAINER: ${{ needs.container.result }}
+          DEVCONTAINER: ${{ needs.devcontainer.result }}
+          DEVCONTAINER_SELECTED: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.devcontainer == 'true' }}
         run: |
           test "$CHANGES" = success
           case "$VALIDATE" in success|skipped) ;; *) exit 1 ;; esac
           case "$CONTAINER" in success|skipped) ;; *) exit 1 ;; esac
+          if [ "$DEVCONTAINER_SELECTED" = true ]; then
+            test "$DEVCONTAINER" = success
+          else
+            case "$DEVCONTAINER" in success|skipped) ;; *) exit 1 ;; esac
+          fi

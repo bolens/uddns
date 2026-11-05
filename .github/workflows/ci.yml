@@ -37,6 +37,7 @@ jobs:
       tests: ${{ steps.filter.outputs.tests }}
       docs: ${{ steps.filter.outputs.docs }}
       ci: ${{ steps.filter.outputs.ci }}
+      runtime_image: ${{ steps.filter.outputs.runtime_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,6 +49,20 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
+            runtime_image:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'app.ts'
+              - 'mcp.ts'
+              - 'cli.ts'
+              - 'lib/**'
+              - 'tsconfig*.json'
+              - 'package.json'
+              - 'pnpm-*.yaml'
+              - '.npmrc'
+              - 'examples/**'
+              - 'scripts/check-runtime-container.sh'
+              - '.github/workflows/ci.yml'
             code:
               - 'app.ts'
               - 'mcp.ts'
@@ -252,10 +267,23 @@ jobs:
           - examples/uddns.multi.yaml
           - examples/uddns.failover.yaml
 
+  runtime-image:
+    name: Runtime image config fixtures
+    needs: changes
+    if: needs.changes.outputs.runtime_image == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build runtime image and validate offline fixtures
+        run: bash scripts/check-runtime-container.sh
+
   ci-result:
     name: CI result
     if: always()
-    needs: [supply-chain, changes, check, test, test-report, build, config-dry-run]
+    needs: [supply-chain, changes, check, test, test-report, build, config-dry-run, runtime-image]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
