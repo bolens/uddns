@@ -63,7 +63,7 @@ elif args[0] == "rm":
         self.env = {**fixture_env, "CONTAINER_ENGINE": str(self.engine), "DOCKER_TEST_LOG": str(self.log), "DOCKER_TEST_ARCHIVE": str(self.archive)}
 
     def run_helper(self, image="fixture-image", **env):
-        return subprocess.run(["bash", str(self.helper), image, "printf", "%s", "$HOME; a b"], env={**self.env, **env}, capture_output=True, text=True, timeout=10)
+        return subprocess.run(["bash", str(self.helper), image, "printf", "%s", "$HOME; a b"], env={**self.env, **env}, capture_output=True, text=True, timeout=10, check=False)
 
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
