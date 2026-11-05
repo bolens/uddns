@@ -56,3 +56,7 @@ Run `bash scripts/check-runtime-container.sh` to build the runtime Dockerfile an
 validate both placeholder configuration examples with networking disabled. CI runs
 this check when runtime source, image pins, dependencies, fixtures, or the check
 changes. It does not start the updater or contact providers.
+
+The runtime image install allows five minutes per pnpm download because pnpm 11
+bounds the entire transfer, including the managed musl Node archive. Frozen lockfile
+and archive-integrity checks remain enabled.

@@ -3,7 +3,8 @@ FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f
 RUN npm install --global pnpm@11.24.0
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN VP_GIT_HOOKS=0 pnpm install --frozen-lockfile
+# pnpm 11 bounds the whole runtime archive transfer; allow slow musl downloads.
+RUN VP_GIT_HOOKS=0 pnpm install --frozen-lockfile --fetch-timeout=300000
 
 FROM dependencies AS build
 COPY app.ts mcp.ts cli.ts package.json tsconfig.json tsconfig.build.json ./
