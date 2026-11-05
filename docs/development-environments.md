@@ -44,3 +44,19 @@ The Linux image includes the standard ELF loader path and GCC runtime libraries
 required by pnpm’s downloaded Node binary. These paths exist only inside the image.
 Native and container installs can relink `node_modules`; rerun `repo-check` when
 switching between them.
+
+## Container validation
+
+The Development environment workflow builds the maintained `.devcontainer/Dockerfile`
+and runs its tool smoke check when `.devcontainer/` changes. This check is separate
+from the Nix-generated development image and runs without a Docker socket or network
+inside the smoke container.
+
+Run `bash scripts/check-runtime-container.sh` to build the runtime Dockerfile and
+validate both placeholder configuration examples with networking disabled. CI runs
+this check when runtime source, image pins, dependencies, fixtures, or the check
+changes. It does not start the updater or contact providers.
+
+The runtime image install allows five minutes per pnpm download because pnpm 11
+bounds the entire transfer, including the managed musl Node archive. Frozen lockfile
+and archive-integrity checks remain enabled.
