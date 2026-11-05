@@ -93,8 +93,8 @@ validation PR checks do not require publication credentials or flag changes.
 
 ## Publish
 
-Create an annotated tag at the verified `origin/main` commit and push only that
-tag:
+Create a signed annotated tag at the verified `origin/main` commit and push only
+that tag:
 
 ```bash
 version="$(node -p "require('./package.json').version")"

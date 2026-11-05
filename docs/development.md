@@ -130,11 +130,19 @@ For pinned native shells and local Docker, Podman, or Apple container tooling, s
 
 ## Woodpecker CI
 
-[`.woodpecker.yml`](../.woodpecker.yml) runs portable Linux checks on either forge.
-The migration targets direct GitHub-connected Woodpecker for canonical
-publication; Gitea copies validate only. Actions remains the publication owner
-until the cutover is accepted. The migration contract and remaining acceptance work
-are recorded in [`specs/003-woodpecker-publishing/spec.md`](../specs/003-woodpecker-publishing/spec.md).
+[`.woodpecker/`](../.woodpecker/) contains the full validation and publishing
+profile. Its [`woodpecker.yml`](../.woodpecker/woodpecker.yml) core runs portable
+Linux checks on either forge. Gitea copies select the generated
+[validation-only profile](../.woodpecker-validation/) and do not publish.
+
+Canonical GitHub-connected Woodpecker publication requires the authenticated
+broker policy, `WOODPECKER_PUBLISHING=true`, and the full profile, with retained
+GitHub OIDC/Pages bridges. Enable that paired configuration before the genuine
+main push that proves cutover. Before disabling publication, drain native and
+hosted publishers, select the validation-only profile first, then clear the flag.
+Follow [the cutover contract](releasing.md) for the ordered settings and rollback.
+The migration contract and remaining acceptance work are recorded in
+[`specs/003-woodpecker-publishing/spec.md`](../specs/003-woodpecker-publishing/spec.md).
 
 Existing GitHub Actions gates remain required until the exact-source Woodpecker
 checks pass and the owning host settings migrate. Native macOS and GitHub OIDC
