@@ -29,7 +29,7 @@ security guidance, and Pages data together when affected.
 ```sh
 pnpm install --frozen-lockfile
 pnpm run verify
-test "$(node -p 'require(\"./package.json\").version')" = X.Y.Z
+test "$(node -p 'require("./package.json").version')" = X.Y.Z
 ```
 
 Default tests must use stubbed providers. Never use live tokens or perform DNS
