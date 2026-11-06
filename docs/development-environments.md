@@ -111,3 +111,16 @@ as their entrypoint. `enterShell` stays unchanged. The gate also executes the
 managed Node binary and checks its version against `package.json` before full
 verification. Native runtime acceptance remains required before the Nix flag
 cutover.
+
+## Nix compatibility and warning checks
+
+Use the locked devenv 2.4.0 CLI and reviewed nix2container revision with the
+existing unrelated inputs preserved. Keep the git-hooks input and its legacy
+alias explicit. Standard `nixbld` users prevent Go build telemetry from creating
+the placeholder home in disposable Nix containers. The container helper uses
+the 2.x `copy` subcommand registry option.
+
+Accept cache configuration only on the immutable upstream CLI invocation,
+never globally for repository flakes. Preserve the existing publication,
+source-validation and platform cutover flags; require current native and
+hosted execution before accepting the upgrade.
