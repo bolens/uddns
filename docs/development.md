@@ -45,6 +45,14 @@ compatible. Use the target Vite+ release's migration command when updating this
 coupled toolchain, review its migration findings, and verify all deterministic
 tests and coverage thresholds before merging.
 
+For an existing Vite+ project, run the target release's `vp help migrate`, then
+`vp migrate --no-interactive --no-hooks --no-editor` through that exact release.
+This preserves the repository-owned Git hooks and editor settings while updating
+the coupled catalog and lockfile. Inspect both the direct Vite alias and the
+Vite+ dependency: a bot update to only `vite-plus` can retain two Vite core
+versions. Regenerate the lockfile with the pinned pnpm version, review migration
+findings and formatting changes, and run `vp run verify` before delivery.
+
 Provider HTTP suites use `stubFetch` (which installs a pin-path transport
 override), so `vp test` and CI stay deterministic without live dials. Dyn is
 the only bundled provider with a public client-development test account. Other
@@ -129,6 +137,17 @@ For pinned native shells and local Docker, Podman, or Apple container tooling, s
 [development environments](development-environments.md).
 
 ## Woodpecker CI
+
+| Functional group      | Canonical local command                                                                       | Native workflow                                  |
+| --------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Validation            | `devenv test` → `bash scripts/check-development.sh`                                           | Legacy `woodpecker` development-environment step |
+| Source and unit tests | `pnpm run verify`                                                                             | Legacy `woodpecker` verify step                  |
+| Workflow security     | `actionlint` and `zizmor --offline --min-severity medium --min-confidence medium .github`     | Legacy `woodpecker` development-environment step |
+| Site validation       | `python3 scripts/ci/check-site-accessibility.py` and `python3 scripts/ci/check-site-links.py` | Legacy `woodpecker` config-and-site step         |
+
+The legacy workflow and required status names remain stable until a coordinated
+fleet migration updates their callers, release dependencies and host settings.
+macOS and actual Docker/editor checks remain separate platform coverage.
 
 [`.woodpecker/`](../.woodpecker/) contains the full validation and publishing
 profile. Its [`woodpecker.yml`](../.woodpecker/woodpecker.yml) core runs portable
