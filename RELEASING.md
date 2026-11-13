@@ -84,3 +84,24 @@ skipped fallback. Retain macOS and actual Docker environment validation.
 Use the [shared local reproduction instructions](https://github.com/bolens/.github/blob/7603518f305fb76f7bb1b9979f2692521f633b82/docs/source-lint.md)
 with the same pinned tooling revision. Review exclusions when adding source files;
 generated and imported files retain their native validation.
+
+## Managed integration validation
+
+`bash scripts/ci/check-spec-kit.sh` runs the reviewed public fleet validator at
+`c161a6757130ea687def9eb1e81c6a4190488f07` against the current managed manifests.
+It checks the downloaded script's SHA-256 before execution, rejects redirects,
+limits the download to 64 KiB and 60 seconds, and bounds validation to four
+minutes. Local reproduction requires Bash and Python 3 on Linux/macOS with HTTPS
+access. Temporary supplier files are removed. No secret or installed skill link
+is required.
+
+The repository maintainer reviews this direct pin during monthly dependency
+maintenance and whenever the shared validator receives a security fix. Review
+the immutable commit and checksum together, then require actual native PR and
+merged-main validation. Existing dependency automation does not monitor this
+embedded pin. The existing native check identity and mixed GitHub Spec Kit
+workflow/updater configuration are preserved.
+
+The existing `scripts/ci/check-fleet.sh` command includes this validator in its
+`fleet-contracts` step. Shared source-tooling and publishing ownership stay with
+their existing commands and protected refs.
