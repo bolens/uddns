@@ -25,8 +25,7 @@ export PATH="$scratch/venv/bin:$scratch:$PATH"
 fetch_tooling 7603518f305fb76f7bb1b9979f2692521f633b82 "$scratch/source"
 npm ci --ignore-scripts --no-audit --no-fund --prefix "$scratch/source/tools/source-lint"
 python3 "$scratch/source/scripts/lint-source.py" "$root"
-fetch_tooling 7159a187479e511a9420f8f4eec93246a43fea12 "$scratch/spec"
-python3 "$scratch/spec/scripts/validate-spec-kit.py" --expected-version current "$root"
+bash "$root/scripts/ci/check-spec-kit.sh"
 # Same version and checksum as the pinned reusable-actionlint workflow.
 curl --fail --silent --show-error --location --retry 3 \
     --output "$scratch/actionlint.tar.gz" \

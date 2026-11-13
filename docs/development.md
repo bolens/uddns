@@ -143,6 +143,7 @@ For pinned native shells and local Docker, Podman, or Apple container tooling, s
 | Validation            | `devenv test` → `bash scripts/check-development.sh`                                           | Legacy `woodpecker` development-environment step |
 | Source and unit tests | `pnpm run verify`                                                                             | Legacy `woodpecker` verify step                  |
 | Workflow security     | `actionlint` and `zizmor --offline --min-severity medium --min-confidence medium .github`     | Legacy `woodpecker` development-environment step |
+| Managed integration   | `bash scripts/ci/check-spec-kit.sh` (included in `bash scripts/ci/check-fleet.sh`)            | Legacy `woodpecker` fleet-contracts step         |
 | Site validation       | `python3 scripts/ci/check-site-accessibility.py` and `python3 scripts/ci/check-site-links.py` | Legacy `woodpecker` config-and-site step         |
 
 The legacy workflow and required status names remain stable until a coordinated
