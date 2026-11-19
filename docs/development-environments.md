@@ -3,8 +3,10 @@
 [Documentation](README.md)
 
 Install [devenv](https://devenv.sh/getting-started/) and run `devenv shell`.
-The lockfile pins the Nix toolchain, including Node 26.7.0. The Corepack pnpm
-wrapper honors the repository's `packageManager` version (11.24.0).
+The Nix lockfile pins the bootstrap toolchain, including Node 26.7.0. The
+Corepack pnpm wrapper honors the repository's `packageManager` version
+(11.24.0), and pnpm uses the Node runtime pinned in `package.json` for project
+commands.
 Run `devenv test` or `repo-check` inside the shell. The initial install skips lifecycle scripts; hook installation and live-provider
 tests are disabled throughout verification. The wrapper runs
 the existing sharded verification, site source checks, and adapter/workflow lint.
@@ -48,9 +50,9 @@ switching between them.
 ## Container validation
 
 The Development environment workflow builds the maintained `.devcontainer/Dockerfile`
-and runs its tool smoke check when `.devcontainer/` changes. This check is separate
-from the Nix-generated development image and runs without a Docker socket or network
-inside the smoke container.
+and runs its tool smoke check when `.devcontainer/` or `package.json` changes.
+This check is separate from the Nix-generated development image and runs without
+a Docker socket or network inside the smoke container.
 
 Run `bash scripts/check-runtime-container.sh` to build the runtime Dockerfile and
 validate both placeholder configuration examples with networking disabled. CI runs

@@ -8,5 +8,11 @@ for tool in docker git bash python3 node shellcheck ruff actionlint hadolint ziz
   command -v "${tool}" >/dev/null || { echo "Missing development tool: ${tool}" >&2; exit 1; }
 done
 docker compose version
-node -e 'if (Number(process.versions.node.split(".")[0]) !== 26) process.exit(1)'
+node -e '
+  const expected = require("./package.json").devEngines.runtime.version;
+  if (process.versions.node !== expected) {
+    console.error("Expected Node %s, found %s", expected, process.versions.node);
+    process.exit(1);
+  }
+'
 printf "%s\n" "Development tools ready. See .devcontainer/README.md for repository checks."
